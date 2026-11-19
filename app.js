@@ -226,7 +226,7 @@ async function vLeads() {
   const card = r => `<div class="kcard" draggable="true" data-id="${r.id}" data-q="${esc((r.full_name || '') + ' ' + r.phone)}">
     <div class="row spread"><span class="t">${esc(r.full_name || fmtPhone(r.phone))}</span>${r.temperature ? `<span class="chip" style="color:${optColor('temperature', r.temperature)}">${esc(r.temperature)}</span>` : ''}</div>
     <div class="small muted">${esc(r.source || '')}${r.city ? ' · ' + esc(r.city) : ''} ${r.media_qty ? '· ' + r.media_qty + ' פריטים · ' + money(r.total) : ''}</div>
-    ${r.est_quantity ? `<div class="small"><span class="chip blue">כמות משוערת: ${esc(r.est_quantity)}</span></div>` : ''}
+    ${r.est_quantity ? `<div class="small"><span class="chip blue">כמות משוערת: <bdi dir="ltr">${esc(r.est_quantity)}</bdi></span></div>` : ''}
     <div class="small">${r.flag_followup ? '<span class="chip red">פולואפ</span>' : `<span class="muted">פולואפ ${fmtDate(r.next_followup)}</span>`} ${r.is_repeat ? '<span class="chip blue">חוזר</span>' : ''} ${isMobile() ? `<span class="chip">${esc(r.stage)}</span>` : ''}</div></div>`;
   const pipeline = rows.reduce((s, r) => s + Number(r.total || 0), 0);
   const head = `<div class="row spread"><h1>לידים <span class="muted small">${rows.length} · שווי צנרת ${money(pipeline)}</span></h1><input id="lf" placeholder="סינון שם / טלפון" style="max-width:220px"></div>${intro('leads')}`;
@@ -426,7 +426,7 @@ const TABS = {
       <label style="margin-top:8px">למה לא קנה<textarea data-t="o" data-k="loss_note">${esc(o.loss_note || '')}</textarea></label>` : ''}
     </section>
     ${o.meta_lead_id ? `<section class="card"><h2>מטא — ${esc(o.meta_form || 'טופס לידים')}</h2><div class="fields">
-      <label>כמה קלטות/דיסקים/סלילים (לפי הטופס)<input disabled value="${esc(o.est_quantity || '')}"></label>
+      <label>כמה קלטות/דיסקים/סלילים (לפי הטופס)<input disabled dir="ltr" style="text-align:right" value="${esc(o.est_quantity || '')}"></label>
       <label>פלטפורמה<input disabled value="${esc(o.meta_platform === 'ig' ? 'אינסטגרם' : o.meta_platform === 'fb' ? 'פייסבוק' : (o.meta_platform || ''))}"></label>
       <label>קמפיין<input disabled value="${esc(o.meta_campaign || '')}"></label>
       <label>סט מודעות<input disabled value="${esc(o.meta_adset || '')}"></label>
