@@ -43,7 +43,7 @@ const SEC_OPEN = {};
 VIEWS.order = async function vOrder(id) {
   id = Number(id);
   const [o, rl, ri, re] = await Promise.all([getOrder(id), sb.from('order_lines').select('*').eq('order_id', id), sb.from('items').select('*').eq('order_id', id).order('seq'),
-    sb.from('order_events').select('*').eq('order_id', id).order('at', { ascending: false }).limit(150)]);
+    sb.from('order_events').select('*').eq('order_id', id).is('deleted_at', null).order('at', { ascending: false }).limit(150)]);
   [rl, ri, re].forEach(r => fail(r.error));
   const { data: c, error } = await sb.from('customers').select('*').eq('id', o.customer_id).single(); fail(error);
   const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data };
@@ -74,6 +74,18 @@ function renderDeal(ctx) {
     <aside class="side">${sideHtml(ctx)}</aside>
   </div>`;
   bindDeal(ctx);
+  stickyHead();
+}
+// sticky header: mark it when it is stuck (compact look) and tell the side panel how tall it is
+let _stickyObs = null;
+function stickyHead() {
+  const head = $('.deal-head'); if (!head) return;
+  const setH = () => document.documentElement.style.setProperty('--dh', getComputedStyle(head).position === 'sticky' ? head.offsetHeight + 'px' : '0px');
+  setH();
+  _stickyObs?.disconnect();
+  const probe = document.createElement('div'); probe.style.height = '1px'; head.before(probe);
+  _stickyObs = new IntersectionObserver(([e]) => { head.classList.toggle('stuck', !e.isIntersecting); setH(); }, { rootMargin: '-61px 0px 0px 0px' });
+  _stickyObs.observe(probe);
 }
 function dealMeta(o) {
   return `<span>#${o.id}</span><span>·</span><span>${stagePill(o.stage)}</span>${o.total > 0 ? `<span>·</span><b>${money(o.total)}</b>` : ''}
@@ -211,7 +223,7 @@ function itemsHtml(ctx) {
   return `<div class="row spread" style="margin-bottom:12px"><div class="row small"><span class="chip">הוצהרו ${o.media_qty}</span><span class="chip">ברקודים ${items.length}</span><span class="chip blue">הגיעו למעבדה ${o.items_at_lab_or_later}</span><span class="chip green">הומרו ${o.items_converted}</span>${o.intake_done_at ? `<span class="chip">קליטה הסתיימה ${fmtShort(o.intake_done_at)}</span>` : ''}</div>
     <div class="row">${items.length < o.media_qty ? `<button class="btn sm" data-gen>יצירת ${o.media_qty - items.length} ברקודים חסרים</button>` : ''}<a class="btn sm" href="#labels/${o.id}">מדבקות</a><a class="btn sm" href="#manifest/${o.id}">דף משלוח</a></div></div>
     <div class="bulk-bar hidden" id="ibulk"><b id="ibulkN"></b><span>להעביר את כולם ל:</span>
-      <select id="ibulkTo">${statuses.map(s => `<option>${esc(s)}</option>`).join('')}</select><button class="btn sm primary" id="ibulkGo">החלה</button><button class="btn sm ghost" id="ibulkClear">ביטול הבחירה</button></div>
+      <select id="ibulkTo">${statuses.map(s => `<option>${esc(s)}</option>`).join('')}</select><button class="btn sm primary" id="ibulkGo">החלה</button><span>·</span><button class="btn sm ghost" id="ibulkDel" data-tip="למשל כשהלקוח שלח פחות קלטות. אפשר למחוק רק ברקודים שעוד לא נאספו">מחיקת הברקודים</button><button class="btn sm ghost" id="ibulkClear">ביטול הבחירה</button></div>
     <div class="card flush table-wrap"><table><thead><tr><th class="sel"><input type="checkbox" id="iselAll" aria-label="בחירת כל הפריטים"></th><th>ברקוד</th><th>סוג</th><th>מה כתוב עליו</th><th>איפה הוא</th><th>פגום</th><th>הערה</th></tr></thead><tbody>
     ${items.map(it => `<tr><td class="sel"><input type="checkbox" data-isel="${esc(it.id)}" aria-label="בחירת ${esc(it.id)}"></td><td><b class="num">${esc(it.id)}</b></td><td class="small">${esc(productName(it.product_id).split(' (')[0])}</td>
       <td><input data-isave="${esc(it.id)}:label_text" value="${esc(it.label_text || '')}" placeholder="למשל: חתונה 1994"></td>
@@ -239,7 +251,10 @@ function sideHtml(ctx) {
       <label class="field"><textarea data-save="orders:${o.id}:notes" rows="4" placeholder="מה חשוב לזכור על הלקוח הזה (למשל: הקלטות של החתונה, רגיש)">${esc(o.notes || '')}</textarea></label></section>
     <section class="card"><div class="card-head"><h3>יומן</h3><span class="small muted">${ctx.events.length}</span></div>
       <form id="noteForm" class="row nowrap" style="margin-bottom:8px"><input name="t" placeholder="מה קרה? (שיחה, עדכון…)" required><button class="btn sm">הוספה</button></form>
-      <ul class="timeline">${ctx.events.map(ev => { const [ic, cls] = EV_IC[ev.kind] || EV_IC.note; return `<li><span class="ic ${cls}">${ic}</span><div><div>${evText(ev)}</div><div class="w">${fmtDT(ev.at)}${ev.by_email ? ' · ' + esc(ev.by_email.split('@')[0]) : ''}</div></div></li>`; }).join('') || '<li class="muted small" style="display:block">עוד אין רישומים</li>'}</ul>
+      <ul class="timeline">${ctx.events.map(ev => { const [ic, cls] = EV_IC[ev.kind] || EV_IC.note, note = ev.kind === 'note';
+        return `<li data-ev="${ev.id}"><span class="ic ${cls}">${ic}</span><div><div class="ev-t">${evText(ev)}</div><div class="w">${fmtDT(ev.at)}${ev.by_email ? ' · ' + esc(ev.by_email.split('@')[0]) : ''}${ev.edited_at ? ` · <span data-tip="${esc('לפני העריכה: ' + (ev.original_value || ''))}">נערך</span>` : ''}
+          ${note ? `<span class="ev-acts"><button class="link-btn" data-evedit="${ev.id}">עריכה</button><button class="link-btn danger" data-evdel="${ev.id}">מחיקה</button></span>` : ''}</div></div></li>`; }).join('') || '<li class="muted small" style="display:block">עוד אין רישומים</li>'}</ul>
+      <p class="tiny muted" style="margin-top:6px">הערות אפשר לערוך ולמחוק. מעברי שלב, תשלומים ושיחות נרשמים לבד ולא נערכים, כדי שההיסטוריה תישאר אמינה.</p>
     </section>`;
 }
 
@@ -277,7 +292,7 @@ async function runCheck(ctx, k) {
   if (k.act === 'intake') {
     const miss = o.media_qty - o.items_at_lab_or_later;
     if (miss > 0 && !await ask('חסרים פריטים', `נקלטו ${o.items_at_lab_or_later} מתוך ${o.media_qty}. לסיים קליטה ולסמן פער?`, { ok: 'לסיים עם פער' })) return;
-    const { error } = await sb.rpc('finish_intake', { p_order: o.id }); fail(error); toast('הקליטה הסתיימה', { undo: () => undoOrder(o.id, { intake_done_at: null }) }); return reloadDeal(ctx);
+    await finishIntake(o.id); return reloadDeal(ctx);
   }
   if (k.act.startsWith('ms:')) { await patchOrder(o, { [k.act.slice(3)]: new Date().toISOString() }, 'נרשם: ' + k.label); return reloadDeal(ctx); }
 }
@@ -354,6 +369,16 @@ function bindDeal(ctx) {
   $('#iselAll') && ($('#iselAll').onchange = e => { $$('[data-isel]').forEach(c => c.checked = e.target.checked); syncBulk(); });
   $('#ibulkClear') && ($('#ibulkClear').onclick = () => { $$('[data-isel]').forEach(c => c.checked = false); syncBulk(); });
   $('#ibulkGo') && ($('#ibulkGo').onclick = async () => { const ids = new Set(isel()); if (await bulkItemStatus(ctx.items.filter(i => ids.has(i.id)), $('#ibulkTo').value)) { SEC_OPEN[o.id].add('items'); reloadDeal(ctx); } });
+  $('#ibulkDel') && ($('#ibulkDel').onclick = async () => {
+    const ids = new Set(isel()), sel = ctx.items.filter(i => ids.has(i.id)), moved = sel.filter(i => i.status !== 'ממתין לאיסוף');
+    if (moved.length) return tell('אי אפשר למחוק את הברקודים האלה', `${moved.map(i => i.id).join(', ')} כבר יצאו מהלקוח. מוחקים רק ברקודים בסטטוס "ממתין לאיסוף".`);
+    if (!await ask(`למחוק ${sel.length} ברקודים?`, 'אם המדבקות כבר הודפסו, אל תשתמשו בהן. אפשר לבטל מיד אחרי.', { ok: 'מחיקה', danger: true })) return;
+    const rows = sel.map(({ id, order_id, seq, product_id, label_text, damaged, notes, status }) => ({ id, order_id, seq, product_id, label_text, damaged, notes, status }));
+    await reversible(`${sel.length} ברקודים נמחקו`,
+      async () => { const { error } = await sb.from('items').delete().in('id', rows.map(r => r.id)).eq('status', 'ממתין לאיסוף'); fail(error); },
+      async () => { const { error } = await sb.from('items').insert(rows); fail(error); }, () => reloadDeal(ctx));
+    SEC_OPEN[o.id].add('items'); reloadDeal(ctx);
+  });
   // after-section checks share the step-8 checklist
   $$('[data-body="after"] [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, STEPS[7].checks[Number(b.dataset.chk.slice(1))]));
   $$('[data-body="after"] [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
@@ -361,7 +386,23 @@ function bindDeal(ctx) {
   // side
   $('#contacted') && ($('#contacted').onclick = async () => { await markContacted(ctx.o); reloadDeal(ctx); });
   $$('[data-fu]').forEach(b => b.onclick = async () => { const d = addDays(Number(b.dataset.fu)); const { error } = await sb.from('orders').update({ next_followup: d }).eq('id', o.id); fail(error); $$(`[data-save="orders:${o.id}:next_followup"]`).forEach(i => i.value = d); toast('נחזור ללקוח ב-' + fmtDate(d)); });
-  $('#noteForm').onsubmit = async e => { e.preventDefault(); const t = new FormData(e.target).get('t'); const { error } = await sb.rpc('add_note', { p_order: o.id, p_text: t }); fail(error); reloadDeal(ctx); };
+  // journal notes: edit in place, delete (hidden, restorable) — both with undo/redo
+  const noteRpc = (fn, args) => async () => { const { error } = await sb.rpc(fn, args); fail(error); };
+  $$('[data-evdel]').forEach(b => b.onclick = () => { const id = Number(b.dataset.evdel);
+    reversible('ההערה נמחקה', noteRpc('set_note_deleted', { p_id: id, p_deleted: true }), noteRpc('set_note_deleted', { p_id: id, p_deleted: false }), () => reloadDeal(ctx)).then(() => reloadDeal(ctx)); });
+  $$('[data-evedit]').forEach(b => b.onclick = () => {
+    const id = Number(b.dataset.evedit), ev = ctx.events.find(x => x.id === id), box = $(`[data-ev="${id}"] .ev-t`);
+    box.innerHTML = `<form class="row nowrap"><input value="${esc(ev.new_value || '')}" required><button class="btn sm primary">שמירה</button><button type="button" class="btn sm ghost">ביטול</button></form>`;
+    const f = $('form', box), inp = $('input', f); inp.focus(); inp.select();
+    $('button[type=button]', f).onclick = () => { box.innerHTML = evText(ev); };
+    f.onsubmit = async e => { e.preventDefault(); const t = inp.value.trim(), old = ev.new_value; if (!t || t === old) { box.innerHTML = evText(ev); return; }
+      await reversible('ההערה עודכנה', noteRpc('edit_note', { p_id: id, p_text: t }), noteRpc('edit_note', { p_id: id, p_text: old }), () => reloadDeal(ctx)); reloadDeal(ctx); };
+  });
+  $('#noteForm').onsubmit = async e => { e.preventDefault(); const t = new FormData(e.target).get('t');
+    let nid = null; // first time: add; redo after undo: bring the same note back
+    await reversible('ההערה נוספה', async () => { if (nid) return noteRpc('set_note_deleted', { p_id: nid, p_deleted: false })(); const { data, error } = await sb.rpc('add_note', { p_order: o.id, p_text: t }); fail(error); nid = data; },
+      () => noteRpc('set_note_deleted', { p_id: nid, p_deleted: true })(), () => reloadDeal(ctx));
+    reloadDeal(ctx); };
 }
 async function deleteOrder(o) {
   const f = await formModal('מחיקת הזמנה ' + o.id, `<p>הפעולה לא ניתנת לביטול: נמחקים ההזמנה, הצעת המחיר והברקודים. הלקוח עצמו נשאר.</p><label class="field">כדי לאשר, מקלידים את מספר ההזמנה<input name="n" required inputmode="numeric"></label>`, { ok: 'מחיקה סופית' });

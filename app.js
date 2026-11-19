@@ -35,8 +35,8 @@ const custName = r => r.full_name || fmtPhone(r.phone) || 'ללא שם';
 const plural = (n, one, many) => n === 1 ? one : `${n} ${many}`;
 
 // ---------- toast (with optional undo) ----------
-function toast(msg, { ms = 2400, undo } = {}) {
-  const t = $('#toast'); t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">ביטול</button>' : ''}`;
+function toast(msg, { ms = 2400, undo, label = 'ביטול' } = {}) {
+  const t = $('#toast'); t.innerHTML = `<span>${esc(msg)}</span>${undo ? `<button type="button">${esc(label)}</button>` : ''}`;
   t.classList.remove('hidden'); clearTimeout(t._h);
   if (undo) $('button', t).onclick = () => { t.classList.add('hidden'); undo(); };
   t._h = setTimeout(() => t.classList.add('hidden'), undo ? 6000 : ms);
@@ -104,20 +104,29 @@ async function getOrders(filter) {
   const { data, error } = await q; fail(error); return data;
 }
 const getOrder = async id => { const { data, error } = await sb.from('v_orders').select('*').eq('id', id).single(); fail(error); return data; };
-/** Update an order and offer "ביטול" in the toast, which puts back the previous values (plus any extra columns a trigger may change). */
+/** Undo + redo for any action: runs apply(), then the toast offers "ביטול" (revert) and after that "החזרה" (apply again), back and forth. */
+async function reversible(msg, apply, revert, refresh = route) {
+  await apply();
+  const offerUndo = () => toast(msg, { undo: async () => { await revert(); await refresh(); offerRedo(); } });
+  const offerRedo = () => toast('בוטל, חזר למצב הקודם', { label: 'החזרה', undo: async () => { await apply(); await refresh(); offerUndo(); } });
+  offerUndo();
+}
+const upd = (table, patch, col, val) => async () => { const { error } = await (Array.isArray(val) ? sb.from(table).update(patch).in(col, val) : sb.from(table).update(patch).eq(col, val)); fail(error); };
+/** Update an order with undo/redo. extra = columns a database trigger may also change, so undo puts them back too. */
 async function patchOrder(o, patch, msg, { extra = [] } = {}) {
   const prev = Object.fromEntries([...Object.keys(patch), ...extra].map(k => [k, o[k] ?? null]));
-  const { error } = await sb.from('orders').update(patch).eq('id', o.id); fail(error);
-  if (msg) toast(msg, { undo: () => undoOrder(o.id, prev) });
-  return prev;
+  if (!msg) return upd('orders', patch, 'id', o.id)();
+  await reversible(msg, upd('orders', patch, 'id', o.id), upd('orders', prev, 'id', o.id));
 }
-async function undoOrder(id, prev) { const { error } = await sb.from('orders').update(prev).eq('id', id); fail(error); toast('בוטל, חזר למצב הקודם'); route(); }
+const finishIntake = (id, msg = 'הקליטה הסתיימה', refresh = route) => reversible(msg, async () => { const { error } = await sb.rpc('finish_intake', { p_order: id }); fail(error); }, upd('orders', { intake_done_at: null }, 'id', id), refresh);
 const markContacted = (o, msg = 'נרשם שדיברנו') => patchOrder(o, { last_contact_at: new Date().toISOString() }, msg);
 
 // ---------- field autosave with visible state ----------
 /** Saves on change. Each element: data-save="table:id:column". Shows "שומר… / ✓ נשמר / לא נשמר" in its label. */
 function bindAutosave(root, after) {
-  $$('[data-save]', root).forEach(el => el.addEventListener('change', async () => {
+  const cur = el => el.type === 'checkbox' ? el.checked : el.value;
+  $$('[data-save]', root).forEach(el => { el._prev = cur(el); el.addEventListener('change', async () => {
+    const before = el._prev;
     const [table, id, col] = el.dataset.save.split(':');
     let v = el.type === 'checkbox' ? el.checked : el.value;
     if (el.type === 'datetime-local') v = v ? new Date(v).toISOString() : null;
@@ -129,9 +138,13 @@ function bindAutosave(root, after) {
     const keyCol = table === 'settings' ? 'key' : table === 'coupons' ? 'code' : table === 'staff' ? 'email' : 'id';
     const { error } = await sb.from(table).update({ [col]: v }).eq(keyCol, keyCol === 'id' ? Number(id) : id);
     if (error) { st.className = 'save-state err'; st.textContent = 'לא נשמר'; toast('השמירה נכשלה: ' + error.message, { ms: 5000 }); return; }
-    st.className = 'save-state ok'; st.textContent = '✓ נשמר'; clearTimeout(st._h); st._h = setTimeout(() => st.textContent = '', 2500);
+    el._prev = cur(el);
+    // field-level undo: put the previous value back (it saves again through this same handler)
+    st.className = 'save-state ok'; st.innerHTML = '✓ נשמר <button type="button" class="link-btn">ביטול</button>';
+    $('button', st).onclick = e => { e.preventDefault(); e.stopPropagation(); if (el.type === 'checkbox') el.checked = before; else el.value = before; el.dispatchEvent(new Event('change')); };
+    clearTimeout(st._h); st._h = setTimeout(() => st.textContent = '', 8000);
     after?.(table, col, v, el);
-  }));
+  }); });
 }
 
 // ---------- auth ----------

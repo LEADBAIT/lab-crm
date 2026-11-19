@@ -46,8 +46,9 @@ VIEWS.scan = async function vScan() {
       const miss = its.length - k;
       if (miss && !await ask('חסרים פריטים', `נקלטו ${k} מתוך ${its.length}. חסרים ${miss}. לסיים קליטה ולסמן פער?`, { ok: 'לסיים עם פער' })) return;
       const oid = Number(e.target.dataset.finish);
-      const { error } = await sb.rpc('finish_intake', { p_order: oid }); fail(error);
-      toast('הקליטה הסתיימה', isLab() ? {} : { undo: () => undoOrder(oid, { intake_done_at: null }) }); focusIn();
+      if (isLab()) { const { error } = await sb.rpc('finish_intake', { p_order: oid }); fail(error); toast('הקליטה הסתיימה'); }
+      else await finishIntake(oid, 'הקליטה הסתיימה', () => {}); // stay on the scan screen, keep the log
+      focusIn();
     });
   };
   const handle = async code => {

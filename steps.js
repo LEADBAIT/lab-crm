@@ -123,18 +123,13 @@ async function changeStage(o, to, c) {
 /** Set one item status on many items. items: [{id, status}]. Undo puts each back to its own previous status. */
 async function bulkItemStatus(items, to) {
   const ch = items.filter(i => i.status !== to); if (!ch.length) { toast('כל הפריטים כבר בסטטוס הזה'); return false; }
-  const { error } = await sb.from('items').update({ status: to }).in('id', ch.map(i => i.id)); fail(error);
   const byPrev = {}; ch.forEach(i => (byPrev[i.status] ||= []).push(i.id));
-  toast(`${ch.length} פריטים עודכנו ל"${to}"`, { undo: async () => {
-    const r = await Promise.all(Object.entries(byPrev).map(([s, ids]) => sb.from('items').update({ status: s }).in('id', ids))); r.forEach(x => fail(x.error));
-    toast('בוטל, הפריטים חזרו למצב הקודם'); route(); } });
+  await reversible(`${ch.length} פריטים עודכנו ל"${to}"`, upd('items', { status: to }, 'id', ch.map(i => i.id)),
+    async () => { const r = await Promise.all(Object.entries(byPrev).map(([s, ids]) => sb.from('items').update({ status: s }).in('id', ids))); r.forEach(x => fail(x.error)); });
   return true;
 }
-/** Restore many orders to the values they had before. prevs: [[id, {col: value}]] */
-async function undoMany(prevs) {
-  const r = await Promise.all(prevs.map(([id, p]) => sb.from('orders').update(p).eq('id', id))); r.forEach(x => fail(x.error));
-  toast('בוטל, הכל חזר למצב הקודם'); route();
-}
+/** Write a different patch per order. rows: [[id, patch]] */
+const updMany = rows => async () => { const r = await Promise.all(rows.map(([id, p]) => sb.from('orders').update(p).eq('id', id))); r.forEach(x => fail(x.error)); };
 /** Move many orders to one step. Moves only what can move safely (same phase, nothing required missing) and says what was skipped. */
 async function bulkMove(rows, to) {
   let extra = {};
@@ -160,16 +155,14 @@ async function bulkMove(rows, to) {
   });
   if (!ok.length) { await tell('אף לקוח לא הועבר', skip.map(([o, w]) => `${custName(o)}: ${w}`).join('\n')); return false; }
   const prevs = ok.map(([o, st]) => { const p = { ...extra, ...st, stage: to }; return [o.id, Object.fromEntries([...Object.keys(p), 'completed_at'].map(k => [k, o[k] ?? null])), p]; });
-  const r = await Promise.all(prevs.map(([id, , p]) => sb.from('orders').update(p).eq('id', id))); r.forEach(x => fail(x.error));
-  toast(`${ok.length} הועברו ל"${to}"${skip.length ? ` · ${skip.length} לא הועברו` : ''}`, { undo: () => undoMany(prevs.map(([id, prev]) => [id, prev])) });
+  await reversible(`${ok.length} הועברו ל"${to}"${skip.length ? ` · ${skip.length} לא הועברו` : ''}`, updMany(prevs.map(([id, , p]) => [id, p])), updMany(prevs.map(([id, prev]) => [id, prev])));
   if (skip.length) await tell(`${skip.length} לא הועברו`, skip.map(([o, w]) => `${custName(o)}: ${w}`).join('\n') + '\n\nאת אלה מעבירים מדף הלקוח, שם רואים מה חסר.');
   return true;
 }
 /** Same values on many orders (e.g. one lab for all). */
 async function bulkPatch(rows, patch, msg) {
   const prevs = rows.map(o => [o.id, Object.fromEntries(Object.keys(patch).map(k => [k, o[k] ?? null]))]);
-  const { error } = await sb.from('orders').update(patch).in('id', rows.map(o => o.id)); fail(error);
-  toast(msg, { undo: () => undoMany(prevs) });
+  await reversible(msg, upd('orders', patch, 'id', rows.map(o => o.id)), updMany(prevs));
 }
 
 // ---------- messages ----------

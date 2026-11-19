@@ -77,12 +77,25 @@ VIEWS.expenses = async function vExpenses() {
     <label class="field">הערה<input name="notes" placeholder="למשל: קמפיין נובמבר"></label>
     <button class="btn primary">הוספה</button></div></form>
   <div class="card flush table-wrap"><table><thead><tr><th>תאריך</th><th>על מה</th><th>ערוץ</th><th class="num">סכום</th><th>הערה</th><th></th></tr></thead>
-  <tbody>${exp.map(e => `<tr><td>${fmtDate(e.spent_on)}</td><td>${esc(e.category)}</td><td>${esc(e.channel || '')}</td><td class="num">${money(e.amount)}</td><td class="wrap">${esc(e.notes || '')}</td><td><button class="btn sm ghost danger" data-del="${e.id}">מחיקה</button></td></tr>`).join('') || '<tr class="empty-row"><td colspan="6">עוד לא נרשמו הוצאות</td></tr>'}</tbody></table></div>`;
-  $('#expForm').onsubmit = async e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); if (!f.channel) delete f.channel; const { error } = await sb.from('expenses').insert(f); fail(error); toast('ההוצאה נוספה'); VIEWS.expenses(); };
+  <tbody>${exp.map(e => { const s = c => `data-save="expenses:${e.id}:${c}"`; return `<tr>
+    <td><label class="field"><input type="date" ${s('spent_on')} value="${esc(e.spent_on)}" required></label></td>
+    <td><label class="field"><select ${s('category')}>${opts('expense_category', e.category, { empty: false })}</select></label></td>
+    <td><label class="field"><select ${s('channel')}>${opts('source', e.channel, { emptyLabel: '—' })}</select></label></td>
+    <td class="num"><label class="field"><input type="number" step="0.01" ${s('amount')} data-num value="${esc(e.amount)}" style="width:110px;text-align:center"></label></td>
+    <td><label class="field"><input ${s('notes')} value="${esc(e.notes || '')}"></label></td>
+    <td><button class="btn sm ghost danger" data-del="${e.id}">מחיקה</button></td></tr>`; }).join('') || '<tr class="empty-row"><td colspan="6">עוד לא נרשמו הוצאות</td></tr>'}</tbody></table></div>
+    ${exp.length ? '<p class="tiny muted" style="margin-top:8px">כל שדה בטבלה אפשר לתקן במקום. נשמר לבד.</p>' : ''}`;
+  bindAutosave(view(), (t, col) => { if (['amount', 'category', 'spent_on'].includes(col)) VIEWS.expenses(); });
+  $('#expForm').onsubmit = async e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); if (!f.channel) delete f.channel;
+    let id = null;
+    await reversible('ההוצאה נוספה', async () => { const { data, error } = await sb.from('expenses').insert(f).select('id').single(); fail(error); id = data.id; },
+      async () => { const { error } = await sb.from('expenses').delete().eq('id', id); fail(error); }, VIEWS.expenses);
+    VIEWS.expenses(); };
   $$('[data-del]').forEach(b => b.onclick = async () => {
-    const row = exp.find(x => String(x.id) === b.dataset.del);
-    const { error } = await sb.from('expenses').delete().eq('id', row.id); fail(error); VIEWS.expenses();
-    const { id, ...back } = row; toast('ההוצאה נמחקה', { undo: async () => { await sb.from('expenses').insert(back); VIEWS.expenses(); } });
+    const { id: oldId, ...back } = exp.find(x => String(x.id) === b.dataset.del); let id = oldId;
+    await reversible('ההוצאה נמחקה', async () => { const { error } = await sb.from('expenses').delete().eq('id', id); fail(error); },
+      async () => { const { data, error } = await sb.from('expenses').insert(back).select('id').single(); fail(error); id = data.id; }, VIEWS.expenses);
+    VIEWS.expenses();
   });
 };
 
@@ -148,7 +161,8 @@ VIEWS.settings = async function vSettings(tab) {
       ${t ? `<section class="card stack"><label class="field">שם ההודעה<input data-save="message_templates:${t.id}:name" value="${esc(t.name)}"></label>
         <label class="field">הטקסט<textarea id="tplBody" data-save="message_templates:${t.id}:body" rows="9">${esc(t.body)}</textarea></label>
         <div><div class="small muted" style="margin-bottom:6px">לוחצים כדי להוסיף פרט שמתמלא לבד:</div><div class="var-chips">${['שם', 'הזמנה', 'סכום', 'קישור', 'מעקב', 'תאריך איסוף', 'ימי קישור'].map(v => `<button type="button" data-var="${v}">{${v}}</button>`).join('')}</div></div>
-        <label class="toggle"><input type="checkbox" data-save="message_templates:${t.id}:active" ${t.active ? 'checked' : ''}> פעילה (מופיעה בתפריט הוואטסאפ)</label></section>
+        <div class="row spread"><label class="toggle"><input type="checkbox" data-save="message_templates:${t.id}:active" ${t.active ? 'checked' : ''}> פעילה (מופיעה בתפריט הוואטסאפ)</label>
+        <button class="btn sm ghost danger" id="delTpl" data-tip="אם רק לא רוצים אותה כרגע, עדיף לכבות אותה">מחיקת ההודעה</button></div></section>
       <section class="card wa-col"><h3 style="margin-bottom:8px">כך הלקוח יראה</h3><div class="wa-preview"><div class="wa-bubble" id="tplPrev"></div></div><p class="tiny muted" style="margin-top:6px">דוגמה עם לקוח לדוגמה.</p></section>` : ''}</div>`; }
   if (tab === 'labs') body = `<section class="card flush"><div class="table-wrap"><table><thead><tr><th>שם</th><th>המעבדה שלנו</th><th>איש קשר</th><th>טלפון</th><th>כתובת</th><th>מה ממירה</th><th>פעילה</th></tr></thead><tbody>
     ${S.labs.map(l => `<tr><td><label class="field"><input data-save="labs:${l.id}:name" value="${esc(l.name || '')}"></label></td><td><label class="toggle"><input type="checkbox" data-save="labs:${l.id}:is_inhouse" ${l.is_inhouse ? 'checked' : ''}></label></td>
@@ -195,9 +209,10 @@ function bindSettings(tab) {
   $$('[data-addprod]').forEach(b => b.onclick = async () => { const cat = b.dataset.addprod; const f = await formModal('הוספה ל' + CAT[cat], `<label class="field">שם<input name="name" required></label><label class="field">מחיר כולל מע"מ (₪)<input name="unit_price" type="number" step="0.01" value="0"></label>`); if (f) add('products', { name: f.name, category: cat, unit_price: Number(f.unit_price || 0), counts_for_tier: cat === 'media', sort: 99 }); });
   $('#addTier')?.addEventListener('click', () => add('discount_tiers', { min_items: Math.max(0, ...S.tiers.map(t => t.min_items)) + 10, percent: 0 }));
   $$('[data-deltier]').forEach(b => b.onclick = async () => {
-    const t = S.tiers.find(x => String(x.id) === b.dataset.deltier);
-    const { error } = await sb.from('discount_tiers').delete().eq('id', t.id); fail(error); await re();
-    toast('המדרגה הוסרה', { undo: async () => { await sb.from('discount_tiers').insert({ min_items: t.min_items, percent: t.percent }); re(); } });
+    const t = S.tiers.find(x => String(x.id) === b.dataset.deltier); let id = t.id;
+    await reversible('המדרגה הוסרה', async () => { const { error } = await sb.from('discount_tiers').delete().eq('id', id); fail(error); },
+      async () => { const { data, error } = await sb.from('discount_tiers').insert({ min_items: t.min_items, percent: t.percent }).select('id').single(); fail(error); id = data.id; }, re);
+    re();
   });
   $('#addCp')?.addEventListener('click', async () => { const f = await formModal('קופון חדש', `<label class="field">קוד<input name="code" required placeholder="SUMMER10"><span class="hint">הקוד לא ניתן לשינוי אחרי היצירה.</span></label><label class="field">% הנחה<input name="percent" type="number" value="10"></label><label class="field">קמפיין<input name="campaign"></label>`); if (f) add('coupons', { code: f.code.trim().toUpperCase(), percent: Number(f.percent || 0), campaign: f.campaign || null }); });
   $$('[data-mv]').forEach(b => b.onclick = async () => {
@@ -211,13 +226,23 @@ function bindSettings(tab) {
   prev(); $('#tplBody')?.addEventListener('input', prev);
   $$('[data-tcur]').forEach(b => b.onclick = () => { sessionStorage.setItem('tplCur', b.dataset.tcur); re(); });
   $$('[data-var]').forEach(b => b.onclick = () => { const t = $('#tplBody'), s = t.selectionStart ?? t.value.length, ins = `{${b.dataset.var}}`; t.value = t.value.slice(0, s) + ins + t.value.slice(t.selectionEnd ?? s); t.focus(); t.selectionStart = t.selectionEnd = s + ins.length; prev(); t.dispatchEvent(new Event('change')); });
+  $('#delTpl')?.addEventListener('click', async () => {
+    const t = S.templates.find(x => x.id === (Number(sessionStorage.getItem('tplCur')) || S.templates[0]?.id)) || S.templates[0];
+    if (!await ask(`למחוק את "${t.name}"?`, 'אפשר לבטל מיד אחרי.', { ok: 'מחיקה', danger: true })) return;
+    const { id: _x, ...back } = t; let id = t.id;
+    await reversible('ההודעה נמחקה', async () => { const { error } = await sb.from('message_templates').delete().eq('id', id); fail(error); sessionStorage.removeItem('tplCur'); },
+      async () => { const { data, error } = await sb.from('message_templates').insert(back).select('id').single(); fail(error); id = data.id; sessionStorage.setItem('tplCur', id); }, re);
+    re();
+  });
   $('#addTpl')?.addEventListener('click', async () => { const f = await formModal('הודעה חדשה', `<label class="field">שם<input name="name" required placeholder="למשל: תזכורת לאיסוף"></label>`); if (!f) return; const { data, error } = await sb.from('message_templates').insert({ name: f.name, body: 'היי {שם}, ', sort: 99 }).select('id').single(); fail(error); sessionStorage.setItem('tplCur', data.id); re(); });
   // labs, staff
   $('#addLab')?.addEventListener('click', async () => { const f = await formModal('מעבדה חדשה', `<label class="field">שם<input name="name" required></label><label class="field">טלפון<input name="phone"></label><label class="field">מה ממירה<input name="media_types" placeholder="VHS, אודיו, פילם"></label>`); if (f) add('labs', { name: f.name, phone: f.phone || null, media_types: f.media_types || null }); });
   $('#staffForm')?.addEventListener('submit', e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); if (f.role === 'lab' && !f.lab_id) return tell('חסרה מעבדה', 'למשתמש מעבדה בוחרים לאיזו מעבדה הוא שייך.'); add('staff', { email: f.email.trim().toLowerCase(), name: f.name || null, role: f.role, lab_id: f.lab_id ? Number(f.lab_id) : null }); });
   $$('[data-delstaff]').forEach(b => b.onclick = async () => { if (!await ask('להסיר את ' + b.dataset.delstaff + '?', 'המשתמש לא יוכל להיכנס יותר.', { ok: 'הסרה', danger: true })) return; const { data: row } = await sb.from('staff').select('*').eq('email', b.dataset.delstaff).single();
-    const { error } = await sb.from('staff').delete().eq('email', b.dataset.delstaff); fail(error); await re();
-    toast('המשתמש הוסר', { undo: async () => { const { email, name, role, lab_id } = row; await sb.from('staff').insert({ email, name, role, lab_id }); re(); } }); });
+    const { email, name, role, lab_id } = row;
+    await reversible('המשתמש הוסר', async () => { const { error } = await sb.from('staff').delete().eq('email', email); fail(error); },
+      async () => { const { error } = await sb.from('staff').insert({ email, name, role, lab_id }); fail(error); }, re);
+    re(); });
   $('#exportBtn')?.addEventListener('click', exportAll);
 }
 async function exportAll() {

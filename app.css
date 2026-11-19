@@ -256,6 +256,14 @@ th.sel, td.sel { width: 36px; padding-inline-end: 0; }
 .deal { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--s4); align-items: start; }
 .deal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s4); flex-wrap: wrap; margin-bottom: var(--s4); }
 .deal-head .meta { color: var(--muted); margin-top: 6px; display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; font-size: 14px; }
+/* customer header stays under the top bar while scrolling, so you always see whose page this is */
+.deal-head { position: sticky; top: 60px; z-index: 12; background: var(--bg); padding: 10px 0 12px; margin-top: -10px; align-items: center; }
+.deal-head.stuck { border-bottom: 1px solid var(--line); box-shadow: 0 6px 12px -10px rgba(0,0,0,.35); }
+.deal-head.stuck h1 { font-size: 20px; }
+.deal-head.stuck .meta { margin-top: 2px; }
+.deal .side, .deal .quote-total { top: calc(68px + var(--dh, 0px)); }
+.deal .side { max-height: calc(100vh - 84px - var(--dh, 0px)); }
+.deal .bulk-bar { top: calc(64px + var(--dh, 0px)); }
 .back { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 14px; margin-bottom: 6px; }
 .stepper { display: grid; grid-template-columns: repeat(3, 1fr) 14px repeat(5, 1fr); align-items: start; padding: var(--s4) var(--s3) var(--s3); }
 .stepper .grp { grid-row: 1; font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; margin-bottom: var(--s2); }
@@ -302,6 +310,10 @@ details.sec > .body { padding: 0 var(--s4) var(--s4); }
 .timeline .ic.payment { background: var(--green-bg); color: var(--green); }
 .timeline .ic.contact { background: var(--blue-bg); color: var(--blue); }
 .timeline .w { font-size: 12px; color: var(--muted); }
+.ev-acts { display: inline-flex; gap: 10px; margin-inline-start: 10px; opacity: 0; transition: opacity .15s; }
+.timeline li:hover .ev-acts, .ev-acts:focus-within { opacity: 1; }
+@media (hover: none) { .ev-acts { opacity: 1; } }
+.link-btn.danger { color: var(--red); }
 .quick { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* quote builder */
@@ -432,6 +444,7 @@ dialog form.grid { gap: var(--s3); }
   #nav a { padding: 0 10px; }
 }
 @media (max-width: 700px) {
+  .deal-head { position: static; }
   main { padding: var(--s3) var(--s4) 90px; }
   .topbar { padding: 0 var(--s3); gap: var(--s2); }
   .brand span, .topbar .new-txt { display: none; }
