@@ -5,11 +5,6 @@ const TASK_TYPES = [
   { k: 'new', name: 'פניות חדשות', test: o => o.stage === 'פנייה חדשה' && !o.last_contact_at,
     why: o => `פנייה חדשה${o.source ? ' מ' + o.source : ''} · נכנסה ${ago(o.created_at)}${o.est_quantity ? ` · כתב "${o.est_quantity}"` : ''}`,
     urg: o => daysSince(o.created_at) >= 1 ? 0 : 1, act: { label: 'שליחת הודעת פתיחה', tpl: 'פתיחה ללידים' } },
-  { k: 'followup', name: 'לחזור ללקוח', test: o => o.flag_followup && !(o.stage === 'פנייה חדשה' && !o.last_contact_at) && !o.flag_quote_stale,
-    why: o => { const n = daysSince(o.next_followup + 'T00:00'); return `${n > 0 ? `היינו אמורים לחזור אליו ${n === 1 ? 'אתמול' : `לפני ${n} ימים`}` : 'קבענו לחזור אליו היום'} · ${o.stage}${o.last_contact_at ? ' · דיברנו ' + ago(o.last_contact_at) : ''}`; },
-    urg: o => daysSince(o.next_followup + 'T00:00') > 0 ? 0 : 1, act: { label: '✓ חזרתי אליו', contact: true } },
-  { k: 'stale', name: 'הצעות בלי תשובה', test: o => o.flag_quote_stale,
-    why: o => `שלחנו הצעה של ${money(o.total)} ${ago(o.stage_changed_at)} ואין תשובה`, urg: () => 1, act: { label: 'שליחת תזכורת', tpl: 'פולואפ להצעה' } },
   { k: 'cash', name: 'מזומן אצל שליח', test: o => o.flag_cash_at_courier,
     why: o => `השליח גבה ${money(o.paid_amount || o.total)} במזומן. מסמנים כשהכסף מגיע אלינו`, urg: o => daysSince(o.paid_at) > 3 ? 0 : 1, act: { label: 'הכסף הגיע', cash: true } },
   { k: 'pickup', name: 'לתאם איסוף', test: o => o.stage === 'לתאם איסוף' && !o.pickup_date,
@@ -91,6 +86,6 @@ async function runTask(x, btn) {
   } catch { btn.disabled = false; return; }
   bumpDone();
   btn.closest('.task').classList.add('done-anim');
-  toast('בוצע. ' + (a.tpl ? 'נרשם שדיברנו, מועד החזרה הבא נקבע לבד' : ''));
+  toast('בוצע. ' + (a.tpl ? 'נרשם שדיברנו' : ''));
   setTimeout(() => VIEWS.queue(), 450);
 }

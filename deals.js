@@ -25,7 +25,7 @@ VIEWS.deals = async function vDeals(tab) {
     </div>
   </div>
   <div id="dealsBody"></div>`;
-  const urgent = r => r.flag_followup || r.flag_quote_stale || r.flag_late || r.flag_count_mismatch || r.flag_cash_at_courier || (r.stage === 'פנייה חדשה' && !r.last_contact_at);
+  const urgent = r => r.flag_late || r.flag_count_mismatch || r.flag_cash_at_courier || (r.stage === 'פנייה חדשה' && !r.last_contact_at);
   const draw = () => {
     const q = (F.q || '').trim();
     const vis = list.filter(r => (!q || `${r.id} ${r.full_name || ''} ${r.phone || ''}`.includes(q)) && (!F.src || r.source === F.src) && (!F.lab || r.lab_name === F.lab) && (!F.urg || urgent(r)));
@@ -44,7 +44,6 @@ VIEWS.deals = async function vDeals(tab) {
 
 function dealFlags(r) {
   return [r.stage === 'פנייה חדשה' && !r.last_contact_at && '<span class="chip red">עוד לא דיברנו</span>',
-    r.flag_followup && '<span class="chip orange">לחזור היום</span>', r.flag_quote_stale && '<span class="chip orange">אין תשובה להצעה</span>',
     r.flag_late && `<span class="chip ${r.flag_late}">${r.days_since_paid} ימים מתשלום</span>`, r.flag_count_mismatch && '<span class="chip red">פער בספירה</span>',
     r.flag_cash_at_courier && '<span class="chip orange">מזומן אצל שליח</span>', r.priority && '<span class="chip orange">דחוף</span>', r.is_repeat && '<span class="chip blue">חוזר</span>'].filter(Boolean).join('');
 }

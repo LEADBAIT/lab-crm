@@ -228,8 +228,6 @@ function sideHtml(ctx) {
   const { o } = ctx, sales = phaseOf(o.stage) === 'sales';
   return `${sales ? `<section class="card"><div class="card-head"><h3>קשר עם הלקוח</h3><span class="small muted">${o.last_contact_at ? 'דיברנו ' + ago(o.last_contact_at) : 'עוד לא דיברנו'}</span></div>
       <button class="btn block" id="contacted">✓ דיברתי איתו עכשיו</button>
-      <div class="fields" style="margin-top:12px">${fld(ctx, 'next_followup')}</div>
-      <div class="quick" style="margin-top:6px"><span class="small muted">מתי לחזור:</span>${[[1, 'מחר'], [3, 'עוד 3 ימים'], [7, 'עוד שבוע']].map(([n, t]) => `<button class="btn sm" data-fu="${n}">${t}</button>`).join('')}</div>
       ${o.followup_draft ? `<div class="divider"></div><div class="small muted">טיוטת הודעה</div><p class="small" style="white-space:pre-wrap">${esc(o.followup_draft)}</p><a class="btn sm wa" target="_blank" rel="noopener" href="${waLink(ctx.c.phone, o.followup_draft)}">שליחת הטיוטה</a>` : ''}
     </section>` : ''}
     <section class="card"><div class="card-head"><h3>הערות קבועות</h3></div>
@@ -341,7 +339,7 @@ function bindDeal(ctx) {
   $$('[data-body="after"] [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, STEPS[7].checks[Number(b.dataset.chk.slice(1))]));
   $$('[data-body="after"] [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
   // side
-  $('#contacted') && ($('#contacted').onclick = async () => { await markContacted(o.id); toast('נרשם. מועד החזרה הבא נקבע לבד'); reloadDeal(ctx); });
+  $('#contacted') && ($('#contacted').onclick = async () => { await markContacted(o.id); toast('נרשם שדיברנו'); reloadDeal(ctx); });
   $$('[data-fu]').forEach(b => b.onclick = async () => { const d = addDays(Number(b.dataset.fu)); const { error } = await sb.from('orders').update({ next_followup: d }).eq('id', o.id); fail(error); $$(`[data-save="orders:${o.id}:next_followup"]`).forEach(i => i.value = d); toast('נחזור ללקוח ב-' + fmtDate(d)); });
   $('#noteForm').onsubmit = async e => { e.preventDefault(); const t = new FormData(e.target).get('t'); const { error } = await sb.rpc('add_note', { p_order: o.id, p_text: t }); fail(error); reloadDeal(ctx); };
 }
