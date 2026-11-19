@@ -1,0 +1,148 @@
+/* The work process: 8 fixed steps + "לא רלוונטי". One source of truth for stage names, what to do at each step,
+   which checks/dates belong to it, and what is required before moving on. */
+'use strict';
+const LOST = 'לא רלוונטי';
+const STEPS = [
+  { key: 'פנייה חדשה', short: 'פנייה', phase: 'sales', date: o => o.created_at,
+    title: 'ליצור קשר עם הלקוח', todo: 'להתקשר או לשלוח וואטסאפ, להבין מה יש לו (כמה קלטות/דיסקים, מאיזה סוג) ומה הוא צריך.',
+    tpl: 'פתיחה ללידים', btn: 'דיברנו, הלקוח מתעניין', open: ['customer', 'sale'],
+    checks: [{ label: 'יצרנו קשר', done: o => !!o.last_contact_at, at: o => o.last_contact_at, act: 'contact' }] },
+  { key: 'בשיחה', short: 'שיחה', phase: 'sales',
+    title: 'לבנות הצעת מחיר', todo: 'למלא בהצעת המחיר כמה פריטים יש מכל סוג, ולשלוח אותה ללקוח בוואטסאפ.',
+    btn: 'שלחתי הצעת מחיר', open: ['quote', 'customer'],
+    need: o => o.media_qty ? [] : ['כמויות בהצעת המחיר'],
+    checks: [{ label: 'מילאנו כמויות בהצעת המחיר', done: o => o.media_qty > 0, act: 'open:quote' },
+      { label: 'קיבלנו תמונות של החומרה (לא חובה)', done: o => !!o.drive_folder_url, act: 'open:delivery' }] },
+  { key: 'הצעה נשלחה', short: 'הצעה', phase: 'sales',
+    title: 'לסגור ולקבל תשלום', todo: 'לעשות פולואפ עד שהלקוח משלם. לפני התשלום משלימים פרטים לחשבונית ולאיסוף.',
+    tpl: 'פולואפ להצעה', tpl2: 'בקשת תשלום', btn: 'הלקוח שילם', pay: true, open: ['customer', 'quote'],
+    checks: [{ label: 'פרטים לחשבונית ולאיסוף מלאים', done: (o, c) => !missingForPaid(o, c).length, act: 'open:customer' }] },
+  { key: 'לתאם איסוף', short: 'איסוף', phase: 'ops', date: o => o.paid_at,
+    title: 'לתאם איסוף עם שליח', todo: 'לבחור מעבדה, להזמין שליח ולקבוע תאריך. אחר כך לשלוח ללקוח אישור איסוף ולהדפיס מדבקות ודף משלוח.',
+    tpl: 'אישור איסוף', btn: 'השליח אסף את החומרה', set: ['picked_up_at'], open: ['shipping', 'items'],
+    fields: ['lab_id', 'courier', 'pickup_date', 'pickup_tracking'],
+    need: o => [!o.lab_id && 'מעבדה', !o.pickup_date && 'תאריך איסוף'].filter(Boolean),
+    checks: [{ label: 'בחרנו מעבדה', done: o => !!o.lab_id },
+      { label: 'נקבע תאריך איסוף', done: o => !!o.pickup_date, at: o => o.pickup_date },
+      { label: 'נוצרו ברקודים לפריטים', done: o => o.items_count > 0, act: 'items' },
+      { label: 'המזומן הגיע אלינו מהשליח', done: o => !!o.cash_received_at, at: o => o.cash_received_at, act: 'cash', show: o => /מזומן/.test((o.payment_method || '') + o.payment_status) }] },
+  { key: 'בדרך למעבדה', short: 'משלוח', phase: 'ops', date: o => o.picked_up_at,
+    title: 'החומרה בדרך למעבדה', todo: 'כשהמעבדה מקבלת את החבילה, היא סורקת את הפריטים (או שלוחצים כאן).',
+    btn: 'הגיע למעבדה', set: ['lab_received_at'], open: ['items'],
+    checks: [{ label: 'נאסף מהלקוח', done: o => !!o.picked_up_at, at: o => o.picked_up_at, act: 'ms:picked_up_at' }] },
+  { key: 'במעבדה', short: 'מעבדה', phase: 'ops', date: o => o.lab_received_at,
+    title: 'המעבדה ממירה', todo: 'כשההמרה מסתיימת: מדביקים את קישור הקבצים מהמעבדה ומחזירים את החומרה אלינו.',
+    tpl: 'החומרים במעבדה', btn: 'הקבצים והחומרה אצלנו', set: ['conversion_done_at', 'files_received_at', 'back_from_lab_at'], open: ['items'],
+    fields: ['files_link_from_lab'],
+    checks: [{ label: 'הגיע למעבדה', done: o => !!o.lab_received_at, at: o => o.lab_received_at, act: 'ms:lab_received_at' },
+      { label: 'קליטה הסתיימה (כל הפריטים נספרו)', done: o => !!o.intake_done_at, at: o => o.intake_done_at, act: 'intake' },
+      { label: 'ההמרה הסתיימה', done: o => !!o.conversion_done_at, at: o => o.conversion_done_at, act: 'ms:conversion_done_at' },
+      { label: 'הקבצים התקבלו מהמעבדה', done: o => !!o.files_received_at, at: o => o.files_received_at, act: 'ms:files_received_at' },
+      { label: 'החומרה חזרה אלינו', done: o => !!o.back_from_lab_at, at: o => o.back_from_lab_at, act: 'ms:back_from_lab_at' }] },
+  { key: 'למסירה ללקוח', short: 'מסירה', phase: 'ops', date: o => o.back_from_lab_at,
+    title: 'למסור ללקוח', todo: 'לשלוח ללקוח את קישור ההורדה, ולהחזיר לו את הקלטות המקוריות.',
+    tpl: 'הקבצים מוכנים', btn: 'הלקוח קיבל הכל, סיום', set: ['returned_at'], open: ['delivery'],
+    fields: ['delivery_link', 'return_method', 'return_tracking'],
+    need: o => [!o.delivery_link && 'קישור הורדה ללקוח', !o.delivery_sent_at && 'לסמן שהקישור נשלח'].filter(Boolean),
+    checks: [{ label: 'קישור ההורדה נשלח ללקוח', done: o => !!o.delivery_sent_at, at: o => o.delivery_sent_at, act: 'ms:delivery_sent_at' },
+      { label: 'החומרה הוחזרה ללקוח', done: o => !!o.returned_at, at: o => o.returned_at, act: 'ms:returned_at' }] },
+  { key: 'הושלם', short: 'הושלם', phase: 'done', date: o => o.completed_at || o.returned_at,
+    title: 'ההזמנה הסתיימה', todo: 'נשאר רק לבקש ביקורת בגוגל וסטורי, ולשלוח מתנה אם רוצים.',
+    tpl: 'בקשת ביקורת', tpl2: 'בקשת סטורי', open: ['after'],
+    checks: [{ label: 'ביקשנו ביקורת בגוגל', done: o => !!o.review_requested_at, at: o => o.review_requested_at, act: 'ms:review_requested_at' },
+      { label: 'ביקשנו סטורי', done: o => !!o.story_requested_at, at: o => o.story_requested_at, act: 'ms:story_requested_at' }] },
+];
+const stepIdx = k => STEPS.findIndex(s => s.key === k);
+const stepOf = k => STEPS[stepIdx(k)] || null;
+const PHASE_NAME = { sales: 'מכירה', ops: 'בעבודה', done: 'הסתיים', lost: 'לא רלוונטי' };
+const phaseOf = k => k === LOST ? 'lost' : stepOf(k)?.phase || 'sales';
+const stageColor = k => (S.opts.stage || []).find(o => o.value === k)?.color || '#9CA3AF';
+const stagePill = k => `<span class="stage-pill"><span class="dot" style="background:${stageColor(k)}"></span>${esc(k)}</span>`;
+
+/** One short line about where it stands inside its step, in plain words. */
+function subStatus(o) {
+  const d = n => n === 0 ? 'היום' : n === 1 ? 'אתמול' : `לפני ${n} ימים`;
+  switch (o.stage) {
+    case 'פנייה חדשה': return o.last_contact_at ? `ניסינו ליצור קשר ${d(daysSince(o.last_contact_at))}` : `עוד לא דיברנו · נכנסה ${ago(o.created_at)}`;
+    case 'בשיחה': return o.media_qty ? `${o.media_qty} פריטים · ${money(o.total)}, ההצעה עוד לא נשלחה` : 'עוד אין כמויות בהצעה';
+    case 'הצעה נשלחה': return `${money(o.total)} · נשלחה ${d(daysSince(o.stage_changed_at))}`;
+    case 'לתאם איסוף': return o.pickup_date ? `שליח מגיע ${until(o.pickup_date)} (${fmtShort(o.pickup_date)})` : !o.lab_id ? 'צריך לבחור מעבדה ולהזמין שליח' : 'צריך להזמין שליח';
+    case 'בדרך למעבדה': return `נאסף ${o.picked_up_at ? d(daysSince(o.picked_up_at)) : ''}`;
+    case 'במעבדה': return o.conversion_done_at ? 'ההמרה הסתיימה, מחכים לחומרה' : o.intake_done_at ? `בהמרה · ${o.items_converted}/${o.items_count} הומרו` : 'בקליטה';
+    case 'למסירה ללקוח': return o.delivery_sent_at ? `הקישור נשלח · נמחק ${fmtShort(o.delivery_link_expires)}` : o.delivery_link ? 'הקישור מוכן, עוד לא נשלח' : 'צריך קישור הורדה';
+    case 'הושלם': return o.completed_at ? `הסתיים ${fmtDate(o.completed_at)}` : 'הסתיים';
+    case LOST: return o.loss_category ? `סיבה: ${o.loss_category}` : '';
+  }
+  return '';
+}
+
+// ---------- required details before payment ----------
+const REQUIRED_BEFORE_PAID = [['full_name', 'שם מלא'], ['email', 'מייל'], ['id_number', 'ת.ז לחשבונית'], ['city', 'עיר'], ['street', 'רחוב'], ['house_number', 'מספר בית'], ['alt_contact_name', 'איש קשר נוסף'], ['alt_contact_phone', 'טלפון איש קשר נוסף']];
+const missingForPaid = (o, c) => REQUIRED_BEFORE_PAID.filter(([k]) => !String(c?.[k] || '').trim()).map(x => x[1]).concat(o.media_qty ? [] : ['כמויות בהצעת המחיר']);
+const showRequired = o => stepIdx(o.stage) >= 2 || phaseOf(o.stage) !== 'sales';
+
+/** Move an order to another step. Asks only for what that move needs. Returns true if it moved. */
+async function changeStage(o, to, c) {
+  if (to === o.stage) return false;
+  const from = stepIdx(o.stage), dest = stepIdx(to);
+  const patch = { stage: to };
+  if (to === LOST) {
+    const f = await formModal('למה הלקוח לא רלוונטי?', `<label class="field">הסיבה העיקרית <span class="req">*</span><select name="loss_category" required>${opts('loss_category', o.loss_category)}</select><span class="hint">נספר בדוחות, כדי לדעת למה לקוחות לא קונים.</span></label>
+      <label class="field">מה הוא אמר (לא חובה)<textarea name="loss_note" rows="3">${esc(o.loss_note || '')}</textarea></label>`, { ok: 'סימון כלא רלוונטי' });
+    if (!f) return false;
+    Object.assign(patch, { loss_category: f.loss_category, loss_note: f.loss_note || null });
+  } else if (dest > from && from >= 0) {
+    // moving forward: check what the current step needs
+    const cur = STEPS[from];
+    const miss = cur.need ? cur.need(o) : [];
+    if (miss.length && dest === from + 1) { await tell('עוד לא אפשר לעבור לשלב הבא', 'חסר: ' + miss.join(', ')); return false; }
+    if (STEPS[dest].phase !== 'sales' && phaseOf(o.stage) === 'sales') {
+      c ||= (await sb.from('customers').select('*').eq('id', o.customer_id).single()).data;
+      const m = missingForPaid(o, c);
+      if (m.length && !await ask('חסרים פרטים לחשבונית ולאיסוף', 'חסר: ' + m.join(', ') + '\n\nאפשר להשלים אחר כך, אבל השליח והחשבונית צריכים אותם.', { ok: 'להמשיך בכל זאת', cancel: 'להשלים קודם' })) return false;
+      if (o.payment_status === 'לא שולם' || !o.payment_status) {
+        const f = await formModal('רישום התשלום', `<label class="field">איך שילם<select name="payment_method">${opts('payment_method', o.payment_method)}</select></label>
+          <label class="field">סכום ששולם (₪)<input name="paid_amount" type="number" step="1" value="${esc(o.total)}"></label>
+          <label class="field">מצב התשלום<select name="payment_status">${opts('payment_status', 'שולם', { empty: false })}</select><span class="hint">"מזומן אצל שליח" = השליח גובה. ההזמנה תופיע במשימות עד שהכסף מגיע.</span></label>`, { ok: 'שמירה ומעבר לתיאום איסוף' });
+        if (!f) return false;
+        Object.assign(patch, { payment_status: f.payment_status, payment_method: f.payment_method || null, paid_amount: f.paid_amount ? Number(f.paid_amount) : null });
+      }
+    }
+    if (dest >= stepIdx('בדרך למעבדה') && !o.lab_id) { await tell('צריך לבחור מעבדה', 'לפני שהחומרה יוצאת צריך לשייך את ההזמנה למעבדה (בכרטיס "הצעד הבא" או בחלק "משלוח ומעבדה").'); return false; }
+    // stamp the dates of every step we pass through
+    for (let i = from; i < dest; i++) (STEPS[i].set || []).forEach(k => { if (!o[k]) patch[k] = new Date().toISOString(); });
+  } else if (from >= 0 && dest >= 0 && dest < from) {
+    if (!await ask(`להחזיר ל"${to}"?`, 'התאריכים שכבר נרשמו נשארים. אפשר לתקן אותם בצ\'קליסט של כל שלב.', { ok: 'להחזיר' })) return false;
+  }
+  const { error } = await sb.from('orders').update(patch).eq('id', o.id); fail(error);
+  toast(to === LOST ? 'סומן כלא רלוונטי' : 'עבר לשלב: ' + to); return true;
+}
+
+// ---------- messages ----------
+const tplByName = n => S.templates.find(t => t.active && t.name === n);
+function fillTemplate(body, o, c) {
+  const map = { 'שם': firstName(c?.full_name || o.full_name), 'הזמנה': o.id, 'סכום': money(o.total), 'קישור': o.delivery_link || '', 'מעקב': trackUrl(o), 'תאריך איסוף': o.pickup_date ? fmtDate(o.pickup_date) : '', 'ימי קישור': setting('drive_link_days') || 60 };
+  return body.replace(/\{([^}]+)\}/g, (m, k) => map[k] ?? m);
+}
+function quoteText(o, c, lines) {
+  const L = [`שלום ${firstName(c.full_name)}, הנה הצעת המחיר מהמעבדה להמרת קלטות ודיסקים (הזמנה ${o.id}):`, ''];
+  lines.forEach(l => { const p = S.products.find(x => x.id === l.product_id); if (!p || !l.qty) return; L.push(`• ${l.qty} × ${p.name}: ${money(l.qty * (l.unit_price ?? p.unit_price))}`); });
+  if (o.package_name) L.push(`• ${o.package_name}: ${money(S.products.find(p => p.id === o.package_id)?.unit_price)}`);
+  if (o.tier_percent > 0) L.push(`הנחת כמות ${Number(o.tier_percent)}%: -${money(o.tier_discount)}`);
+  if (o.coupon_percent > 0) L.push(`קופון ${o.coupon_code}: -${Number(o.coupon_percent)}%`);
+  if (o.coupon_amount > 0) L.push(`קופון ${o.coupon_code}: -${money(o.coupon_amount)}`);
+  if (o.manual_discount > 0) L.push(`הנחה: -${money(o.manual_discount)}`);
+  L.push('', `סה"כ לתשלום: ${money(o.total)} (כולל מע"מ)`, '');
+  if (S.settings.terms?.text_value) L.push(S.settings.terms.text_value);
+  return L.join('\n');
+}
+function totalsHtml(o) {
+  return `<div class="totals">
+    <span>חומרה (${o.media_qty} פריטים)</span><span>${money(o.media_subtotal)}</span>
+    ${o.tier_percent > 0 ? `<span>הנחת כמות ${Number(o.tier_percent)}%</span><span>-${money(o.tier_discount)}</span>` : ''}
+    ${o.extras_subtotal > 0 ? `<span>תוספות${o.package_name ? ' + ' + esc(o.package_name) : ''}</span><span>${money(o.extras_subtotal)}</span>` : ''}
+    ${o.coupon_percent > 0 || o.coupon_amount > 0 ? `<span>קופון ${esc(o.coupon_code)}</span><span>${o.coupon_percent > 0 ? '-' + Number(o.coupon_percent) + '%' : ''} ${o.coupon_amount > 0 ? '-' + money(o.coupon_amount) : ''}</span>` : ''}
+    ${o.manual_discount > 0 ? `<span>הנחה ידנית</span><span>-${money(o.manual_discount)}</span>` : ''}
+    ${o.media_units > 0 && Number(o.total) > Number(o.total_raw) ? `<span class="muted">הושלם למינימום הזמנה (${money(setting('min_order'))})</span><span></span>` : ''}
+    <span class="grand">סה"כ כולל מע"מ</span><span class="grand">${money(o.total)}</span></div>`;
+}
