@@ -13,16 +13,13 @@ VIEWS.deals = async function vDeals(tab) {
   const list = rows.filter(r => tab === 'all' || r._ph === tab);
   const sources = [...new Set(list.map(r => r.source).filter(Boolean))];
   view().innerHTML = `
-  <div class="page-head"><div><div class="sub">כל פנייה והזמנה במקום אחד. לוחצים על לקוח כדי לראות מה הצעד הבא איתו.</div></div>
-    ${boardable ? `<div class="seg" role="tablist" aria-label="תצוגה"><button class="${mode === 'board' ? 'on' : ''}" data-mode="board"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg>לוח</button><button class="${mode === 'table' ? 'on' : ''}" data-mode="table"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>רשימה</button></div>` : ''}</div>
-  <div class="row spread" style="margin-bottom:12px">
+  <div class="toolbar">
     <div class="seg">${DEAL_TABS.map(([k, n]) => `<button class="${k === tab ? 'on' : ''}" data-tab="${k}">${n} <span class="n">${counts[k]}</span></button>`).join('')}</div>
-    <div class="filters">
-      <input class="search-in" id="fq" type="search" placeholder="סינון לפי שם, טלפון או מספר" value="${esc(F.q || '')}">
-      ${sources.length ? `<select id="fsrc"><option value="">כל המקורות</option>${sources.map(s => `<option ${F.src === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>` : ''}
-      ${tab !== 'sales' ? `<select id="flab"><option value="">כל המעבדות</option>${S.labs.map(l => `<option ${F.lab === l.name ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>` : ''}
-      <label class="check"><input type="checkbox" id="furg" ${F.urg ? 'checked' : ''}> רק מה שדורש טיפול</label>
-    </div>
+    <div class="search-box"><input id="fq" type="search" placeholder="שם, טלפון או מספר הזמנה" value="${esc(F.q || '')}" aria-label="סינון"></div>
+    ${sources.length ? `<select id="fsrc" class="src-sel" aria-label="מקור"><option value="">כל המקורות</option>${sources.map(s => `<option ${F.src === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>` : ''}
+    ${tab !== 'sales' ? `<select id="flab" class="src-sel" aria-label="מעבדה"><option value="">כל המעבדות</option>${S.labs.map(l => `<option ${F.lab === l.name ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>` : ''}
+    <label class="fchip ${F.urg ? 'on' : ''}" style="cursor:pointer"><input type="checkbox" id="furg" ${F.urg ? 'checked' : ''} style="display:none">רק מה שדורש טיפול</label>
+    ${boardable ? `<div class="seg tb-end-item" role="tablist" aria-label="תצוגה"><button class="${mode === 'board' ? 'on' : ''}" data-mode="board" aria-label="לוח"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg>לוח</button><button class="${mode === 'table' ? 'on' : ''}" data-mode="table" aria-label="רשימה"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>רשימה</button></div>` : ''}
   </div>
   ${tab === 'ops' ? opsTasksHtml(rows) : ''}
   <div id="dealsBody"></div>`;
@@ -37,7 +34,7 @@ VIEWS.deals = async function vDeals(tab) {
   $('#fq').oninput = e => { F.q = e.target.value; saveF(); draw(); };
   $('#fsrc') && ($('#fsrc').onchange = e => { F.src = e.target.value; saveF(); draw(); });
   $('#flab') && ($('#flab').onchange = e => { F.lab = e.target.value; saveF(); draw(); });
-  $('#furg').onchange = e => { F.urg = e.target.checked; saveF(); draw(); };
+  $('#furg').onchange = e => { F.urg = e.target.checked; e.target.closest('.fchip').classList.toggle('on', F.urg); saveF(); draw(); };
   $$('[data-tab]').forEach(b => b.onclick = () => go('deals/' + b.dataset.tab));
   if (tab === 'ops') { const tasks = buildTasks(rows.filter(r => r._ph === 'ops')).filter(x => x.t.k !== 'new'); $$('[data-tact]').forEach(b => b.onclick = () => runTask(tasks.find(x => String(x.o.id) === b.dataset.tact), b)); }
   $$('[data-mode]').forEach(b => b.onclick = () => { lsSet('dealsView', b.dataset.mode); VIEWS.deals(tab); });
@@ -50,8 +47,8 @@ function opsTasksHtml(rows) {
   if (!tasks.length) return '';
   return `<section class="card flush" style="margin-bottom:12px"><div class="card-head" style="padding:12px 16px 0"><h3>משימות תפעול</h3><span class="small muted">${tasks.length}</span></div>${tasks.map(taskHtml).join('')}</section>`;
 }
-function dealFlags(r) {
-  return [r.stage === 'פנייה חדשה' && !r.last_contact_at && '<span class="chip red">עוד לא דיברנו</span>',
+function dealFlags(r, onCard) {
+  return [r.stage === 'פנייה חדשה' && !r.last_contact_at && !onCard && '<span class="chip red">עוד לא דיברנו</span>',
     r.flag_late && `<span class="chip ${r.flag_late}">${r.days_since_paid} ימים מתשלום</span>`, r.flag_count_mismatch && '<span class="chip red">פער בספירה</span>',
     r.flag_cash_at_courier && '<span class="chip orange">מזומן אצל שליח</span>', r.priority && '<span class="chip orange">דחוף</span>', r.is_repeat && '<span class="chip blue">חוזר</span>'].filter(Boolean).join('');
 }
@@ -71,13 +68,17 @@ function actInd(r) {
   return `<span class="act-ind ${st}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${IND_SVG[st]}</svg></span>`;
 }
 function kcardHtml(r) {
-  const flags = dealFlags(r);
+  const flags = dealFlags(r, true);
   return `<div class="kcard" draggable="true" data-id="${r.id}">${actInd(r)}<span class="t">${esc(custName(r))}</span>
     <div class="m">${esc(subStatus(r))}</div>
     <div class="foot">${r.total > 0 ? `<span class="v">${money(r.total)}</span>` : ''}${r.source ? `<span class="muted">${r.total > 0 ? '· ' : ''}${esc(r.source)}</span>` : ''}</div>
     ${flags ? `<div class="tags">${flags}</div>` : ''}</div>`;
 }
+const DSORT = { name: r => custName(r), stage: r => stepIdx(r.stage), qty: r => Number(r.media_qty || 0), total: r => Number(r.total || 0), time: r => r.created_at };
 function tableHtml(vis, tab) {
+  const so = JSON.parse(sessionStorage.getItem('dealsSort') || 'null');
+  if (so && DSORT[so.k]) { const g = DSORT[so.k]; vis = [...vis].sort((a, b) => { const x = g(a), y = g(b); return (x > y ? 1 : x < y ? -1 : 0) * (so.d === 'asc' ? 1 : -1); }); }
+  const th = (k, label, cls = '') => `<th class="sort ${cls} ${so?.k === k ? so.d : ''}" data-sort="${k}">${label}</th>`;
   const timeCol = r => r._ph === 'ops' && r.days_since_paid != null ? `<span class="chip ${r.flag_late || ''}">${r.days_since_paid} ימים מתשלום</span>` : `<span class="muted small">${ago(r.created_at)}</span>`;
   const sel = tab !== 'done';
   const moveTo = tab === 'sales' ? STEPS.filter(s => s.phase === 'sales') : tab === 'ops' ? STEPS.filter(s => s.phase !== 'sales') : tab === 'all' ? STEPS : [];
@@ -86,15 +87,17 @@ function tableHtml(vis, tab) {
     ${tab === 'ops' ? `<span>·</span><select id="dbLab"><option value="">שיוך מעבדה…</option>${S.labs.filter(l => l.active).map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')}</select>` : ''}
     ${tab === 'lost' ? '<button class="btn sm primary" id="dbRevive">החזרה לטיפול</button>' : '<button class="btn sm" id="dbLost">סימון כלא רלוונטי</button>'}
     <button class="btn sm ghost" id="dbClear">ביטול הבחירה</button></div>` : '';
-  return `${bar}<div class="card flush table-wrap"><table><thead><tr>${sel ? '<th class="sel"><input type="checkbox" id="dselAll" aria-label="בחירת כולם"></th>' : ''}<th>לקוח</th><th>שלב</th><th>מה המצב</th>${tab !== 'sales' ? '<th>מעבדה</th>' : '<th>מקור</th>'}<th class="num">פריטים</th><th class="num">סכום</th><th>זמן</th><th>דורש תשומת לב</th></tr></thead><tbody>
+  return `${bar}<div class="card flush table-wrap"><table><thead><tr>${sel ? '<th class="sel"><input type="checkbox" id="dselAll" aria-label="בחירת כולם"></th>' : ''}${th('name', 'לקוח')}${th('stage', 'שלב')}<th>מה המצב</th>${tab !== 'sales' ? '<th>מעבדה</th>' : '<th>מקור</th>'}${th('qty', 'פריטים', 'num')}${th('total', 'סכום', 'num')}${th('time', 'נכנס')}<th>דורש תשומת לב</th></tr></thead><tbody>
     ${vis.map(r => `<tr class="click" data-id="${r.id}">${sel ? `<td class="sel"><input type="checkbox" data-dsel="${r.id}" aria-label="בחירה"></td>` : ''}<td><b>${esc(custName(r))}</b><span class="sub"><bdi dir="ltr">${esc(fmtPhone(r.phone))}</bdi> · #${r.id}</span></td>
       <td>${stagePill(r.stage)}</td><td class="wrap small">${esc(subStatus(r))}</td>
-      <td class="small">${tab !== 'sales' ? esc(r.lab_name || (r._ph === 'ops' ? '—' : '')) : esc(r.source || '')}</td>
-      <td class="num">${r.media_qty || ''}</td><td class="num">${money(r.total)}</td><td>${timeCol(r)}</td><td><div class="row" style="gap:4px">${dealFlags(r)}</div></td></tr>`).join('')
+      <td class="small">${tab !== 'sales' ? (r.lab_name ? esc(r.lab_name) : '<span class="nil">—</span>') : (r.source ? esc(r.source) : '<span class="nil">—</span>')}</td>
+      <td class="num">${r.media_qty || '<span class="nil">—</span>'}</td><td class="num">${r.total > 0 ? money(r.total) : '<span class="nil">—</span>'}</td><td>${timeCol(r)}</td><td><div class="row" style="gap:4px">${dealFlags(r)}</div></td></tr>`).join('')
       || `<tr class="empty-row"><td colspan="9">אין לקוחות שמתאימים לסינון</td></tr>`}</tbody></table></div>
     ${sel && vis.length ? '<p class="tiny muted" style="margin-top:8px">כדי לטפל בכמה לקוחות יחד: מסמנים אותם בעמודה הראשונה.</p>' : ''}`;
 }
 function bindDealsBody(vis) {
+  $$('#dealsBody [data-sort]').forEach(h => h.onclick = () => { const so = JSON.parse(sessionStorage.getItem('dealsSort') || 'null');
+    const d = so?.k === h.dataset.sort && so.d === 'desc' ? 'asc' : 'desc'; sessionStorage.setItem('dealsSort', JSON.stringify({ k: h.dataset.sort, d })); VIEWS.deals(sessionStorage.getItem('dealsTab')); });
   $$('#dealsBody [data-id]').forEach(el => el.addEventListener('click', e => { if (e.target.closest('.sel')) return; go('order/' + el.dataset.id); }));
   // bulk selection (table view)
   const picked = () => { const ids = new Set($$('[data-dsel]:checked').map(c => Number(c.dataset.dsel))); return vis.filter(r => ids.has(r.id)); };

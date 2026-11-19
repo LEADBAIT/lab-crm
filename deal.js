@@ -36,7 +36,7 @@ function fld(ctx, k, { wide = false, label } = {}) {
   return `<label class="field ${miss ? 'missing' : ''} ${wide ? 'wide' : ''}" data-req="${req ? k : ''}"><span>${esc(label || d.l)}${req && showRequired(ctx.o) ? ' <span class="req">*</span>' : ''}</span>${input}${hint ? `<span class="hint">${esc(hint)}</span>` : ''}</label>`;
 }
 const tog = (ctx, k) => { const [t, l] = TOGGLE[k], row = t === 'c' ? ctx.c : ctx.o; return `<label class="toggle"><input type="checkbox" data-save="${t === 'c' ? 'customers' : 'orders'}:${row.id}:${k}" ${row[k] ? 'checked' : ''}> ${esc(l)}</label>`; };
-const ro = (label, v) => `<div class="field"><span>${esc(label)}</span><input disabled value="${esc(v || '')}"></div>`;
+const ro = (label, v) => `<div class="field ro"><span>${esc(label)}</span><div class="ro-v">${esc(v || '')}</div></div>`;
 
 // ---------- page ----------
 const SEC_OPEN = {};
@@ -78,8 +78,9 @@ function renderDeal(ctx) {
     <aside class="side">${sideHtml(ctx)}</aside>
     <div class="stack">
       ${lost ? '' : `<div id="nextBox">${nextCardHtml(ctx)}</div>`}
-      ${sectionsHtml(ctx)}
       ${historyHtml(ctx)}
+      <div class="section-title">פרטים</div>
+      ${sectionsHtml(ctx)}
     </div>
   </div>`;
   bindDeal(ctx);
@@ -295,6 +296,7 @@ function sideHtml(ctx) {
       <label class="field"><textarea data-save="orders:${o.id}:notes" rows="4" placeholder="מה חשוב לזכור על הלקוח הזה (למשל: הקלטות של החתונה, רגיש)">${esc(o.notes || '')}</textarea></label></section>`;
 }
 /** History (Pipedrive): a composer with tabs, filter pills, and a vertical timeline. */
+const HIST_SHOW = 6; // latest events shown before "show all"
 const HIST_F = [['', 'הכל'], ['note', 'הערות'], ['stage', 'שלבים'], ['contact', 'שיחות'], ['payment', 'תשלומים']];
 function historyHtml(ctx) {
   const { o, c } = ctx, tpls = S.templates.filter(t => t.active);
@@ -306,9 +308,10 @@ function historyHtml(ctx) {
         <p class="tiny muted" style="margin-top:8px">נפתח בוואטסאפ עם השם, הסכום והקישורים של ${esc(firstName(c.full_name) || 'הלקוח')}.</p></div>
     </section>
     <div><div class="hist-head"><h3>היסטוריה</h3><div class="pills" role="group" aria-label="סינון היסטוריה">${HIST_F.map(([k, l]) => `<button class="${k ? '' : 'on'}" data-hf="${k}">${l}${k ? '' : ` <span class="n">${ctx.events.length}</span>`}</button>`).join('')}</div></div>
-      <ul class="timeline" id="tl">${ctx.events.map(ev => { const [ic, cls] = EV_IC[ev.kind] || EV_IC.note, note = ev.kind === 'note';
-        return `<li data-ev="${ev.id}" data-kind="${esc(ev.kind)}"><span class="ic ${note ? 'note' : cls}">${ic}</span><div><div class="ev-t">${evText(ev)}</div><div class="w">${fmtDT(ev.at)}${ev.by_email ? ' · ' + esc(ev.by_email.split('@')[0]) : ''}${ev.edited_at ? ` · <span data-tip="${esc('לפני העריכה: ' + (ev.original_value || ''))}">נערך</span>` : ''}
+      <ul class="timeline ${ctx.events.length > HIST_SHOW ? 'clipped' : ''}" id="tl">${ctx.events.map((ev, i) => { const [ic, cls] = EV_IC[ev.kind] || EV_IC.note, note = ev.kind === 'note';
+        return `<li data-ev="${ev.id}" data-kind="${esc(ev.kind)}" class="${i >= HIST_SHOW ? 'extra' : ''}"><span class="ic ${note ? 'note' : cls}">${ic}</span><div><div class="ev-t">${evText(ev)}</div><div class="w">${fmtDT(ev.at)}${ev.by_email ? ' · ' + esc(ev.by_email.split('@')[0]) : ''}${ev.edited_at ? ` · <span data-tip="${esc('לפני העריכה: ' + (ev.original_value || ''))}">נערך</span>` : ''}
           ${note ? `<span class="ev-acts"><button class="link-btn" data-evedit="${ev.id}">עריכה</button><button class="link-btn danger" data-evdel="${ev.id}">מחיקה</button></span>` : ''}</div></div></li>`; }).join('') || '<li class="empty-li">עוד אין רישומים</li>'}</ul>
+      ${ctx.events.length > HIST_SHOW ? `<button class="btn sm ghost" id="histAll" style="margin-top:8px">הצגת כל ההיסטוריה (${ctx.events.length})</button>` : ''}
       <p class="tiny muted" style="margin-top:10px">הערות אפשר לערוך ולמחוק. מעברי שלב, תשלומים ושיחות נרשמים לבד ולא נערכים, כדי שההיסטוריה תישאר אמינה.</p></div>`;
 }
 
@@ -396,7 +399,9 @@ function bindDeal(ctx) {
   // composer tabs + history filter
   $$('[data-ctab]').forEach(b => b.onclick = () => { $$('[data-ctab]').forEach(x => x.classList.toggle('on', x === b)); $$('[data-cbody]').forEach(x => x.classList.toggle('hidden', x.dataset.cbody !== b.dataset.ctab)); });
   $$('[data-ctpl]').forEach(b => b.onclick = () => b.dataset.ctpl ? openTemplate(ctx, S.templates.find(t => String(t.id) === b.dataset.ctpl)) : window.open(waLink(c.phone), '_blank', 'noopener'));
-  $$('[data-hf]').forEach(b => b.onclick = () => { $$('[data-hf]').forEach(x => x.classList.toggle('on', x === b)); const k = b.dataset.hf;
+  const unclip = () => { $('#tl')?.classList.remove('clipped'); $('#histAll')?.remove(); };
+  $('#histAll') && ($('#histAll').onclick = unclip);
+  $$('[data-hf]').forEach(b => b.onclick = () => { $$('[data-hf]').forEach(x => x.classList.toggle('on', x === b)); const k = b.dataset.hf; if (k) unclip();
     $$('#tl li[data-kind]').forEach(li => li.classList.toggle('hidden', !!k && (k === 'stage' ? !['stage', 'followup'].includes(li.dataset.kind) : li.dataset.kind !== k))); });
   $('#revive') && ($('#revive').onclick = async () => { if (await changeStage(ctx.o, ctx.o.media_qty ? 'בפולואפ' : 'פנייה חדשה', c)) reloadDeal(ctx); });
   $('#waBtn').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, [{ head: 'הודעה מוכנה (נפתחת בוואטסאפ עם הפרטים של הלקוח)' },

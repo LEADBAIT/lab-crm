@@ -8,6 +8,8 @@ const NEW_URGENT_HOURS = 2;
 const SD = { rows: [], notes: {}, maxId: 0, cur: null, touch: null, poll: null, tab: 'sales' };
 const salesF = () => { try { return JSON.parse(sessionStorage.getItem('salesF') || '{}'); } catch { return {}; } };
 const saveSalesF = F => sessionStorage.setItem('salesF', JSON.stringify(F));
+/** "2 ימים" / "5 שע'": how long a new lead has been waiting */
+const waited = d => { const h = Math.floor(hoursSince(d)); return h >= 48 ? Math.floor(h / 24) + ' ימים' : h >= 24 ? 'יום' : h < 1 ? 'פחות משעה' : h + " שע'"; };
 const hoursSince = d => d ? (Date.now() - new Date(d)) / 36e5 : 0;
 const isNewUrgent = o => o.stage === 'פנייה חדשה' && hoursSince(o.created_at) >= NEW_URGENT_HOURS;
 const tempColor = v => (S.opts.temperature || []).find(o => o.value === v)?.color || '';
@@ -42,31 +44,26 @@ function renderSales(tab) {
   const F = salesF(), rows = SD.rows, n = salesCounts(rows);
   setBadge(n.late + n.today + n.urgent);
   const sources = [...new Set(rows.map(r => r.source).filter(Boolean))], camps = [...new Set(rows.map(r => r.meta_campaign).filter(Boolean))];
-  const kpi = (k, label, num, hint, cls) => `<button class="kpi ${cls} ${F.view === k && tab === 'sales' ? 'on' : ''}" data-view="${k}" aria-pressed="${F.view === k}">
-    <span class="kpi-n">${num}</span><span class="kpi-l">${label}</span><span class="kpi-h">${hint}</span></button>`;
+  // quick views (late / today / new) are chips in the same row as the stage filter: one filter row, not three
+  const qv = (k, label, num, cls, tip) => `<button class="fchip qv ${num ? cls : ''} ${F.view === k && tab === 'sales' ? 'on' : ''}" data-view="${k}" aria-pressed="${F.view === k}" data-tip="${esc(tip)}"><b class="qn">${num}</b>${label}</button>`;
   const byStage = s => rows.filter(r => r.stage === s).length;
   const filtered = F.view || F.stage || F.src || F.hot || F.q;
   view().innerHTML = `
-  <div class="sales-head">
-    <div><div class="sub"><b>${n.all}</b> לידים פתוחים${n.sum ? ` · הצעות פתוחות ${money(n.sum)}` : ''}</div></div>
-    <div class="kpis">
-      ${kpi('late', 'באיחור', n.late, n.late ? 'פולו-אפ שעבר זמנו' : 'הכל בזמן', n.late ? 'red' : 'ok')}
-      ${kpi('today', 'להיום', n.today, n.today ? 'לחזור היום / אין צעד הבא' : 'אין להיום', n.today ? 'orange' : 'ok')}
-      ${kpi('new', 'חדשים', n.new, n.urgent ? `${n.urgent} מחכים מעל ${NEW_URGENT_HOURS} שעות` : 'כולם בזמן', n.urgent ? 'red' : n.new ? 'blue' : 'ok')}
-    </div>
-  </div>
-  <div id="newLeadsBar" class="new-bar hidden" role="status"></div>
-  <div class="sales-tools">
-    <div class="seg big"><button class="${tab === 'sales' ? 'on' : ''}" data-stab="sales">מכירה <span class="n">${n.all}</span></button><button class="${tab === 'pickup' ? 'on' : ''}" data-stab="pickup">לתאם איסוף <span class="n">${n.pickup}</span></button></div>
+  <div class="toolbar">
+    <div class="seg"><button class="${tab === 'sales' ? 'on' : ''}" data-stab="sales">מכירה <span class="n">${n.all}</span></button><button class="${tab === 'pickup' ? 'on' : ''}" data-stab="pickup">לתאם איסוף <span class="n">${n.pickup}</span></button></div>
     <div class="search-box"><input id="sq" type="search" placeholder="חיפוש שם או טלפון" value="${esc(F.q || '')}" aria-label="חיפוש שם או טלפון"></div>
     <select id="ssrc" class="src-sel" aria-label="סינון לפי מקור או קמפיין"><option value="">כל המקורות</option>${sources.map(s => `<option value="src:${esc(s)}" ${F.src === 'src:' + s ? 'selected' : ''}>${esc(s)}</option>`).join('')}${camps.length ? `<optgroup label="קמפיין במטא">${camps.map(s => `<option value="cmp:${esc(s)}" ${F.src === 'cmp:' + s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</optgroup>` : ''}</select>
+    <span class="tb-sum">${n.all} לידים פתוחים${n.sum ? ` · <b>${money(n.sum)}</b> בהצעות` : ''}</span>
   </div>
-  ${tab === 'sales' ? `<div class="chips" role="group" aria-label="סינון לפי שלב">
-    <button class="fchip ${!F.stage ? 'on' : ''}" data-fstage="">כל השלבים <span class="n">${n.all}</span></button>
+  <div id="newLeadsBar" class="new-bar hidden" role="status"></div>
+  ${tab === 'sales' ? `<div class="chips" role="group" aria-label="סינון">
+    ${qv('late', 'באיחור', n.late, 'red', 'פולו-אפ שעבר זמנו')}${qv('today', 'להיום', n.today, 'orange', 'לחזור היום, או ליד בלי צעד הבא')}${qv('new', 'חדשים', n.new, n.urgent ? 'red' : 'blue', n.urgent ? `${n.urgent} מחכים מעל ${NEW_URGENT_HOURS} שעות` : 'כולם בזמן')}
+    <span class="chips-sep"></span>
+    <button class="fchip ${!F.stage ? 'on' : ''}" data-fstage="">כל השלבים</button>
     ${SALES_STAGES.map(s => `<button class="fchip ${F.stage === s ? 'on' : ''}" data-fstage="${esc(s)}" style="--sc:${stageColor(s)}"><span class="dot"></span>${esc(s)} <span class="n">${byStage(s)}</span></button>`).join('')}
     <span class="chips-sep"></span>
     <button class="fchip hot ${F.hot ? 'on' : ''}" data-fhot>רק חמים</button>
-    ${filtered ? '<button class="link-btn" id="sclear">ניקוי כל הסינונים</button>' : ''}
+    ${filtered ? '<button class="link-btn" id="sclear">ניקוי סינון</button>' : ''}
   </div>` : ''}
   <div id="salesBody"></div>`;
   drawSales(tab);
@@ -127,7 +124,7 @@ function drawSales(tab) {
 // ---------- cells ----------
 function nameCell(r) {
   const src = srcShort(r), tip = r.meta_campaign ? 'קמפיין: ' + r.meta_campaign : '';
-  const age = r.stage === 'פנייה חדשה' ? `<span class="age ${isNewUrgent(r) ? 'urgent' : ''}">${isNewUrgent(r) ? 'מחכה ' : 'נכנס '}${esc(ago(r.created_at))}</span>` : '';
+  const age = r.stage === 'פנייה חדשה' ? `<span class="age ${isNewUrgent(r) ? 'urgent' : ''}">${isNewUrgent(r) ? 'מחכה ' + esc(waited(r.created_at)) : 'נכנס ' + esc(ago(r.created_at))}</span>` : '';
   return `<td class="who"><div class="nm">${esc(custName(r))}${r.is_repeat ? ' <span class="chip blue">חוזר</span>' : ''}</div>
     <div class="meta"><button class="phone" data-copy="${esc(r.phone || '')}" data-tip="לחיצה מעתיקה את המספר"><bdi dir="ltr">${esc(fmtPhone(r.phone))}</bdi></button>${src ? `<span class="src" ${tip ? `data-tip="${esc(tip)}"` : ''}>${esc(src)}</span>` : ''}${age}</div></td>`;
 }
@@ -137,7 +134,7 @@ function stageCell(r) {
 }
 function fuCell(r) {
   const st = fuState(r);
-  if (r.stage === 'פנייה חדשה') return '<td><span class="muted small">אחרי הפנייה הראשונה</span></td>';
+  if (r.stage === 'פנייה חדשה') return '<td class="nil">—</td>';
   if (st === 'none') return `<td><button class="fu-pill none" data-fu="${r.id}">+ לקבוע פולו-אפ</button></td>`;
   const late = st === 'late', d = -daysSince(r.next_followup + 'T00:00');
   const label = late ? (d < 0 ? `באיחור ${-d === 1 ? 'יום' : -d + ' ימים'}` : 'היום · עבר הזמן') : fuLabel(r);
@@ -148,10 +145,10 @@ function noteCell(r) {
   const n = SD.notes[r.id];
   return `<td class="note-cell" data-note="${r.id}"><button class="note-btn" data-noteedit="${r.id}" ${n ? `data-tip="${esc(n.new_value)}"` : ''}>${n ? `<span class="t">${esc(n.new_value)}</span><span class="when">${esc(ago(n.at))}</span>` : '<span class="add">+ הערה</span>'}</button></td>`;
 }
-const quoteCell = r => `<td class="num">${r.total > 0 ? `<b>${money(r.total)}</b><div class="small muted">${r.media_qty} פריטים</div>` : '<span class="muted">—</span>'}</td>`;
+const quoteCell = r => `<td class="num">${r.total > 0 ? `<b>${money(r.total)}</b><div class="small muted">${r.media_qty} פריטים</div>` : '<span class="nil">—</span>'}</td>`;
 function tempCell(r) {
-  const list = (S.opts.temperature || []).filter(o => o.active);
-  return `<td><div class="heat" role="group" aria-label="חום הליד">${list.map(o => `<button class="${r.temperature === o.value ? 'on' : ''}" data-heat="${r.id}" data-v="${esc(o.value)}" style="--tc:${o.color || 'var(--muted)'}" aria-pressed="${r.temperature === o.value}">${esc(o.value)}</button>`).join('')}</div></td>`;
+  const c = tempColor(r.temperature);
+  return `<td><div class="dd"><button class="heat-chip ${r.temperature ? '' : 'none'}" data-heatmenu="${r.id}" style="--tc:${c || 'var(--muted)'}" aria-label="חום הליד: ${esc(r.temperature || 'לא נקבע')}">${r.temperature ? `<span class="dot" style="background:var(--tc)"></span>${esc(r.temperature)}` : '+ חום'}</button></div></td>`;
 }
 /** the one obvious next step for this lead, by stage */
 function nextAct(r) {
@@ -165,8 +162,9 @@ function nextAct(r) {
 }
 function actCell(r) {
   const [k, label, cls] = nextAct(r);
-  return `<td><div class="row-acts"><button class="btn sm ${cls}" data-act="${k}" data-id="${r.id}">${esc(label)}</button>
-    <div class="dd"><button class="btn sm ghost more" data-more="${r.id}" aria-label="עוד פעולות">עוד</button></div></div></td>`;
+  const ic = cls === 'wa' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>' : '';
+  return `<td><div class="row-acts"><button class="btn sm ${cls === 'wa' ? 'wa-o' : ''}" data-act="${k}" data-id="${r.id}">${ic}${esc(label)}</button>
+    <div class="dd"><button class="btn sm ghost icon-btn more" data-more="${r.id}" aria-label="עוד פעולות">⋯</button></div></div></td>`;
 }
 const salesRowHtml = r => `<tr class="srow ${SD.cur === r.id ? 'cur' : ''}" data-row="${r.id}">${nameCell(r)}${stageCell(r)}${fuCell(r)}${noteCell(r)}${quoteCell(r)}${tempCell(r)}${actCell(r)}</tr>`;
 const pickupRowHtml = r => `<tr class="srow ${SD.cur === r.id ? 'cur' : ''}" data-row="${r.id}">${nameCell(r)}
@@ -216,10 +214,10 @@ function bindSalesRows() {
     route();
   });
   $$('[data-fu]', body).forEach(b => b.onclick = async () => { const o = rowOf(b.dataset.fu); SD.touch = o.id; if (await setFollowup(o)) route(); });
-  $$('[data-heat]', body).forEach(b => b.onclick = async () => {
-    const o = rowOf(b.dataset.heat), v = o.temperature === b.dataset.v ? null : b.dataset.v; SD.touch = o.id;
-    await patchOrder(o, { temperature: v }, v ? 'חום הליד: ' + v : 'חום הליד נוקה'); route();
-  });
+  $$('[data-heatmenu]', body).forEach(b => b.onclick = e => { e.stopPropagation(); const o = rowOf(b.dataset.heatmenu);
+    const setHeat = async v => { SD.touch = o.id; await patchOrder(o, { temperature: v }, v ? 'חום הליד: ' + v : 'חום הליד נוקה'); route(); };
+    dropdown(b, [{ head: 'כמה קרוב לסגירה?' }, ...(S.opts.temperature || []).filter(x => x.active).map(x => ({ label: (x.value === o.temperature ? '✓ ' : '') + x.value, run: () => setHeat(x.value) })),
+      ...(o.temperature ? ['sep', { label: 'ניקוי', run: () => setHeat(null) }] : [])]); });
   $$('[data-noteedit]', body).forEach(b => b.onclick = () => editNoteCell(Number(b.dataset.noteedit)));
   $$('[data-act]', body).forEach(b => b.onclick = () => { const o = rowOf(b.dataset.id); ({ wa: sendWa, quote: sendQuoteRow, pay: paymentLink, open: x => openPanel(x.id), fillquote: x => openPanel(x.id, 'quote') })[b.dataset.act](o); });
   $$('[data-more]', body).forEach(b => b.onclick = e => { e.stopPropagation(); const o = rowOf(b.dataset.more); dropdown(b, [
