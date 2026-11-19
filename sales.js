@@ -273,7 +273,7 @@ async function markPaid(o) {
 }
 /** SUMIT payment link for this quote (created by the sumit-payment edge function). */
 async function paymentLink(o) {
-  if (!o.media_qty || !(o.total > 0)) { toast('קודם ממלאים כמויות בהצעת המחיר'); return openPanel(o.id, 'quote'); }
+  if (!(o.total > 0)) { toast('קודם ממלאים כמויות בהצעת המחיר'); return openPanel(o.id, 'quote'); }
   let url = o.sumit_payment_url;
   if (!url || Number(o.sumit_payment_amount) !== Number(o.total)) {
     toast('יוצר קישור תשלום ב-SUMIT…', { ms: 8000 });
