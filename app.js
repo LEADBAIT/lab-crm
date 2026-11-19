@@ -135,6 +135,35 @@ async function patchOrder(o, patch, msg, { extra = [] } = {}) {
 const finishIntake = (id, msg = 'הקליטה הסתיימה', refresh = route) => reversible(msg, async () => { const { error } = await sb.rpc('finish_intake', { p_order: id }); fail(error); }, upd('orders', { intake_done_at: null }, 'id', id), refresh);
 const markContacted = (o, msg = 'נרשם שדיברנו') => patchOrder(o, { last_contact_at: new Date().toISOString() }, msg);
 
+/** SMS through SUMIT. If it can't go out (package used up, no sender, SUMIT down, bad number), the same text is offered in WhatsApp.
+ *  Returns 'sms', 'wa' or null. The fallback asks for one click, because a browser only opens WhatsApp from a click. */
+const SMS_BUSY = new Set();
+async function sendSms(o, text, phone = o.phone) {
+  if (SMS_BUSY.has(o.id)) return null;
+  SMS_BUSY.add(o.id);
+  try {
+    toast('שולח SMS…', { ms: 6000 });
+    const { data, error } = await sb.functions.invoke('sumit-payment', { body: { order_id: o.id, action: 'sms', text } });
+    if (data?.ok) {
+      await sb.from('orders').update({ last_contact_at: new Date().toISOString() }).eq('id', o.id); // the SMS event is logged by the server
+      toast('ה-SMS נשלח'); return 'sms';
+    }
+    if (data?.error && !data?.fallback) { toast(data.error, { ms: 5000 }); return null; }
+    const reason = data?.reason || error?.message || 'שגיאה לא ידועה';
+    const ok = await ask('ה-SMS לא נשלח', `${reason}${data?.cached ? '\n(ה-SMS סומן כלא זמין לשעה הקרובה, אחרי תקלה קודמת.)' : ''}\n\nלשלוח את אותה הודעה בוואטסאפ?`, { ok: 'פתיחה בוואטסאפ', cancel: 'לא לשלוח' });
+    if (!ok) return null;
+    window.open(waLink(phone, text), '_blank', 'noopener');
+    await markContacted(o, 'ה-SMS לא יצא, ההודעה נשלחה בוואטסאפ');
+    return 'wa';
+  } finally { SMS_BUSY.delete(o.id); }
+}
+/** a message box with SMS as the main button; the text starts from the given draft */
+async function smsModal(o, text, phone = o.phone) {
+  const f = await formModal('SMS ל' + custName(o), `<label class="field">ההודעה<textarea name="m" rows="6" maxlength="600">${esc(text || '')}</textarea>
+    <span class="hint">יוצא דרך SUMIT מהחבילה של העסק. אם ה-SMS לא יוצא (נגמרה החבילה או כל תקלה אחרת), תוצע אותה הודעה בוואטסאפ.</span></label>`, { ok: 'שליחת SMS' });
+  return f ? sendSms(o, f.m, phone) : null;
+}
+
 // ---------- field autosave with visible state ----------
 /** Saves on change. Each element: data-save="table:id:column". Shows "שומר… / ✓ נשמר / לא נשמר" in its label. */
 function bindAutosave(root, after) {

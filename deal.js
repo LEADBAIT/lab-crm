@@ -452,7 +452,8 @@ function bindDeal(ctx) {
   $('#revive') && ($('#revive').onclick = async () => { if (await changeStage(ctx.o, ctx.o.media_qty ? 'בפולואפ' : 'פנייה חדשה', c)) reloadDeal(ctx); });
   $('#waBtn').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, [{ head: 'הודעה מוכנה (נפתחת בוואטסאפ עם הפרטים של הלקוח)' },
     ...S.templates.filter(t => t.active).map(t => ({ label: t.name, sub: fillTemplate(t.body, ctx.o, c).slice(0, 80), run: () => openTemplate(ctx, t) })),
-    'sep', { label: 'הצעת המחיר', run: () => sendQuote(ctx) }, { label: 'הודעה ריקה', run: () => window.open(waLink(c.phone), '_blank', 'noopener') }]); };
+    'sep', { label: 'הצעת המחיר', run: () => sendQuote(ctx) }, { label: 'הודעה ריקה', run: () => window.open(waLink(c.phone), '_blank', 'noopener') },
+    'sep', { label: 'SMS במקום וואטסאפ', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { if (await smsModal(ctx.o, ctx.o.followup_draft || '', c.phone)) reloadDeal(ctx); } }]); };
   $('#trackBtn') && ($('#trackBtn').onclick = async () => { const u = trackUrl(ctx.o); await navigator.clipboard.writeText(u).catch(() => {}); toast('הקישור הועתק. מדביקים אותו בוואטסאפ ללקוח'); });
   $('#moreBtn').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, [
     { label: 'הדפסת הצעת מחיר (PDF)', run: () => go('quote/' + o.id) }, { label: 'הדפסת מדבקות ברקוד', run: () => go('labels/' + o.id) }, { label: 'הדפסת דף משלוח', run: () => go('manifest/' + o.id) },

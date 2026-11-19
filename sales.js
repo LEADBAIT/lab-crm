@@ -222,6 +222,8 @@ function bindSalesRows() {
   $$('[data-act]', body).forEach(b => b.onclick = () => { const o = rowOf(b.dataset.id); ({ wa: sendWa, quote: sendQuoteRow, pay: paymentLink, open: x => openPanel(x.id), fillquote: x => openPanel(x.id, 'quote') })[b.dataset.act](o); });
   $$('[data-more]', body).forEach(b => b.onclick = e => { e.stopPropagation(); const o = rowOf(b.dataset.more); dropdown(b, [
     { label: 'וואטסאפ', sub: 'עם ההודעה המוכנה', run: () => sendWa(o) },
+    { label: 'SMS', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { const tpl = tplByName(stepOf(o.stage)?.tpl || '');
+      SD.touch = o.id; if (await smsModal(o, o.followup_draft || (tpl ? fillTemplate(tpl.body, o, null) : ''))) route(); } },
     ...(FU_STAGES.includes(o.stage) ? [{ label: 'קביעת פולו-אפ', run: async () => { SD.touch = o.id; if (await setFollowup(o)) route(); } }] : []),
     { label: 'שליחת הצעת מחיר', run: () => sendQuoteRow(o) }, { label: 'קישור תשלום (SUMIT)', run: () => paymentLink(o) },
     'sep', { label: 'הלקוח שילם', sub: 'מעביר ל"לתאם איסוף"', run: () => markPaid(o) },
