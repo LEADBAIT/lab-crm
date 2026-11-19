@@ -46,6 +46,7 @@ VIEWS.queue = async function vQueue() {
   <div class="queue-layout">
     <div class="stack">
       ${types.length > 1 ? `<div class="pills"><button class="${filter ? '' : 'on'}" data-qf="">הכל <span class="n">${tasks.length}</span></button>${types.map(([t, n]) => `<button class="${filter === t.k ? 'on' : ''}" data-qf="${t.k}">${t.name} <span class="n">${n}</span></button>`).join('')}</div>` : ''}
+      ${BULK_TASK[filter] && shown.length > 1 ? `<div class="bulk-bar"><span>${shown.length} משימות מאותו סוג</span><button class="btn sm primary" id="qBulk">${BULK_TASK[filter]} (${shown.length})</button></div>` : ''}
       <div class="card flush">${shown.length ? shown.map(taskHtml).join('') : `<div class="empty"><div class="big">✓</div><h3>הכל טופל</h3><p>משימות חדשות מופיעות כאן לבד: פנייה חדשה, לקוח שצריך לחזור אליו, איסוף לתאם ועוד.</p></div>`}</div>
     </div>
     <aside class="stack">
@@ -62,7 +63,15 @@ VIEWS.queue = async function vQueue() {
   </div>`;
   $$('[data-qf]').forEach(b => b.onclick = () => { sessionStorage.setItem('qFilter', b.dataset.qf); VIEWS.queue(); });
   $$('[data-tact]').forEach(b => b.onclick = () => runTask(tasks.find(x => String(x.o.id) === b.dataset.tact), b));
+  $('#qBulk') && ($('#qBulk').onclick = async () => {
+    const rows = shown.map(x => x.o);
+    if (filter === 'cash') await bulkPatch(rows, { payment_status: 'שולם', cash_received_at: new Date().toISOString() }, `נרשם שהמזומן הגיע ב-${rows.length} הזמנות`);
+    else if (filter === 'pickday' && !await bulkMove(rows, 'בדרך למעבדה')) return;
+    rows.forEach(bumpDone); VIEWS.queue();
+  });
 };
+// task types where doing all of them at once makes sense (no message to write, same action for each)
+const BULK_TASK = { cash: 'הכסף הגיע בכולן', pickday: 'השליח אסף את כולן' };
 function taskHtml({ o, t, u }) {
   const a = t.act, tpl = a.tpl && tplByName(a.tpl);
   return `<div class="task"><span class="urg u${u}"></span>

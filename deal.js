@@ -210,13 +210,15 @@ function itemsHtml(ctx) {
   const statuses = (S.opts.item_status || []).filter(x => x.active).map(x => x.value);
   return `<div class="row spread" style="margin-bottom:12px"><div class="row small"><span class="chip">הוצהרו ${o.media_qty}</span><span class="chip">ברקודים ${items.length}</span><span class="chip blue">הגיעו למעבדה ${o.items_at_lab_or_later}</span><span class="chip green">הומרו ${o.items_converted}</span>${o.intake_done_at ? `<span class="chip">קליטה הסתיימה ${fmtShort(o.intake_done_at)}</span>` : ''}</div>
     <div class="row">${items.length < o.media_qty ? `<button class="btn sm" data-gen>יצירת ${o.media_qty - items.length} ברקודים חסרים</button>` : ''}<a class="btn sm" href="#labels/${o.id}">מדבקות</a><a class="btn sm" href="#manifest/${o.id}">דף משלוח</a></div></div>
-    <div class="card flush table-wrap"><table><thead><tr><th>ברקוד</th><th>סוג</th><th>מה כתוב עליו</th><th>איפה הוא</th><th>פגום</th><th>הערה</th></tr></thead><tbody>
-    ${items.map(it => `<tr><td><b class="num">${esc(it.id)}</b></td><td class="small">${esc(productName(it.product_id).split(' (')[0])}</td>
+    <div class="bulk-bar hidden" id="ibulk"><b id="ibulkN"></b><span>להעביר את כולם ל:</span>
+      <select id="ibulkTo">${statuses.map(s => `<option>${esc(s)}</option>`).join('')}</select><button class="btn sm primary" id="ibulkGo">החלה</button><button class="btn sm ghost" id="ibulkClear">ביטול הבחירה</button></div>
+    <div class="card flush table-wrap"><table><thead><tr><th class="sel"><input type="checkbox" id="iselAll" aria-label="בחירת כל הפריטים"></th><th>ברקוד</th><th>סוג</th><th>מה כתוב עליו</th><th>איפה הוא</th><th>פגום</th><th>הערה</th></tr></thead><tbody>
+    ${items.map(it => `<tr><td class="sel"><input type="checkbox" data-isel="${esc(it.id)}" aria-label="בחירת ${esc(it.id)}"></td><td><b class="num">${esc(it.id)}</b></td><td class="small">${esc(productName(it.product_id).split(' (')[0])}</td>
       <td><input data-isave="${esc(it.id)}:label_text" value="${esc(it.label_text || '')}" placeholder="למשל: חתונה 1994"></td>
       <td><select data-isave="${esc(it.id)}:status">${statuses.map(s => `<option ${s === it.status ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select><span class="sub">${esc(ITEM_LOC[it.status] || '')}${['במעבדה', 'הומר', 'לא ניתן להמרה'].includes(it.status) && o.lab_name ? ': ' + esc(o.lab_name) : ''}</span></td>
       <td><input type="checkbox" data-isave="${esc(it.id)}:damaged" ${it.damaged ? 'checked' : ''} aria-label="פגום"></td>
       <td><input data-isave="${esc(it.id)}:notes" value="${esc(it.notes || '')}"></td></tr>`).join('')}</tbody></table></div>
-    <p class="tiny muted" style="margin-top:8px">המיקום מתעדכן לבד כשסורקים במסך "סריקה".</p>`;
+    <p class="tiny muted" style="margin-top:8px">המיקום מתעדכן לבד כשסורקים במסך "סריקה". כדי לעדכן כמה פריטים יחד: מסמנים אותם בעמודה הראשונה (או את כולם בכותרת).</p>`;
 }
 
 // ---------- side panel ----------
@@ -344,6 +346,14 @@ function bindDeal(ctx) {
     const { error } = await sb.from('items').update({ [col]: v }).eq('id', iid); fail(error); toast('נשמר');
     if (col === 'status') lightRefresh(ctx);
   }));
+  // items: select many → one status for all
+  const isel = () => $$('[data-isel]:checked').map(c => c.dataset.isel);
+  const syncBulk = () => { const n = isel().length, bar = $('#ibulk'); if (!bar) return; bar.classList.toggle('hidden', !n); $('#ibulkN').textContent = `נבחרו ${n}`;
+    const all = $('#iselAll'); all.checked = n && n === $$('[data-isel]').length; all.indeterminate = n > 0 && !all.checked; };
+  $$('[data-isel]').forEach(c => c.onchange = syncBulk);
+  $('#iselAll') && ($('#iselAll').onchange = e => { $$('[data-isel]').forEach(c => c.checked = e.target.checked); syncBulk(); });
+  $('#ibulkClear') && ($('#ibulkClear').onclick = () => { $$('[data-isel]').forEach(c => c.checked = false); syncBulk(); });
+  $('#ibulkGo') && ($('#ibulkGo').onclick = async () => { const ids = new Set(isel()); if (await bulkItemStatus(ctx.items.filter(i => ids.has(i.id)), $('#ibulkTo').value)) { SEC_OPEN[o.id].add('items'); reloadDeal(ctx); } });
   // after-section checks share the step-8 checklist
   $$('[data-body="after"] [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, STEPS[7].checks[Number(b.dataset.chk.slice(1))]));
   $$('[data-body="after"] [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));

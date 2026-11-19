@@ -119,6 +119,59 @@ async function changeStage(o, to, c) {
   return true;
 }
 
+// ---------- bulk actions (many at once, one undo) ----------
+/** Set one item status on many items. items: [{id, status}]. Undo puts each back to its own previous status. */
+async function bulkItemStatus(items, to) {
+  const ch = items.filter(i => i.status !== to); if (!ch.length) { toast('כל הפריטים כבר בסטטוס הזה'); return false; }
+  const { error } = await sb.from('items').update({ status: to }).in('id', ch.map(i => i.id)); fail(error);
+  const byPrev = {}; ch.forEach(i => (byPrev[i.status] ||= []).push(i.id));
+  toast(`${ch.length} פריטים עודכנו ל"${to}"`, { undo: async () => {
+    const r = await Promise.all(Object.entries(byPrev).map(([s, ids]) => sb.from('items').update({ status: s }).in('id', ids))); r.forEach(x => fail(x.error));
+    toast('בוטל, הפריטים חזרו למצב הקודם'); route(); } });
+  return true;
+}
+/** Restore many orders to the values they had before. prevs: [[id, {col: value}]] */
+async function undoMany(prevs) {
+  const r = await Promise.all(prevs.map(([id, p]) => sb.from('orders').update(p).eq('id', id))); r.forEach(x => fail(x.error));
+  toast('בוטל, הכל חזר למצב הקודם'); route();
+}
+/** Move many orders to one step. Moves only what can move safely (same phase, nothing required missing) and says what was skipped. */
+async function bulkMove(rows, to) {
+  let extra = {};
+  if (to === LOST) {
+    const f = await formModal(`${rows.length} לקוחות לא רלוונטיים: למה?`, `<label class="field">הסיבה העיקרית <span class="req">*</span><select name="loss_category" required>${opts('loss_category')}</select><span class="hint">אותה סיבה תירשם לכולם.</span></label>`, { ok: 'סימון כולם' });
+    if (!f) return false; extra = { loss_category: f.loss_category };
+  }
+  const dest = stepIdx(to), ok = [], skip = [];
+  rows.forEach(o => {
+    if (o.stage === to) return;
+    if (to === LOST || o.stage === LOST) return ok.push([o, {}]);
+    const from = stepIdx(o.stage);
+    const work = p => p === 'ops' || p === 'done'; // closing an order is the end of the work part
+    if (from < 0 || (STEPS[from].phase !== STEPS[dest].phase && !(work(STEPS[from].phase) && work(STEPS[dest].phase)))) return skip.push([o, 'שלב בחלק אחר (מכירה / עבודה)']);
+    if (dest >= stepIdx('בדרך למעבדה') && !o.lab_id) return skip.push([o, 'אין מעבדה']);
+    const stamps = {};
+    for (let i = from; i < dest; i++) {
+      const miss = STEPS[i].need ? STEPS[i].need(o) : [];
+      if (miss.length) return skip.push([o, 'חסר: ' + miss.join(', ')]);
+      (STEPS[i].set || []).forEach(k => { if (!o[k]) stamps[k] = new Date().toISOString(); });
+    }
+    ok.push([o, stamps]);
+  });
+  if (!ok.length) { await tell('אף לקוח לא הועבר', skip.map(([o, w]) => `${custName(o)}: ${w}`).join('\n')); return false; }
+  const prevs = ok.map(([o, st]) => { const p = { ...extra, ...st, stage: to }; return [o.id, Object.fromEntries([...Object.keys(p), 'completed_at'].map(k => [k, o[k] ?? null])), p]; });
+  const r = await Promise.all(prevs.map(([id, , p]) => sb.from('orders').update(p).eq('id', id))); r.forEach(x => fail(x.error));
+  toast(`${ok.length} הועברו ל"${to}"${skip.length ? ` · ${skip.length} לא הועברו` : ''}`, { undo: () => undoMany(prevs.map(([id, prev]) => [id, prev])) });
+  if (skip.length) await tell(`${skip.length} לא הועברו`, skip.map(([o, w]) => `${custName(o)}: ${w}`).join('\n') + '\n\nאת אלה מעבירים מדף הלקוח, שם רואים מה חסר.');
+  return true;
+}
+/** Same values on many orders (e.g. one lab for all). */
+async function bulkPatch(rows, patch, msg) {
+  const prevs = rows.map(o => [o.id, Object.fromEntries(Object.keys(patch).map(k => [k, o[k] ?? null]))]);
+  const { error } = await sb.from('orders').update(patch).in('id', rows.map(o => o.id)); fail(error);
+  toast(msg, { undo: () => undoMany(prevs) });
+}
+
 // ---------- messages ----------
 const tplByName = n => S.templates.find(t => t.active && t.name === n);
 function fillTemplate(body, o, c) {

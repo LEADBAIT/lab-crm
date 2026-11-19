@@ -36,9 +36,12 @@ VIEWS.scan = async function vScan() {
   const showOrder = async orderId => {
     const { data: its } = await sb.from('items').select('id, status').eq('order_id', orderId);
     const k = its.filter(i => i.status === current).length;
+    // marking the whole order at once is fine for later stages; intake ("במעבדה") must stay one by one, that's the count check
+    const allBtn = current !== 'במעבדה' && k < its.length ? `<button class="btn block" style="margin-top:8px" data-allorder="${orderId}">לסמן את כל ההזמנה "${esc(word(current))}" (עוד ${its.length - k})</button>` : '';
     $('#orderBox').innerHTML = `<section class="card"><div class="row spread"><div><div class="small muted">הזמנה ${orderId}</div><b>"${esc(word(current))}"</b></div><div class="big-count">${k}<span class="muted" style="font-size:20px">/${its.length}</span></div></div>
       <div class="progress" style="margin-top:10px"><div style="width:${its.length ? k / its.length * 100 : 0}%"></div></div>
-      ${current === 'במעבדה' ? `<button class="btn ${k === its.length ? 'primary' : ''} block" style="margin-top:12px" data-finish="${orderId}">סיום קליטה להזמנה ${orderId}</button><p class="tiny muted" style="margin-top:6px">לוחצים כשסיימתם לספור את כל הפריטים של ההזמנה. אם חסר משהו, היא תסומן "פער בספירה".</p>` : ''}</section>`;
+      ${current === 'במעבדה' ? `<button class="btn ${k === its.length ? 'primary' : ''} block" style="margin-top:12px" data-finish="${orderId}">סיום קליטה להזמנה ${orderId}</button><p class="tiny muted" style="margin-top:6px">לוחצים כשסיימתם לספור את כל הפריטים של ההזמנה. אם חסר משהו, היא תסומן "פער בספירה".</p>` : ''}${allBtn}</section>`;
+    $('[data-allorder]')?.addEventListener('click', async () => { if (await bulkItemStatus(its, current)) { showOrder(orderId); focusIn(); } });
     $('[data-finish]')?.addEventListener('click', async e => {
       const miss = its.length - k;
       if (miss && !await ask('חסרים פריטים', `נקלטו ${k} מתוך ${its.length}. חסרים ${miss}. לסיים קליטה ולסמן פער?`, { ok: 'לסיים עם פער' })) return;
