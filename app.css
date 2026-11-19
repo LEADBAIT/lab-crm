@@ -101,7 +101,8 @@ main { padding: var(--s5); max-width: 1440px; margin: 0 auto; }
 .row.nowrap { flex-wrap: nowrap; }
 .spread { justify-content: space-between; }
 .grow { flex: 1; min-width: 0; }
-.stack { display: grid; gap: var(--s3); }
+.stack { display: grid; gap: var(--s3); grid-template-columns: minmax(0, 1fr); }
+.stack > * { min-width: 0; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s4); min-width: 0; box-shadow: var(--shadow); }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
 .card.flush { padding: 0; overflow: hidden; }
@@ -383,6 +384,7 @@ dialog .actions { display: flex; gap: var(--s2); justify-content: flex-start; ma
 dialog form.grid { gap: var(--s3); }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 10px; z-index: 50; max-width: calc(100vw - 32px); display: flex; gap: var(--s3); align-items: center; box-shadow: var(--shadow-lg); font-weight: 500; }
 .toast button { font: inherit; background: none; border: 0; color: var(--accent); font-weight: 700; cursor: pointer; }
+.tip { position: fixed; z-index: 100; max-width: 280px; background: var(--ink); color: var(--surface); font-size: 13px; line-height: 1.5; font-weight: 400; padding: 7px 11px; border-radius: 8px; box-shadow: var(--shadow-lg); pointer-events: none; text-align: start; }
 .tour-step { display: grid; gap: var(--s3); }
 .tour-step .n { font-size: 12px; font-weight: 700; color: var(--accent-text); }
 .tour-dots { display: flex; gap: 6px; }

@@ -188,6 +188,7 @@ $('#userBtn').addEventListener('click', e => {
   const t = lsGet('theme');
   dropdown(e.currentTarget, [{ head: S.me?.name || S.user?.email || '' },
     ...(isLab() ? [] : [{ label: 'סיור היכרות עם ה-CRM', run: startTour }]),
+    { label: tipsOn() ? 'הסתרת הסברים במעבר עכבר' : 'הצגת הסברים במעבר עכבר', run: () => { lsSet('tips', tipsOn() ? 'off' : 'on'); toast(tipsOn() ? 'ההסברים מוצגים' : 'ההסברים הוסתרו'); } },
     { label: t === 'dark' ? 'מצב בהיר' : t === 'light' ? 'מצב לפי המכשיר' : 'מצב כהה', run: () => { lsSet('theme', t === 'dark' ? 'light' : t === 'light' ? '' : 'dark'); applyTheme(); } },
     'sep', { label: 'יציאה', run: async () => { await sb.auth.signOut(); location.hash = ''; location.reload(); } }]);
 });
@@ -274,6 +275,43 @@ function startTour(i = 0) {
   $('#tSkip', b) && ($('#tSkip', b).onclick = end);
   $('#modal').addEventListener('cancel', () => lsSet('tour.v3', 'done'), { once: true });
 }
+
+// ---------- hover tips: a short note on every button / object (texts in help.js → TIP_RULES, COL_TIPS) ----------
+const tipsOn = () => lsGet('tips') !== 'off';
+function tipFor(el) {
+  if (el.dataset?.tip) return el.dataset.tip;
+  for (const [sel, t] of (window.TIP_RULES || [])) if (el.matches?.(sel)) { const v = typeof t === 'function' ? t(el) : t; if (v) return v; }
+  const [tbl, , col] = (el.dataset?.save || '').split(':');
+  const ct = col && (window.COL_TIPS?.[tbl + '.' + col] ?? window.COL_TIPS?.[col]);
+  if (ct) return ct;
+  if (el.title) { el.dataset.tip = el.title; el.removeAttribute('title'); return el.dataset.tip; }
+  return '';
+}
+(() => {
+  const box = document.createElement('div'); box.className = 'tip hidden'; box.setAttribute('role', 'tooltip'); document.body.appendChild(box);
+  let cur = null, timer = null;
+  const hide = () => { clearTimeout(timer); cur = null; box.classList.add('hidden'); };
+  const place = el => {
+    const r = el.getBoundingClientRect(), b = box.getBoundingClientRect(), pad = 8;
+    let top = r.top - b.height - pad; if (top < 64) top = r.bottom + pad;
+    let left = r.left + r.width / 2 - b.width / 2; left = Math.max(pad, Math.min(left, innerWidth - b.width - pad));
+    box.style.top = top + 'px'; box.style.left = left + 'px';
+  };
+  let touch = false;
+  document.addEventListener('touchstart', () => { touch = true; hide(); }, { passive: true, capture: true });
+  document.addEventListener('mouseover', e => {
+    if (!tipsOn() || touch) { touch = false; return; }
+    let el = e.target, txt = '';
+    for (let i = 0; el && el !== document.body && i < 6; i++, el = el.parentElement) { txt = tipFor(el); if (txt) break; }
+    if (!txt) return hide();
+    if (el === cur) return;
+    hide(); cur = el;
+    timer = setTimeout(() => { if (cur !== el || !el.isConnected) return; box.textContent = txt; box.classList.remove('hidden'); place(el); }, 350);
+  });
+  document.addEventListener('mousedown', hide, true);
+  addEventListener('scroll', hide, true);
+  document.addEventListener('mouseleave', hide);
+})();
 
 // ---------- PWA ----------
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
