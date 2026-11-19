@@ -655,11 +655,9 @@ html.embed .shell { margin: 0; }
 html.embed main { padding: var(--s3) !important; }
 html.embed .deal-top { top: 0; }
 html.embed .deal { grid-template-columns: minmax(0, 1fr); }
-html.embed .deal .side { position: static; max-height: none; order: 2; }
+html.embed .deal .side { position: static; max-height: none; overflow: visible; order: 2; }
 html.embed .deal .quote-total { position: static; }
 html.embed .quote-layout { grid-template-columns: minmax(0, 1fr); }
-html.embed .pbar { overflow-x: auto; }
-html.embed .step { min-width: 72px; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 1280px) {
@@ -673,25 +671,21 @@ html.embed .step { min-width: 72px; }
 @media (max-width: 1000px) {
   .deal, .queue-layout, .scan-layout, .quote-layout, .settings { grid-template-columns: minmax(0, 1fr); }
   .side, .quote-total, .subnav { position: static; max-height: none; }
+  .deal .side { position: static; max-height: none; overflow: visible; order: 2; } /* one column: the next step first, summary after */
   .subnav { display: flex; overflow-x: auto; scrollbar-width: none; }
   .subnav button { white-space: nowrap; flex: none; }
   .subnav .desc { display: none; }
   .cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .topbar { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .pbar { overflow-x: auto; }
-  .step { min-width: 84px; }
 }
 @media (max-width: 700px) {
   :root { --rail-w: 0px; }
-  .deal-top { position: static; }
   main { padding: var(--s3) var(--s3) 84px; }
   .topbar { padding: 0 var(--s3); gap: var(--s2); }
   .page-title { font-size: 16px; }
   .topbar .new-txt { display: none; }
   .quick-add { width: 36px; padding: 0; }
-  .dh-acts .sep-v { display: none; }
-  .dh-acts .won, .dh-acts .lost { flex: 1; }
   .rail { inset-block: auto 0; inset-inline: 0; width: auto; height: 62px; flex-direction: row; padding: 0 0 env(safe-area-inset-bottom); }
   .rail .brand { display: none; }
   #nav { flex-direction: row; justify-content: space-around; padding: 4px; }
@@ -715,3 +709,57 @@ html.embed .step { min-width: 72px; }
   .card { border: 0; box-shadow: none; }
   .lbl { border: 0; }
 }
+
+/* ---------- narrow deal page: the side panel (≈420px) and phones ----------
+   Container queries, so the same rules fit the iframe panel, a phone, and a narrow window. */
+.deal-top, .deal > .stack, .deal > .side { container-type: inline-size; }
+.pbar-cap { display: none; }
+@container (max-width: 760px) {
+  /* stage bar → thin progress segments + one caption line (no truncated labels, no sideways scroll) */
+  .pbar { gap: 3px; padding: 2px var(--s4) 4px; }
+  .deal-top .step, .deal-top.stuck .step { height: 18px; padding: 0; margin: 0; clip-path: none; border-radius: 0; background: transparent; }
+  .deal-top .step::before { content: ''; position: absolute; inset-inline: 0; top: 5px; height: 8px; border-radius: 4px; background: var(--surface-3); }
+  .deal-top .step.done::before { background: color-mix(in srgb, var(--won) 45%, var(--surface)); }
+  .deal-top .step.cur::before { background: var(--won); box-shadow: 0 0 0 2px color-mix(in srgb, var(--won) 30%, transparent); }
+  .deal-top .step:hover::before { filter: brightness(1.15); }
+  .step .l, .step .d { display: none; }
+  .pbar-cap { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 0 var(--s4) 12px; font-size: 12px; color: var(--muted); }
+  .pbar-cap b { color: var(--ink); font-size: 14px; }
+  .pbar-cap .nx { margin-inline-start: auto; }
+  .deal-top.stuck .pbar-cap { display: none; }
+  /* header: name, then won / lost side by side, then contact actions */
+  .deal-head { padding: 12px var(--s4) 10px; gap: 10px; }
+  .deal-head h1 { font-size: 19px; }
+  .dh-acts { width: 100%; flex-wrap: wrap; }
+  .dh-acts .sep-v { display: none; }
+  .dh-acts .won, .dh-acts .lost { order: -1; flex: 1 1 calc(50% - 3px); min-height: 36px; }
+  .dh-acts > a.btn { flex: 1 1 auto; }
+  .deal-top.stuck .dh-acts > :not(.won):not(.lost) { display: none; }
+  /* stuck (scrolled): one row = name + won / lost, then the thin stage bar */
+  .deal-top.stuck .deal-head { flex-wrap: nowrap; padding-block: 8px; }
+  .deal-top.stuck h1 { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .deal-top.stuck .dh-acts { width: auto; flex-wrap: nowrap; flex: none; }
+  .deal-top.stuck .won, .deal-top.stuck .lost { flex: none; min-height: 30px; min-width: 0; padding: 2px 12px; font-size: 13px; }
+}
+@container (max-width: 560px) {
+  .qrow { grid-template-columns: minmax(0, 1fr) 112px; gap: 8px; }
+  .qrow .pr, .qrow .lt { display: none; }
+  .quote-layout { grid-template-columns: minmax(0, 1fr); }
+  .quote-total { position: static; }
+  .next-card { padding: 14px; }
+  .next-actions > .btn, .next-actions > a.btn { flex: 1 1 auto; }
+  .next-card .btn.lg { width: 100%; min-height: 40px; }
+  .fu-line { flex-wrap: wrap; }
+  .checklist li { padding: 6px 10px; }
+  details.sec > summary { flex-wrap: wrap; row-gap: 2px; padding: 11px 14px; }
+  details.sec > .body { padding: 14px; }
+  .hist-head { flex-direction: column; align-items: flex-start; }
+  .ctabs { overflow-x: auto; scrollbar-width: none; }
+  .fields { grid-template-columns: minmax(0, 1fr); }
+  .timeline li { grid-template-columns: 28px 1fr; gap: 8px; }
+  .timeline .ic { width: 28px; height: 28px; font-size: 12px; }
+  .timeline::before { inset-inline-start: 13px; }
+}
+html.embed .deal { gap: var(--s3); }
+html.embed .stack { gap: var(--s3); }
+html.embed .back { display: none; }

@@ -85,8 +85,6 @@ function renderDeal(ctx) {
   bindDeal(ctx);
   stickyHead();
   // narrow screens: the stage bar scrolls sideways, so bring the current stage into view
-  const pb = $('.pbar'), cur = $('.pbar .step.cur');
-  if (pb && cur && pb.scrollWidth > pb.clientWidth) pb.scrollLeft += cur.getBoundingClientRect().left - pb.getBoundingClientRect().left - (pb.clientWidth - cur.offsetWidth) / 2;
 }
 // sticky header (name + stage bar): compact when stuck, and tells the sidebar how tall it is
 let _stickyObs = null;
@@ -124,8 +122,10 @@ function stepperHtml(ctx) {
     const n = Math.max(0, Math.floor((new Date(b) - new Date(a)) / 864e5));
     return n === 1 ? 'יום' : `${n} ימים`;
   };
-  return `<div class="pbar" role="list" aria-label="שלבים">${STEPS.map((s, i) => `<button class="step ${i < cur ? 'done' : ''} ${i === cur ? 'cur' : ''}" data-step="${i}" role="listitem" aria-current="${i === cur ? 'step' : 'false'}">
-    <span class="l">${esc(s.key)}</span><span class="d">${days(i)}</span></button>`).join('')}</div>`;
+  // narrow screens (side panel, phone) show thin segments + this caption instead of the labels
+  const cap = cur >= 0 ? `<div class="pbar-cap"><b>${esc(STEPS[cur].key)}</b><span>שלב ${cur + 1} מתוך ${STEPS.length}${days(cur) ? ' · ' + days(cur) + ' בשלב' : ''}</span>${STEPS[cur + 1] ? `<span class="nx">הבא: ${esc(STEPS[cur + 1].key)}</span>` : ''}</div>` : '';
+  return `<div class="pbar" role="list" aria-label="שלבים">${STEPS.map((s, i) => `<button class="step ${i < cur ? 'done' : ''} ${i === cur ? 'cur' : ''}" data-step="${i}" role="listitem" aria-current="${i === cur ? 'step' : 'false'}" aria-label="${esc(s.key)}">
+    <span class="l">${esc(s.key)}</span><span class="d">${days(i)}</span></button>`).join('')}</div>${cap}`;
 }
 
 // ---------- next step card ----------
