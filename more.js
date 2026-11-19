@@ -106,7 +106,6 @@ const LISTS_EDIT = { source: ['מאיפה לקוחות מגיעים', 'מופי�
   payment_method: ['אמצעי תשלום', ''], courier: ['חברות שליחויות', ''], return_method: ['איך החומרה חוזרת ללקוח', ''], expense_category: ['סוגי הוצאות', 'הסוג "פרסום" נכנס לחישוב עלות לפנייה.'] };
 const LIST_COL = { source: ['orders', 'source'], temperature: ['orders', 'temperature'], loss_category: ['orders', 'loss_category'], payment_method: ['orders', 'payment_method'], return_method: ['orders', 'return_method'], courier: ['orders', 'courier'], expense_category: ['expenses', 'category'] };
 const SENTENCES = {
-  followup_days: ['אם הלקוח לא חזר אלינו, להזכיר לי לחזור אליו אחרי', 'ימים', 'נקבע מחדש בכל פעם שלוחצים "דיברתי".'],
   quote_stale_days: ['הצעת מחיר בלי תשובה עולה במשימות אחרי', 'ימים', ''],
   sla_target_days: ['היעד: הלקוח מקבל את הקבצים תוך', 'ימים מהתשלום', 'אחרי זה ההזמנה מסומנת בכתום.'],
   sla_max_days: ['אחרי', 'ימים מהתשלום ההזמנה מסומנת באדום', 'חייב להיות יותר מהיעד.'],

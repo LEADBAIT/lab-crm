@@ -270,7 +270,7 @@ th.sel, td.sel { width: 36px; padding-inline-end: 0; }
 .deal .side { max-height: calc(100vh - 84px - var(--dh, 0px)); }
 .deal .bulk-bar { top: calc(64px + var(--dh, 0px)); }
 .back { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 14px; margin-bottom: 6px; }
-.stepper { display: grid; grid-template-columns: repeat(3, 1fr) 14px repeat(5, 1fr); align-items: start; padding: var(--s4) var(--s3) var(--s3); }
+.stepper { display: grid; grid-template-columns: repeat(var(--ns, 4), 1fr) 14px repeat(var(--no, 5), 1fr); align-items: start; padding: var(--s4) var(--s3) var(--s3); }
 .stepper .grp { grid-row: 1; font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; margin-bottom: var(--s2); }
 .stepper .gap { grid-row: 2; }
 .step { grid-row: 2; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; position: relative; background: none; border: 0; font: inherit; color: var(--muted); cursor: pointer; padding: 0 2px; }
@@ -461,7 +461,7 @@ dialog form.grid { gap: var(--s3); }
   #nav a.on { border-top-color: var(--accent); }
   #nav a .t { display: block; }
   .cols-2, .cols-3, .cols-4 { grid-template-columns: minmax(0, 1fr); }
-  .stepper { grid-template-columns: repeat(8, minmax(64px, 1fr)); overflow-x: auto; }
+  .stepper { grid-template-columns: repeat(9, minmax(64px, 1fr)); overflow-x: auto; }
   .stepper .grp, .stepper .gap { display: none; }
   .qrow { grid-template-columns: minmax(0, 1fr) 130px; }
   .qrow .pr, .qrow .lt { display: none; }
@@ -477,3 +477,48 @@ dialog form.grid { gap: var(--s3); }
   .card { border: 0; box-shadow: none; }
   .lbl { border: 0; }
 }
+
+/* ---------- sales dashboard (מכירות) ---------- */
+.counters { display: flex; gap: var(--s2); }
+.counter { font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; min-width: 96px; padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); line-height: 1.2; }
+.counter b { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.counter span { font-size: 13px; color: var(--muted); }
+.counter small { font-size: 11px; }
+.counter.red b { color: var(--red); } .counter.orange b { color: var(--orange); }
+.counter.on { border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus) inset; }
+.new-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); background: var(--blue-bg); color: var(--ink); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: var(--s3); }
+.sales-table td { padding: 8px 10px; }
+.sales-table th { padding: 8px 10px; }
+.sales-table .grp-row td { background: var(--surface-3); font-weight: 600; font-size: 13px; color: var(--ink-2); padding: 6px 12px; position: static; }
+.sales-table .grp-row .n { color: var(--muted); font-weight: 400; margin-inline-start: 6px; }
+.srow td { transition: background .1s; }
+.srow:hover td { background: var(--surface-2); }
+.srow.cur td { background: var(--accent-soft); }
+.srow.cur td:first-child { box-shadow: inset -4px 0 0 var(--accent); }
+.name-cell .strong { font-weight: 600; font-size: 15px; color: var(--ink); text-align: start; }
+.name-cell .chip { margin-top: 3px; margin-inline-end: 4px; }
+.btn.xs { min-height: 28px; padding: 2px 8px; font-size: 13px; }
+.sales-table select { min-width: 0; padding: 4px 8px; font-size: 14px; min-height: 32px; width: auto; }
+.stage-sel { border-inline-start: 4px solid var(--sc, var(--line-2)) !important; }
+.temp-sel { border-inline-start: 4px solid var(--tc, var(--line-2)) !important; }
+.fu-btn { font: inherit; background: none; border: 1px dashed transparent; border-radius: var(--radius-sm); padding: 4px 6px; cursor: pointer; color: var(--ink); text-align: start; display: block; min-width: 110px; max-width: 200px; }
+.fu-btn:hover { border-color: var(--line-2); background: var(--surface-2); }
+.fu-btn .late, .fu-late b { color: var(--red); }
+.fu-btn .sub.clip, .note-btn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-cell { max-width: 220px; }
+.note-btn { font: inherit; font-size: 14px; background: none; border: 1px dashed transparent; border-radius: var(--radius-sm); padding: 4px 6px; cursor: text; color: var(--ink-2); text-align: start; display: block; width: 100%; max-width: 220px; }
+.note-btn:hover { border-color: var(--line-2); background: var(--surface-2); }
+.note-form input { width: 220px; min-height: 32px; padding: 4px 8px; font-size: 14px; }
+.sales-table .acts-in { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; }
+.fu-line { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: var(--s3); font-size: 14px; }
+.fu-line.fu-late, .fu-line.fu-none { border-color: var(--red); }
+.fu-line.fu-late b, .fu-line.fu-none b { color: var(--red); }
+/* side panel: the customer page at phone width, over the table's left side */
+.spanel { position: fixed; top: 60px; bottom: 0; left: 0; width: 440px; max-width: 92vw; z-index: 25; background: var(--bg); border-inline-start: 1px solid var(--line-2); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; }
+.spanel-head { display: flex; align-items: center; gap: var(--s2); padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.spanel iframe { flex: 1; width: 100%; border: 0; background: var(--bg); }
+/* embed mode (inside the side panel) */
+html.embed .topbar, html.embed .back { display: none !important; }
+html.embed main { padding: var(--s3) !important; }
+html.embed .deal-head { top: 0; }
+html.embed .deal .side, html.embed .deal .quote-total { top: 0; }

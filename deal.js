@@ -47,7 +47,11 @@ VIEWS.order = async function vOrder(id) {
   [rl, ri, re].forEach(r => fail(r.error));
   const { data: c, error } = await sb.from('customers').select('*').eq('id', o.customer_id).single(); fail(error);
   const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data };
+  // #order/<id>/<section> opens that section (the sales dashboard uses it, e.g. for missing invoice details)
+  const sec = location.hash.split('/')[2];
+  if (sec && SECTIONS.some(s => s[0] === sec)) { SEC_OPEN[id] ||= new Set(); SEC_OPEN[id].add(sec); }
   renderDeal(ctx);
+  if (sec) setTimeout(() => $(`[data-sec="${sec}"]`)?.scrollIntoView({ block: 'start' }), 50);
 };
 const reloadDeal = ctx => VIEWS.order(ctx.o.id);
 
@@ -101,11 +105,11 @@ function stepDate(ctx, s) {
   return ctx.events.find(e => e.kind === 'stage' && e.new_value === s.key)?.at;
 }
 function stepperHtml(ctx) {
-  const cur = stepIdx(ctx.o.stage);
-  const btn = (s, i) => `<button class="step ${i < cur ? 'done' : ''} ${i === cur ? 'cur' : ''} ${i === 2 || i === 7 ? 'last-in-grp' : ''}" data-step="${i}">
+  const cur = stepIdx(ctx.o.stage), ns = STEPS.filter(s => s.phase === 'sales').length, n = STEPS.length;
+  const btn = (s, i) => `<button class="step ${i < cur ? 'done' : ''} ${i === cur ? 'cur' : ''} ${i === ns - 1 || i === n - 1 ? 'last-in-grp' : ''}" data-step="${i}">
     <span class="c">${i < cur ? '✓' : i + 1}</span><span class="l">${esc(s.key)}</span><span class="d">${i <= cur ? fmtShort(stepDate(ctx, s)) : ''}</span></button>`;
-  return `<div class="stepper"><div class="grp" style="grid-column:1/4">מכירה</div><div class="grp" style="grid-column:5/10">עבודה</div>
-    ${STEPS.slice(0, 3).map(btn).join('')}<div class="gap"></div>${STEPS.slice(3).map((s, j) => btn(s, j + 3)).join('')}</div>`;
+  return `<div class="stepper" style="--ns:${ns};--no:${n - ns}"><div class="grp" style="grid-column:1/${ns + 1}">מכירה</div><div class="grp" style="grid-column:${ns + 2}/${n + 2}">עבודה</div>
+    ${STEPS.slice(0, ns).map(btn).join('')}<div class="gap"></div>${STEPS.slice(ns).map((s, j) => btn(s, j + ns)).join('')}</div>`;
 }
 
 // ---------- next step card ----------
@@ -117,19 +121,20 @@ function nextCardHtml(ctx) {
   const nxt = STEPS[i + 1];
   const tpls = [s.tpl, s.tpl2].map(tplByName).filter(Boolean);
   return `<section class="card next-card">
-    <div class="eyebrow">שלב ${i + 1} מתוך 8 · ${esc(s.key)}</div>
+    <div class="eyebrow">שלב ${i + 1} מתוך ${STEPS.length} · ${esc(s.key)}</div>
     <h2>הצעד הבא: ${esc(s.title)}</h2>
     <p class="todo">${esc(s.todo)}</p>
+    ${FU_STAGES.includes(o.stage) ? `<div class="fu-line fu-${fuState(o)}"><span>פולו-אפ הבא: <b>${o.next_followup ? esc(fuLabel(o)) + ' (' + fmtShort(o.next_followup) + ')' : 'אין צעד הבא'}</b>${o.followup_note ? ' · ' + esc(o.followup_note) : ''}${o.stage === 'בשיחה' ? ` · ניסיון ${o.followup_attempts || 1} מתוך ${MAX_ATTEMPTS}` : ''}</span><button class="btn sm" id="fuEdit">${o.next_followup ? 'שינוי' : 'קביעת פולו-אפ'}</button></div>` : ''}
     ${checks.length ? `<ul class="checklist">${checks.map((k, j) => checkHtml(ctx, k, j)).join('')}</ul>` : ''}
     ${s.fields ? `<div class="fields" style="margin-bottom:12px">${s.fields.map(k => fld(ctx, k)).join('')}</div>` : ''}
     ${s.pay ? `<div class="note" style="margin-bottom:12px">כשהלקוח משלם, לוחצים "${esc(s.btn)}". נפתח חלון קצר לרישום התשלום, וההזמנה עוברת לתיאום איסוף.</div>` : ''}
     ${miss.length && nxt ? `<div class="warn" style="margin-bottom:4px">כדי להמשיך חסר: ${esc(miss.join(', '))}</div>` : ''}
     <div class="next-actions">
       ${nxt && s.btn ? `<button class="btn primary lg" id="advance">${esc(s.btn)} ←</button>` : ''}
-      ${i === 1 ? `<button class="btn wa" id="sendQuote">שליחת ההצעה בוואטסאפ</button>` : ''}
+      ${s.key === 'בפולואפ' ? `<button class="btn wa" id="sendQuote">שליחת ההצעה בוואטסאפ</button>` : ''}
       ${tpls.map(t => `<button class="btn wa" data-tpl="${t.id}">וואטסאפ: ${esc(t.name)}</button>`).join('')}
       ${s.phase === 'sales' ? `<button class="btn ghost" id="toLost">הלקוח לא מעוניין</button>` : ''}
-      ${i === 3 ? `<a class="btn ghost" href="#labels/${o.id}">מדבקות</a><a class="btn ghost" href="#manifest/${o.id}">דף משלוח</a>` : ''}
+      ${s.key === 'לתאם איסוף' ? `<a class="btn ghost" href="#labels/${o.id}">מדבקות</a><a class="btn ghost" href="#manifest/${o.id}">דף משלוח</a>` : ''}
     </div>
   </section>`;
 }
@@ -184,7 +189,7 @@ const SEC_BODY = {
     <div style="margin-top:12px">${tog(ctx, 'priority')}</div>
     ${ctx.o.meta_lead_id ? `<div class="subhead">הגיע מטופס לידים במטא: ${esc(ctx.o.meta_form || '')}</div><div class="fields">
       ${ro('פלטפורמה', ctx.o.meta_platform === 'ig' ? 'אינסטגרם' : ctx.o.meta_platform === 'fb' ? 'פייסבוק' : ctx.o.meta_platform)}${ro('קמפיין', ctx.o.meta_campaign)}${ro('סט מודעות', ctx.o.meta_adset)}${ro('מודעה', ctx.o.meta_ad)}${ro('מילא את הטופס', fmtDT(ctx.o.meta_created_at))}</div>` : ''}`,
-  after: ctx => `<ul class="checklist">${STEPS[7].checks.map((k, j) => checkHtml(ctx, k, 'a' + j)).join('')}</ul><div class="fields">${fld(ctx, 'gift_sent')}</div><div style="margin-top:12px">${tog(ctx, 'story_posted')}</div>`,
+  after: ctx => `<ul class="checklist">${STEP_DONE().checks.map((k, j) => checkHtml(ctx, k, 'a' + j)).join('')}</ul><div class="fields">${fld(ctx, 'gift_sent')}</div><div style="margin-top:12px">${tog(ctx, 'story_posted')}</div>`,
 };
 
 // ---------- quote builder ----------
@@ -234,8 +239,9 @@ function itemsHtml(ctx) {
 }
 
 // ---------- side panel ----------
-const EV_IC = { stage: ['→', 'stage'], payment: ['₪', 'payment'], contact: ['☎', 'contact'], note: ['✎', 'note'] };
+const EV_IC = { stage: ['→', 'stage'], payment: ['₪', 'payment'], contact: ['☎', 'contact'], note: ['✎', 'note'], followup: ['⏰', 'stage'], field: ['•', 'note'] };
 function evText(ev) {
+  if (ev.kind === 'followup') return `פולו-אפ: <b>${esc(ev.new_value)}</b>`;
   if (ev.kind === 'stage') return `עבר ל<b>${esc(ev.new_value)}</b>`;
   if (ev.kind === 'payment') return `תשלום: ${esc(ev.old_value ? ev.old_value + ' ← ' : '')}<b>${esc(ev.new_value)}</b>`;
   if (ev.kind === 'contact') return 'שיחה / הודעה עם הלקוח';
@@ -312,6 +318,7 @@ function bindNext(ctx) {
   const checks = s.checks.filter(k => !k.show || k.show(ctx.o));
   $$('#nextBox [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, checks[b.dataset.chk]));
   $('#advance') && ($('#advance').onclick = async () => { const nx = STEPS[stepIdx(ctx.o.stage) + 1]; if (nx && await changeStage(ctx.o, nx.key, ctx.c)) { delete SEC_OPEN[ctx.o.id]; reloadDeal(ctx); } });
+  $('#fuEdit') && ($('#fuEdit').onclick = async () => { if (await setFollowup(ctx.o)) reloadDeal(ctx); });
   $('#toLost') && ($('#toLost').onclick = async () => { if (await changeStage(ctx.o, LOST, ctx.c)) reloadDeal(ctx); });
   $$('#nextBox [data-tpl]').forEach(b => b.onclick = () => openTemplate(ctx, S.templates.find(t => String(t.id) === b.dataset.tpl)));
   $('#sendQuote') && ($('#sendQuote').onclick = () => sendQuote(ctx));
@@ -332,7 +339,7 @@ function bindDeal(ctx) {
   bindNext(ctx);
   $$('details.sec').forEach(d => d.addEventListener('toggle', () => SEC_OPEN[o.id][d.open ? 'add' : 'delete'](d.dataset.sec)));
   $$('[data-step]').forEach(b => b.onclick = async () => { const s = STEPS[b.dataset.step]; if (s.key !== ctx.o.stage && await changeStage(ctx.o, s.key, c)) { delete SEC_OPEN[o.id]; reloadDeal(ctx); } });
-  $('#revive') && ($('#revive').onclick = async () => { if (await changeStage(ctx.o, ctx.o.media_qty ? 'בשיחה' : 'פנייה חדשה', c)) reloadDeal(ctx); });
+  $('#revive') && ($('#revive').onclick = async () => { if (await changeStage(ctx.o, ctx.o.media_qty ? 'בפולואפ' : 'פנייה חדשה', c)) reloadDeal(ctx); });
   $('#waBtn').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, [{ head: 'הודעה מוכנה (נפתחת בוואטסאפ עם הפרטים של הלקוח)' },
     ...S.templates.filter(t => t.active).map(t => ({ label: t.name, sub: fillTemplate(t.body, ctx.o, c).slice(0, 80), run: () => openTemplate(ctx, t) })),
     'sep', { label: 'הצעת המחיר', run: () => sendQuote(ctx) }, { label: 'הודעה ריקה', run: () => window.open(waLink(c.phone), '_blank', 'noopener') }]); };
@@ -380,9 +387,9 @@ function bindDeal(ctx) {
     SEC_OPEN[o.id].add('items'); reloadDeal(ctx);
   });
   // after-section checks share the step-8 checklist
-  $$('[data-body="after"] [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, STEPS[7].checks[Number(b.dataset.chk.slice(1))]));
+  $$('[data-body="after"] [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, STEP_DONE().checks[Number(b.dataset.chk.slice(1))]));
   $$('[data-body="after"] [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
-  $$('[data-body="after"] [data-unchk]').forEach(b => b.onclick = () => runUncheck(ctx, STEPS[7].checks[Number(b.dataset.unchk.slice(1))]));
+  $$('[data-body="after"] [data-unchk]').forEach(b => b.onclick = () => runUncheck(ctx, STEP_DONE().checks[Number(b.dataset.unchk.slice(1))]));
   // side
   $('#contacted') && ($('#contacted').onclick = async () => { await markContacted(ctx.o); reloadDeal(ctx); });
   $$('[data-fu]').forEach(b => b.onclick = async () => { const d = addDays(Number(b.dataset.fu)); const { error } = await sb.from('orders').update({ next_followup: d }).eq('id', o.id); fail(error); $$(`[data-save="orders:${o.id}:next_followup"]`).forEach(i => i.value = d); toast('נחזור ללקוח ב-' + fmtDate(d)); });

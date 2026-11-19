@@ -5,11 +5,15 @@ const LOST = 'לא רלוונטי';
 const STEPS = [
   { key: 'פנייה חדשה', short: 'פנייה', phase: 'sales', date: o => o.created_at,
     title: 'ליצור קשר עם הלקוח', todo: 'להתקשר או לשלוח וואטסאפ, להבין מה יש לו (כמה קלטות/דיסקים, מאיזה סוג) ומה הוא צריך.',
-    tpl: 'פתיחה ללידים', btn: 'דיברנו, הלקוח מתעניין', open: ['customer', 'sale'],
+    tpl: 'פתיחה ללידים', btn: 'פניתי ללקוח', open: ['customer', 'sale'],
     checks: [{ label: 'יצרנו קשר', done: o => !!o.last_contact_at, at: o => o.last_contact_at, act: 'contact' }] },
   { key: 'בשיחה', short: 'שיחה', phase: 'sales',
-    title: 'לבנות הצעת מחיר', todo: 'למלא בהצעת המחיר כמה פריטים יש מכל סוג, ולשלוח אותה ללקוח בוואטסאפ.',
-    btn: 'שלחתי הצעת מחיר', open: ['quote', 'customer'],
+    title: 'להשיג את הלקוח', todo: 'פנינו ועוד לא דיברנו. מנסים שוב במועד הפולו-אפ. אחרי 4 ניסיונות בלי מענה הליד נסגר לבד כ"לא עונה".',
+    tpl: 'פתיחה ללידים', btn: 'דיברנו, ממשיכים לפולו-אפ', open: ['customer', 'sale'],
+    checks: [{ label: 'יצרנו קשר', done: o => !!o.last_contact_at, at: o => o.last_contact_at, act: 'contact' }] },
+  { key: 'בפולואפ', short: 'פולואפ', phase: 'sales',
+    title: 'לקדם להצעת מחיר', todo: 'דיברנו, ומשהו צריך לקרות עד מועד הפולו-אפ (תמונות של החומרה, הלקוח חושב). ממלאים כמויות ושולחים הצעה.',
+    tpl: 'פולואפ אחרי שיחה', btn: 'שלחתי הצעת מחיר', open: ['quote', 'customer'],
     need: o => o.media_qty ? [] : ['כמויות בהצעת המחיר'],
     checks: [{ label: 'מילאנו כמויות בהצעת המחיר', done: o => o.media_qty > 0, act: 'open:quote' },
       { label: 'קיבלנו תמונות של החומרה (לא חובה)', done: o => !!o.drive_folder_url, act: 'open:delivery' }] },
@@ -54,6 +58,7 @@ const STEPS = [
 ];
 const stepIdx = k => STEPS.findIndex(s => s.key === k);
 const stepOf = k => STEPS[stepIdx(k)] || null;
+const STEP_DONE = () => stepOf('הושלם');
 const PHASE_NAME = { sales: 'מכירה', ops: 'בעבודה', done: 'הסתיים', lost: 'לא רלוונטי' };
 const phaseOf = k => k === LOST ? 'lost' : stepOf(k)?.phase || 'sales';
 const stageColor = k => (S.opts.stage || []).find(o => o.value === k)?.color || '#9CA3AF';
@@ -64,7 +69,8 @@ function subStatus(o) {
   const d = n => n === 0 ? 'היום' : n === 1 ? 'אתמול' : `לפני ${n} ימים`;
   switch (o.stage) {
     case 'פנייה חדשה': return o.last_contact_at ? `ניסינו ליצור קשר ${d(daysSince(o.last_contact_at))}` : `עוד לא דיברנו · נכנסה ${ago(o.created_at)}`;
-    case 'בשיחה': return o.media_qty ? `${o.media_qty} פריטים · ${money(o.total)}, ההצעה עוד לא נשלחה` : 'עוד אין כמויות בהצעה';
+    case 'בשיחה': return `ניסיון ${o.followup_attempts || 1} מתוך 4 · ${o.last_contact_at ? 'פנינו ' + d(daysSince(o.last_contact_at)) : 'עוד לא נרשמה פנייה'}`;
+    case 'בפולואפ': return o.media_qty ? `${o.media_qty} פריטים · ${money(o.total)}, ההצעה עוד לא נשלחה` : 'עוד אין כמויות בהצעה';
     case 'הצעה נשלחה': return `${money(o.total)} · נשלחה ${d(daysSince(o.stage_changed_at))}`;
     case 'לתאם איסוף': return o.pickup_date ? `שליח מגיע ${until(o.pickup_date)} (${fmtShort(o.pickup_date)})` : !o.lab_id ? 'צריך לבחור מעבדה ולהזמין שליח' : 'צריך להזמין שליח';
     case 'בדרך למעבדה': return `נאסף ${o.picked_up_at ? d(daysSince(o.picked_up_at)) : ''}`;
@@ -79,7 +85,58 @@ function subStatus(o) {
 // ---------- required details before payment ----------
 const REQUIRED_BEFORE_PAID = [['full_name', 'שם מלא'], ['email', 'מייל'], ['id_number', 'ת.ז לחשבונית'], ['city', 'עיר'], ['street', 'רחוב'], ['house_number', 'מספר בית'], ['alt_contact_name', 'איש קשר נוסף'], ['alt_contact_phone', 'טלפון איש קשר נוסף']];
 const missingForPaid = (o, c) => REQUIRED_BEFORE_PAID.filter(([k]) => !String(c?.[k] || '').trim()).map(x => x[1]).concat(o.media_qty ? [] : ['כמויות בהצעת המחיר']);
-const showRequired = o => stepIdx(o.stage) >= 2 || phaseOf(o.stage) !== 'sales';
+const showRequired = o => stepIdx(o.stage) >= stepIdx('הצעה נשלחה') || phaseOf(o.stage) !== 'sales';
+
+// ---------- follow-ups (manual: a date is set only by us) ----------
+/** stages where a lead must always have a next follow-up date */
+const FU_STAGES = ['בשיחה', 'בפולואפ', 'הצעה נשלחה'];
+const MAX_ATTEMPTS = 4;
+const fuTime = t => t ? String(t).slice(0, 5) : '';
+/** 'late' | 'today' | 'none' (in a follow-up stage without a date) | 'future' | '' */
+function fuState(o) {
+  if (!FU_STAGES.includes(o.stage)) return '';
+  if (!o.next_followup) return 'none';
+  const t = today();
+  if (o.next_followup < t) return 'late';
+  if (o.next_followup > t) return 'future';
+  if (o.next_followup_time && fuTime(o.next_followup_time) < new Date().toTimeString().slice(0, 5)) return 'late';
+  return 'today';
+}
+/** "היום 17:30" / "מחר" / "לפני 3 ימים" */
+function fuLabel(o) {
+  if (!o.next_followup) return '';
+  return until(o.next_followup) + (o.next_followup_time ? ' ' + fuTime(o.next_followup_time) : '');
+}
+/** Dialog for the next follow-up: date (quick buttons), optional hour, why, and the message to send. Returns the patch or null. */
+async function followupModal(o, { stage = o.stage, title } = {}) {
+  const tplName = stepOf(stage)?.tpl, tpl = tplName && tplByName(tplName);
+  const draft = o.followup_draft || (tpl ? fillTemplate(tpl.body, o, null) : '');
+  // in "בשיחה" rescheduling counts as one more attempt; the 4th closes the lead (database trigger)
+  const resched = stage === o.stage && o.stage === 'בשיחה' && o.next_followup;
+  const next = resched ? (o.followup_attempts || 1) + 1 : 1;
+  const warn = resched ? (next >= MAX_ATTEMPTS ? `<div class="warn">זה הניסיון ה-${MAX_ATTEMPTS}. שמירה תסגור את הליד כ"לא רלוונטי" (לא עונה).</div>` : `<p class="small muted">ניסיון ${next} מתוך ${MAX_ATTEMPTS}</p>`) : '';
+  const p = modal(`<h2>${esc(title || 'מתי חוזרים ל' + custName(o) + '?')}</h2>${warn}<form id="fuF" class="grid">
+    <div class="row">${[[1, 'מחר'], [3, 'בעוד 3 ימים'], [7, 'בעוד שבוע']].map(([n, l]) => `<button type="button" class="btn sm" data-fq="${n}">${l}</button>`).join('')}</div>
+    <div class="row nowrap"><label class="field grow">תאריך <span class="req">*</span><input type="date" name="d" required value="${esc(o.next_followup && o.next_followup >= today() ? o.next_followup : '')}" min="${today()}"></label>
+      <label class="field">שעה (לא חובה)<input type="time" name="t" value="${esc(fuTime(o.next_followup_time))}"></label></div>
+    <label class="field">למה חוזרים<input name="n" value="${esc(o.followup_note || '')}" placeholder="למשל: שולח תמונות של הקלטות"></label>
+    <label class="field">הודעה מוכנה לשליחה<textarea name="m" rows="4">${esc(draft)}</textarea><span class="hint">נפתחת בכפתור הוואטסאפ בשורה של הליד.</span></label>
+    <div class="actions"><button class="btn primary">שמירה</button><button type="button" class="btn" id="fuNo">ביטול</button></div></form>`);
+  return new Promise(res => {
+    $$('[data-fq]', p).forEach(b => b.onclick = () => { $('[name=d]', p).value = addDays(Number(b.dataset.fq)); });
+    $('#fuF', p).onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); closeModal();
+      res({ next_followup: f.d, next_followup_time: f.t || null, followup_note: f.n.trim() || null, followup_draft: f.m.trim() || null }); };
+    $('#fuNo', p).onclick = () => { closeModal(); res(null); };
+    $('#modal').addEventListener('cancel', () => res(null), { once: true });
+    setTimeout(() => $('[data-fq]', p)?.focus(), 30);
+  });
+}
+/** Set the next follow-up with undo. The trigger may also close the lead, so undo restores stage/attempts too. */
+async function setFollowup(o, opts) {
+  const patch = await followupModal(o, opts); if (!patch) return false;
+  await patchOrder(o, patch, 'נקבע פולו-אפ: ' + until(patch.next_followup) + (patch.next_followup_time ? ' ' + patch.next_followup_time : ''), { extra: ['stage', 'loss_category', 'followup_attempts'] });
+  return true;
+}
 
 /** Move an order to another step. Asks only for what that move needs. Returns true if it moved. */
 async function changeStage(o, to, c) {
@@ -114,8 +171,15 @@ async function changeStage(o, to, c) {
   } else if (from >= 0 && dest >= 0 && dest < from) {
     if (!await ask(`להחזיר ל"${to}"?`, 'התאריכים שכבר נרשמו נשארים. אפשר לתקן אותם בצ\'קליסט של כל שלב.', { ok: 'להחזיר' })) return false;
   }
+  // every follow-up stage needs a next step: ask for it as part of the move
+  if (FU_STAGES.includes(to)) {
+    const fu = await followupModal({ ...o, followup_draft: null }, { stage: to, title: `עובר ל"${to}": מתי חוזרים ללקוח?` });
+    if (!fu) return false;
+    Object.assign(patch, fu);
+  }
+  if (to === LOST) Object.assign(patch, { next_followup: null, next_followup_time: null });
   // database triggers may also stamp these; undo puts them back too
-  await patchOrder(o, patch, to === LOST ? 'סומן כלא רלוונטי' : 'עבר לשלב: ' + to, { extra: ['completed_at', 'paid_at', 'cash_received_at'].filter(k => !(k in patch)) });
+  await patchOrder(o, patch, to === LOST ? 'סומן כלא רלוונטי' : 'עבר לשלב: ' + to, { extra: ['completed_at', 'paid_at', 'cash_received_at', 'followup_attempts'].filter(k => !(k in patch)) });
   return true;
 }
 

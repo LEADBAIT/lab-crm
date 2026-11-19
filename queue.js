@@ -95,5 +95,5 @@ async function runTask(x, btn) {
   } catch { btn.disabled = false; return; }
   bumpDone();
   btn.closest('.task').classList.add('done-anim');
-  setTimeout(() => VIEWS.queue(), 450);
+  setTimeout(() => route(), 450);
 }

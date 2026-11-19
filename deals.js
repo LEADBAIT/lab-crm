@@ -24,6 +24,7 @@ VIEWS.deals = async function vDeals(tab) {
       <label class="check"><input type="checkbox" id="furg" ${F.urg ? 'checked' : ''}> רק מה שדורש טיפול</label>
     </div>
   </div>
+  ${tab === 'ops' ? opsTasksHtml(rows) : ''}
   <div id="dealsBody"></div>`;
   const urgent = r => r.flag_late || r.flag_count_mismatch || r.flag_cash_at_courier || (r.stage === 'פנייה חדשה' && !r.last_contact_at);
   const draw = () => {
@@ -38,10 +39,17 @@ VIEWS.deals = async function vDeals(tab) {
   $('#flab') && ($('#flab').onchange = e => { F.lab = e.target.value; saveF(); draw(); });
   $('#furg').onchange = e => { F.urg = e.target.checked; saveF(); draw(); };
   $$('[data-tab]').forEach(b => b.onclick = () => go('deals/' + b.dataset.tab));
+  if (tab === 'ops') { const tasks = buildTasks(rows.filter(r => r._ph === 'ops')).filter(x => x.t.k !== 'new'); $$('[data-tact]').forEach(b => b.onclick = () => runTask(tasks.find(x => String(x.o.id) === b.dataset.tact), b)); }
   $$('[data-mode]').forEach(b => b.onclick = () => { lsSet('dealsView', b.dataset.mode); VIEWS.deals(tab); });
   draw();
 };
 
+/** Operations tasks (cash at courier, pickup today, delivery, late, expiring links): one card above the work board. */
+function opsTasksHtml(rows) {
+  const tasks = buildTasks(rows.filter(r => r._ph === 'ops')).filter(x => x.t.k !== 'new');
+  if (!tasks.length) return '';
+  return `<section class="card flush" style="margin-bottom:12px"><div class="card-head" style="padding:12px 16px 0"><h3>משימות תפעול</h3><span class="small muted">${tasks.length}</span></div>${tasks.map(taskHtml).join('')}</section>`;
+}
 function dealFlags(r) {
   return [r.stage === 'פנייה חדשה' && !r.last_contact_at && '<span class="chip red">עוד לא דיברנו</span>',
     r.flag_late && `<span class="chip ${r.flag_late}">${r.days_since_paid} ימים מתשלום</span>`, r.flag_count_mismatch && '<span class="chip red">פער בספירה</span>',

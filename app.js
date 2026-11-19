@@ -8,6 +8,20 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const view = () => $('#view');
 const S = { settings: {}, opts: {}, products: [], labs: [], tiers: [], coupons: [], templates: [], user: null, me: null };
 const VIEWS = {};
+/** Embed mode (?embed): the customer page inside the sales dashboard's side panel. No top bar; every save tells the dashboard to refresh. */
+const EMBED = new URLSearchParams(location.search).has('embed') && window.parent !== window;
+if (EMBED) {
+  document.documentElement.classList.add('embed');
+  const f = window.fetch.bind(window);
+  let t = null;
+  window.fetch = async (...a) => {
+    const r = await f(...a);
+    const m = (a[1]?.method || a[0]?.method || 'GET').toUpperCase();
+    // reads go through GET, and v_orders/rpc reads through POST only for rpc; notify on every write-ish call
+    if (m !== 'GET' && m !== 'HEAD' && !/\/auth\//.test(String(a[0]?.url || a[0]))) { clearTimeout(t); t = setTimeout(() => window.parent.postMessage({ crm: 'changed' }, location.origin), 400); }
+    return r;
+  };
+}
 const isLab = () => S.me?.role === 'lab';
 const isAdmin = () => S.me?.role === 'admin';
 
@@ -164,7 +178,7 @@ async function boot() {
   await loadRef();
   if (isLab() && !/^#(lab|scan)/.test(location.hash)) location.hash = 'lab';
   await route();
-  if (!isLab() && lsGet('tour.v3') !== 'done') setTimeout(startTour, 400);
+  if (!isLab() && !EMBED && lsGet('tour.v3') !== 'done') setTimeout(startTour, 400);
 }
 function showLogin(msg = '') { $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); $('#loginMsg').textContent = msg; }
 $('#loginForm').addEventListener('submit', async e => {
@@ -184,7 +198,9 @@ $('#signupBtn').addEventListener('click', async () => {
 });
 
 // ---------- theme ----------
-function applyTheme() { const t = lsGet('theme'); if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+// default is dark (chosen 2026-11-19); '' = follow the device
+const themePref = () => { const t = lsGet('theme'); return t === null ? 'dark' : t; };
+function applyTheme() { const t = themePref(); if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
 
 // ---------- nav ----------
 const ICONS = {
@@ -199,14 +215,14 @@ const ICONS = {
 const icon = k => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ''}</svg>`;
 function buildNav() {
   const items = isLab() ? [['lab', 'ההזמנות שלי', 'lab'], ['scan', 'סריקה', 'scan']]
-    : [['queue', 'המשימות שלי', 'queue'], ['deals', 'לקוחות', 'deals'], ['scan', 'סריקה', 'scan'], ['reports', 'דוחות', 'reports'], ['expenses', 'הוצאות', 'expenses'], ['settings', 'הגדרות', 'settings']];
-  $('#nav').innerHTML = items.map(([r, t, ic]) => `<a href="#${r}" data-r="${r}">${icon(ic)}<span class="t">${t}</span>${r === 'queue' ? '<span class="badge hidden" id="qBadge"></span>' : ''}</a>`).join('');
+    : [['sales', 'מכירות', 'queue'], ['deals', 'לקוחות', 'deals'], ['scan', 'סריקה', 'scan'], ['reports', 'דוחות', 'reports'], ['expenses', 'הוצאות', 'expenses'], ['settings', 'הגדרות', 'settings']];
+  $('#nav').innerHTML = items.map(([r, t, ic]) => `<a href="#${r}" data-r="${r}">${icon(ic)}<span class="t">${t}</span>${r === 'sales' ? '<span class="badge hidden" id="qBadge"></span>' : ''}</a>`).join('');
 }
 function setNav(r) { $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r)); }
 function setBadge(n) { const b = $('#qBadge'); if (!b) return; b.textContent = n; b.classList.toggle('hidden', !n); }
 $('#userBtn').addEventListener('click', e => {
   e.stopPropagation();
-  const t = lsGet('theme');
+  const t = themePref();
   dropdown(e.currentTarget, [{ head: S.me?.name || S.user?.email || '' },
     ...(isLab() ? [] : [{ label: 'סיור היכרות עם ה-CRM', run: startTour }]),
     { label: tipsOn() ? 'הסתרת הסברים במעבר עכבר' : 'הצגת הסברים במעבר עכבר', run: () => { lsSet('tips', tipsOn() ? 'off' : 'on'); toast(tipsOn() ? 'ההסברים מוצגים' : 'ההסברים הוסתרו'); } },
@@ -223,22 +239,27 @@ async function route() {
   routeBusy = true;
   try { while (routeAgain) { routeAgain = false; await routeOnce(); } } finally { routeBusy = false; }
 }
-const ALIAS = { today: 'queue', leads: 'deals', orders: 'deals', dash: 'reports', finance: 'expenses' };
+const ALIAS = { today: 'sales', queue: 'sales', leads: 'deals', orders: 'deals', dash: 'reports', finance: 'expenses' };
+let _lastHash = null;
 async function routeOnce() {
   if (location.hash.startsWith('#track/')) return VIEWS.track(location.hash.split('/')[1]);
   if (!S.user) return;
   $('.topbar').classList.remove('hidden');
-  let [r, arg] = (location.hash.slice(1) || (isLab() ? 'lab' : 'queue')).split('/');
+  let [r, arg] = (location.hash.slice(1) || (isLab() ? 'lab' : 'sales')).split('/');
   r = ALIAS[r] || r;
   if (isLab() && !['lab', 'scan'].includes(r)) { location.hash = 'lab'; return; }
   setNav(r === 'order' ? 'deals' : r);
   VIEWS.stopScanner?.();
   closeMenus();
-  view().innerHTML = '<div class="loading"><span class="spin"></span> טוען…</div>';
+  if (r !== 'sales') $('#salesPanel')?.remove();
+  // same page refreshed after a save: keep the scroll position and skip the "loading" flash
+  const same = location.hash === _lastHash; _lastHash = location.hash;
+  const y = window.scrollY;
+  if (!same) view().innerHTML = '<div class="loading"><span class="spin"></span> טוען…</div>';
   try {
-    const fn = VIEWS[r] || VIEWS.queue;
+    const fn = VIEWS[r] || VIEWS.sales;
     await fn(arg);
-    if (!routeAgain) window.scrollTo(0, 0);
+    if (!routeAgain) window.scrollTo(0, same ? y : 0);
   } catch (e) { console.error(e); view().innerHTML = `<div class="err">הדף לא נטען: ${esc(e.message)}. נסו לרענן.</div>`; }
 }
 const go = h => { if (location.hash === '#' + h) route(); else location.hash = h; };
