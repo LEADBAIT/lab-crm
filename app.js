@@ -21,6 +21,24 @@ const waLink = (phone, text) => 'https://wa.me/972' + String(phone || '').replac
 const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const isMobile = () => matchMedia('(max-width: 700px)').matches;
+// ---------- help: ⓘ next to fields + "מה רואים כאן?" box per screen (texts in help.js) ----------
+const HELPS = window.HELP || {};
+const info = key => HELPS[key] ? `<button type="button" class="i" data-help="${esc(key)}" aria-label="הסבר" title="הסבר">ⓘ</button>` : '';
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const intro = key => { const t = HELPS['screen.' + key]; if (!t) return ''; const closed = lsGet('introClosed.' + key) === '1';
+  return `<details class="intro" data-intro="${esc(key)}" ${closed ? '' : 'open'}><summary>מה רואים כאן?</summary><p>${esc(t)}</p></details>`; };
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-help]'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const host = b.closest('label, th, .ms, h2, h3, .help-host') || b.parentElement;
+  const open = host.querySelector(':scope > .help-pop');
+  if (open) { open.remove(); b.classList.remove('on'); return; }
+  const pop = document.createElement('div'); pop.className = 'help-pop'; pop.textContent = HELPS[b.dataset.help];
+  host.appendChild(pop); b.classList.add('on');
+}, true);
+document.addEventListener('toggle', e => { const d = e.target; if (d.matches?.('details.intro')) lsSet('introClosed.' + d.dataset.intro, d.open ? '0' : '1'); }, true);
+
 function toast(msg, ms = 2200) { const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('hidden'), ms); }
 function fail(error) { if (error) { console.error(error); toast('שגיאה: ' + (error.message || error), 4000); throw error; } }
 function opts(list, cur, { empty = true } = {}) {
@@ -191,6 +209,7 @@ async function vToday() {
   const total = groups.reduce((s, g) => s + g[1].length, 0);
   view().innerHTML = `
     <div class="row spread"><h1>היום</h1><span class="muted">${total} משימות פתוחות</span></div>
+    ${intro('today')}
     <div class="grid cols-3">${groups.map(([title, list, sub, act]) => `
       <section class="card ${list.length ? '' : 'empty'}"><h2>${title} <span class="count ${list.length ? 'hot' : ''}">${list.length}</span></h2>
         ${list.length ? `<ul class="task-list">${list.map(r => `
@@ -209,7 +228,7 @@ async function vLeads() {
     <div class="small muted">${esc(r.source || '')} ${r.media_qty ? '· ' + r.media_qty + ' פריטים · ' + money(r.total) : ''}</div>
     <div class="small">${r.flag_followup ? '<span class="chip red">פולואפ</span>' : `<span class="muted">פולואפ ${fmtDate(r.next_followup)}</span>`} ${r.is_repeat ? '<span class="chip blue">חוזר</span>' : ''} ${isMobile() ? `<span class="chip">${esc(r.stage)}</span>` : ''}</div></div>`;
   const pipeline = rows.reduce((s, r) => s + Number(r.total || 0), 0);
-  const head = `<div class="row spread"><h1>לידים <span class="muted small">${rows.length} · שווי צנרת ${money(pipeline)}</span></h1><input id="lf" placeholder="סינון שם / טלפון" style="max-width:220px"></div>`;
+  const head = `<div class="row spread"><h1>לידים <span class="muted small">${rows.length} · שווי צנרת ${money(pipeline)}</span></h1><input id="lf" placeholder="סינון שם / טלפון" style="max-width:220px"></div>${intro('leads')}`;
   if (isMobile()) {
     const cur = sessionStorage.getItem('leadStage') || '';
     view().innerHTML = head + `<div class="chips-row"><button class="btn sm ${cur ? '' : 'on'}" data-ls="">הכל (${rows.length})</button>${lanes.map(s => `<button class="btn sm ${s === cur ? 'on' : ''}" data-ls="${esc(s)}">${esc(s)} (${rows.filter(r => r.stage === s).length})</button>`).join('')}</div>
@@ -244,6 +263,7 @@ async function vOrders() {
       <select id="ostage" style="max-width:180px"><option value="">כל השלבים</option>${(S.opts.stage || []).filter(s => showAll || s.phase === 'ops').map(s => `<option>${esc(s.value)}</option>`).join('')}</select>
       <select id="olab" style="max-width:160px"><option value="">כל המעבדות</option>${S.labs.map(l => `<option>${esc(l.name)}</option>`).join('')}</select>
       <button class="btn sm" id="otoggle">${showAll ? 'רק בתפעול' : 'הצג הכל'}</button></div></div>
+    ${intro('orders')}
     <div class="card table-wrap"><table>
       <thead><tr><th>#</th><th>לקוח</th><th>שלב</th><th>מעבדה</th><th class="num">פריטים</th><th class="num">סה"כ</th><th>תשלום</th><th>ימים</th><th class="hide-m">דגלים</th></tr></thead>
       <tbody>${rows.map(r => `<tr class="click" data-id="${r.id}" data-q="${esc(r.id + ' ' + (r.full_name || '') + ' ' + r.phone)}" data-lab="${esc(r.lab_name || '')}" data-stage="${esc(r.stage)}">
@@ -337,18 +357,19 @@ async function vOrder(id) {
   const nx = nextOf(o.stage);
   const tabs = [['customer', 'לקוח'], ['quote', 'הצעת מחיר'], ['ops', 'תפעול'], ['items', `פריטים${items.length ? ' (' + items.length + ')' : ''}`], ['history', 'היסטוריה']];
   view().innerHTML = `
+  ${intro('order')}
   <div class="order-head card">
     <div><h1>${esc(c.full_name || fmtPhone(c.phone))} <span class="muted">#${o.id}</span></h1>
       <div class="row small" id="headFlags">${headFlags(o)}</div></div>
-    <div class="row">
-      <select id="stageSel" style="min-width:190px">${opts('stage', o.stage, { empty: false })}</select>
-      ${nx ? `<button class="btn primary" id="nextBtn">▶ ${esc(nx.label || nx.to)}</button>` : ''}
+    <div class="row help-host">
+      <select id="stageSel" style="min-width:190px" aria-label="שלב">${opts('stage', o.stage, { empty: false })}</select>${info('order.stage')}
+      ${nx ? `<button class="btn primary" id="nextBtn">▶ ${esc(nx.label || nx.to)}</button>${info('order.next')}` : ''}
     </div>
-    <div class="row">
+    <div class="row help-host">
       <a class="btn sm" href="tel:${esc(c.phone)}">חיוג ${esc(fmtPhone(c.phone))}</a>
-      <select id="tplSel" class="btn sm" style="width:auto"><option value="">וואטסאפ: תבנית…</option><option value="-1">הודעה ריקה</option>${S.templates.filter(t => t.active).map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>
-      <button class="btn sm" id="contacted">דיברתי עכשיו</button>
-      <button class="btn sm" id="copyTrack">קישור מעקב ללקוח</button>
+      <select id="tplSel" class="btn sm" style="width:auto" aria-label="תבנית וואטסאפ"><option value="">וואטסאפ: תבנית…</option><option value="-1">הודעה ריקה</option>${S.templates.filter(t => t.active).map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>${info('order.template')}
+      <button class="btn sm" id="contacted">דיברתי עכשיו</button>${info('order.contacted')}
+      <button class="btn sm" id="copyTrack">קישור מעקב ללקוח</button>${info('order.track')}
     </div>
   </div>
   <div class="tabs">${tabs.map(([k, v]) => `<button class="tab ${k === tab ? 'on' : ''}" data-tab="${k}">${v}</button>`).join('')}</div>
@@ -378,10 +399,10 @@ function F(ctx, t, k, label, type = 'text', extra = '') {
   const val = fv(ctx, t, k);
   const miss = t === 'c' && showRequired(ctx.o) && REQUIRED_BEFORE_PAID.some(r => r[0] === k) && !String(val || '').trim();
   const v = type === 'datetime-local' ? toLocalInput(val) : (val ?? '');
-  return `<label class="${miss ? 'missing' : ''}" data-wrap="${k}">${label}<input type="${type}" data-t="${t}" data-k="${k}" value="${esc(v)}" ${extra}></label>`;
+  return `<label class="${miss ? 'missing' : ''}" data-wrap="${k}"><span class="lt">${label}${info(t + '.' + k)}</span><input type="${type}" data-t="${t}" data-k="${k}" value="${esc(v)}" ${extra}></label>`;
 }
-const SEL = (ctx, t, k, label, list) => `<label>${label}<select data-t="${t}" data-k="${k}">${opts(list, fv(ctx, t, k))}</select></label>`;
-const CHK = (ctx, t, k, label) => `<label class="check"><input type="checkbox" data-t="${t}" data-k="${k}" ${fv(ctx, t, k) ? 'checked' : ''}> ${label}</label>`;
+const SEL = (ctx, t, k, label, list) => `<label><span class="lt">${label}${info(t + '.' + k)}</span><select data-t="${t}" data-k="${k}">${opts(list, fv(ctx, t, k))}</select></label>`;
+const CHK = (ctx, t, k, label) => `<label class="check help-host"><input type="checkbox" data-t="${t}" data-k="${k}" ${fv(ctx, t, k) ? 'checked' : ''}> ${label}${info(t + '.' + k)}</label>`;
 const milestone = (o, k, label) => `<div class="ms" data-ms="${k}"><span>${label}</span>${o[k] ? `<span class="ms-done">✓ ${fmtDT(o[k])} <button class="link-btn" data-msedit="${k}">שינוי</button></span>` : `<button class="btn sm" data-msnow="${k}">עכשיו ✓</button>`}</div>`;
 
 const TABS = {
@@ -416,26 +437,26 @@ const TABS = {
     const extras = S.products.filter(p => (p.category === 'addon' || p.category === 'repair') && (p.active || qtyOf(p.id)));
     const ctx = { o };
     return `<div class="grid cols-2">
-      <section class="card"><h2>חומרה</h2><div class="table-wrap"><table><thead><tr><th>סוג</th><th class="num">מחיר</th><th>כמות</th></tr></thead><tbody>${media.map(row).join('')}</tbody></table></div></section>
+      <section class="card"><h2>חומרה</h2><div class="table-wrap"><table><thead><tr><th>סוג</th><th class="num">מחיר</th><th>כמות${info('quote.qty')}</th></tr></thead><tbody>${media.map(row).join('')}</tbody></table></div></section>
       <div class="grid">
-        <section class="card"><h2>תוספות</h2><div class="table-wrap"><table><thead><tr><th>תוספת</th><th class="num">מחיר</th><th>כמות</th></tr></thead><tbody>${extras.map(row).join('')}</tbody></table></div></section>
+        <section class="card"><h2>תוספות</h2><div class="table-wrap"><table><thead><tr><th>תוספת</th><th class="num">מחיר</th><th>כמות${info('quote.qty')}</th></tr></thead><tbody>${extras.map(row).join('')}</tbody></table></div></section>
         <section class="card"><div class="fields">
-          <label>חבילה<select data-t="o" data-k="package_id"><option value=""></option>${S.products.filter(p => p.category === 'package' && (p.active || p.id === o.package_id)).map(p => `<option value="${p.id}" ${o.package_id === p.id ? 'selected' : ''}>${esc(p.name)} (${money(p.unit_price)})</option>`).join('')}</select></label>
-          <label>קופון<select data-t="o" data-k="coupon_code"><option value=""></option>${S.coupons.filter(x => x.active || x.code === o.coupon_code).map(x => `<option ${x.code === o.coupon_code ? 'selected' : ''}>${esc(x.code)}</option>`).join('')}</select></label>
+          <label><span class="lt">חבילה${info('o.package_id')}</span><select data-t="o" data-k="package_id"><option value=""></option>${S.products.filter(p => p.category === 'package' && (p.active || p.id === o.package_id)).map(p => `<option value="${p.id}" ${o.package_id === p.id ? 'selected' : ''}>${esc(p.name)} (${money(p.unit_price)})</option>`).join('')}</select></label>
+          <label><span class="lt">קופון${info('o.coupon_code')}</span><select data-t="o" data-k="coupon_code"><option value=""></option>${S.coupons.filter(x => x.active || x.code === o.coupon_code).map(x => `<option ${x.code === o.coupon_code ? 'selected' : ''}>${esc(x.code)}</option>`).join('')}</select></label>
           ${F(ctx, 'o', 'manual_discount', 'הנחה ידנית (₪)', 'number', 'min="0" step="1"')}
         </div><div class="row" style="margin-top:8px">${CHK(ctx, 'o', 'priority', 'קדימות בתור')}</div></section>
-        <section class="card"><h2>סיכום <span class="row"><button class="btn sm" id="copyQuote">העתקה לוואטסאפ</button><a class="btn sm" href="#quote/${o.id}">PDF</a></span></h2><div id="totalsBox">${totalsHtml(o)}</div></section>
+        <section class="card"><h2>סיכום <span class="row"><button class="btn sm" id="copyQuote">העתקה לוואטסאפ</button>${info('quote.copy')}<a class="btn sm" href="#quote/${o.id}">PDF</a>${info('quote.pdf')}</span></h2><div id="totalsBox">${totalsHtml(o)}</div></section>
       </div></div>`;
   },
   ops: ({ o }) => {
     const ctx = { o };
     return `<div class="grid cols-2">
     <section class="card"><h2>שילוח ומעבדה</h2><div class="fields">
-      <label class="${o.phase === 'ops' && !o.lab_id ? 'missing' : ''}">מעבדה<select data-t="o" data-k="lab_id"><option value=""></option>${S.labs.filter(l => l.active || l.id === o.lab_id).map(l => `<option value="${l.id}" ${o.lab_id === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
+      <label class="${o.phase === 'ops' && !o.lab_id ? 'missing' : ''}"><span class="lt">מעבדה${info('o.lab_id')}</span><select data-t="o" data-k="lab_id"><option value=""></option>${S.labs.filter(l => l.active || l.id === o.lab_id).map(l => `<option value="${l.id}" ${o.lab_id === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
       ${SEL(ctx, 'o', 'courier', 'חברת שליחויות', 'courier')}${F(ctx, 'o', 'pickup_date', 'תאריך איסוף', 'date')}${F(ctx, 'o', 'pickup_tracking', 'מס\' מעקב איסוף')}
       ${F(ctx, 'o', 'files_link_from_lab', 'קישור קבצים מהמעבדה', 'url')}
-    </div><div class="row" style="margin-top:8px"><a class="btn sm" href="#manifest/${o.id}">דף משלוח להדפסה</a><a class="btn sm" href="#labels/${o.id}">מדבקות</a></div></section>
-    <section class="card"><h2>אבני דרך</h2>${MILESTONES.filter(([k]) => k !== 'cash_received_at' || /מזומן/.test((o.payment_method || '') + o.payment_status)).map(([k, l]) => milestone(o, k, l)).join('')}</section>
+    </div><div class="row help-host" style="margin-top:8px"><a class="btn sm" href="#manifest/${o.id}">דף משלוח להדפסה</a>${info('items.manifest')}<a class="btn sm" href="#labels/${o.id}">מדבקות</a>${info('items.labels')}</div></section>
+    <section class="card"><h2>אבני דרך${info('ops.milestones')}</h2>${MILESTONES.filter(([k]) => k !== 'cash_received_at' || /מזומן/.test((o.payment_method || '') + o.payment_status)).map(([k, l]) => milestone(o, k, l)).join('')}</section>
     <section class="card"><h2>תשלום</h2><div class="fields">
       ${SEL(ctx, 'o', 'payment_status', 'סטטוס תשלום', 'payment_status')}${SEL(ctx, 'o', 'payment_method', 'אמצעי', 'payment_method')}
       ${F(ctx, 'o', 'paid_amount', 'סכום ששולם', 'number', 'step="1"')}${F(ctx, 'o', 'invoice_number', 'מס\' חשבונית (SUMIT)')}
@@ -451,9 +472,9 @@ const TABS = {
   },
   items: ({ o, items }) => {
     const statuses = (S.opts.item_status || []).filter(x => x.active).map(x => x.value);
-    return `<section class="card"><h2>פריטים <span class="row"><button class="btn sm" id="genItems">יצירת פריטים לפי הכמויות</button><a class="btn sm" href="#labels/${o.id}">מדבקות</a><a class="btn sm" href="#manifest/${o.id}">דף משלוח</a></span></h2>
+    return `<section class="card"><h2>פריטים <span class="row"><button class="btn sm" id="genItems">יצירת פריטים לפי הכמויות</button>${info('items.gen')}<a class="btn sm" href="#labels/${o.id}">מדבקות</a>${info('items.labels')}<a class="btn sm" href="#manifest/${o.id}">דף משלוח</a>${info('items.manifest')}</span></h2>
     ${items.length ? `<div class="row small" style="margin-bottom:8px">הוצהר: <b>${o.media_qty}</b> · פריטים: <b>${items.length}</b> · במעבדה ואילך: <b>${o.items_at_lab_or_later}</b> · הומרו: <b>${o.items_converted}</b>${o.intake_done_at ? ` · קליטה הסתיימה ${fmtDT(o.intake_done_at)}` : ''}</div>
-    <div class="table-wrap"><table><thead><tr><th>ברקוד</th><th>סוג</th><th>מה כתוב עליו</th><th>סטטוס</th><th>איפה עכשיו</th><th>פגום</th><th>הערה</th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th>ברקוד</th><th>סוג</th><th>מה כתוב עליו${info('items.label_text')}</th><th>סטטוס${info('items.status')}</th><th>איפה עכשיו</th><th>פגום</th><th>הערה</th></tr></thead><tbody>
     ${items.map(it => `<tr data-item="${esc(it.id)}"><td><b>${esc(it.id)}</b></td><td class="small wrap">${esc(productName(it.product_id))}</td>
       <td><input data-ik="label_text" value="${esc(it.label_text || '')}"></td>
       <td><select data-ik="status">${statuses.map(s => `<option ${s === it.status ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></td>
@@ -600,6 +621,7 @@ async function vScan() {
   let current = sessionStorage.getItem('scanStatus'); if (!statuses.includes(current)) current = statuses.includes('במעבדה') ? 'במעבדה' : statuses[0];
   view().innerHTML = `
     <h1>סריקת פריטים</h1>
+    ${intro('scan')}
     <div class="card grid">
       <div><div class="muted small" style="margin-bottom:6px">1. לאיזה סטטוס להעביר:</div><div class="status-pick">${statuses.map(s => `<button class="btn sm ${s === current ? 'on' : ''}" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>
       <div><div class="muted small" style="margin-bottom:6px">2. סורקים ברצף, או מקלידים מספר:</div>
@@ -644,6 +666,7 @@ async function vScan() {
 async function vLab() {
   const { data, error } = await sb.rpc('lab_orders'); fail(error);
   view().innerHTML = `<div class="row spread"><h1>${esc(S.me.lab_name || 'המעבדה')}: הזמנות פתוחות</h1><a class="btn primary" href="#scan">סריקה</a></div>
+    ${intro('lab')}
     <div class="card table-wrap"><table><thead><tr><th>הזמנה</th><th>שם</th><th class="num">פריטים</th><th class="num">נקלטו</th><th class="num">הומרו</th><th>קליטה</th><th></th></tr></thead><tbody>
     ${data.map(r => `<tr><td><b>${r.id}</b>${r.priority ? ' <span class="chip orange">קדימות</span>' : ''}</td><td>${esc(r.first_name)}</td><td class="num">${r.items_count}</td><td class="num">${r.items_received}</td><td class="num">${r.items_converted}</td>
       <td>${r.intake_done ? '<span class="chip green">הסתיימה</span>' : '<span class="chip">פתוחה</span>'}</td>
@@ -703,6 +726,7 @@ async function vDash() {
   const months = [...new Set(rows.map(r => r.created_at.slice(0, 7)).concat([month]))].sort().reverse();
   view().innerHTML = `
     <div class="row spread"><h1>מדדים</h1><select id="dm" style="max-width:160px">${months.map(m => `<option ${m === sel ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+    ${intro('dash')}
     <div class="grid cols-4">
       ${kpi(A.leads.length, 'לידים', delta(A.leads.length, B.leads.length))}
       ${kpi(conv(A) + '%', 'אחוז סגירה', B.leads.length ? delta(conv(A), conv(B), true) : '')}
@@ -735,6 +759,7 @@ async function vFinance() {
   const month = today().slice(0, 7), sumM = exp.filter(e => e.spent_on.slice(0, 7) === month).reduce((s, e) => s + Number(e.amount), 0);
   view().innerHTML = `
     <div class="row spread"><h1>כספים: הוצאות</h1><span class="muted">החודש: ${money(sumM)}</span></div>
+    ${intro('finance')}
     <form id="expForm" class="card fields" style="margin-bottom:12px">
       <label>תאריך<input type="date" name="spent_on" value="${today()}" required></label>
       <label>קטגוריה<select name="category" required>${opts('expense_category', 'פרסום', { empty: false })}</select></label>
@@ -758,13 +783,13 @@ async function vSettings() {
   const tabs = { general: 'כללי', prices: 'מחירון', lists: 'רשימות', templates: 'תבניות וואטסאפ', labs: 'מעבדות', coupons: 'קופונים', staff: 'צוות', backup: 'גיבוי' };
   let body = '';
   if (tab === 'general') body = `<div class="card fields">${Object.values(S.settings).map(s => (s.key === 'terms' || s.key === 'public_url')
-      ? `<label style="grid-column:1/-1">${esc(s.label)}${s.key === 'terms' ? `<textarea data-set="${s.key}" data-f="text_value" rows="4">${esc(s.text_value || '')}</textarea>` : `<input data-set="${s.key}" data-f="text_value" value="${esc(s.text_value || '')}" placeholder="https://...">`}</label>`
-      : `<label>${esc(s.label)}<input type="number" data-set="${s.key}" data-f="value" value="${esc(s.value)}"></label>`).join('')}</div>
-    <div class="card" style="margin-top:12px"><h2>מדרגות הנחה (לפי סך הפריטים)</h2>
+      ? `<label style="grid-column:1/-1"><span class="lt">${esc(s.label)}${info('set.' + s.key)}</span>${s.key === 'terms' ? `<textarea data-set="${s.key}" data-f="text_value" rows="4">${esc(s.text_value || '')}</textarea>` : `<input data-set="${s.key}" data-f="text_value" value="${esc(s.text_value || '')}" placeholder="https://...">`}</label>`
+      : `<label><span class="lt">${esc(s.label)}${info('set.' + s.key)}</span><input type="number" data-set="${s.key}" data-f="value" value="${esc(s.value)}"></label>`).join('')}</div>
+    <div class="card" style="margin-top:12px"><h2>מדרגות הנחה (לפי סך הפריטים)${info('set.tiers')}</h2>
       <table><thead><tr><th>מ-כמה פריטים</th><th>הנחה %</th><th></th></tr></thead><tbody>
       ${S.tiers.map(t => `<tr><td><input type="number" data-tier="${t.id}" data-f="min_items" value="${t.min_items}"></td><td><input type="number" data-tier="${t.id}" data-f="percent" value="${t.percent}"></td><td><button class="btn sm danger" data-deltier="${t.id}">מחיקה</button></td></tr>`).join('')}
       </tbody></table><button class="btn sm" id="addTier" style="margin-top:8px">+ מדרגה</button></div>`;
-  if (tab === 'prices') body = `<div class="card table-wrap"><table><thead><tr><th>שם</th><th>סוג</th><th class="num">מחיר</th><th class="num">ממוצע שוק</th><th>נספר להנחה ולברקוד</th><th>כולל (חבילה)</th><th>פעיל</th></tr></thead><tbody>
+  if (tab === 'prices') body = `<div class="card table-wrap"><table><thead><tr><th>שם${info('prod.name')}</th><th>סוג${info('prod.category')}</th><th class="num">מחיר${info('prod.unit_price')}</th><th class="num">ממוצע שוק${info('prod.market_avg')}</th><th>נספר להנחה ולברקוד${info('prod.counts_for_tier')}</th><th>כולל (חבילה)${info('prod.includes')}</th><th>פעיל${info('prod.active')}</th></tr></thead><tbody>
     ${S.products.map(p => `<tr><td><input data-prod="${p.id}" data-f="name" value="${esc(p.name)}" style="min-width:200px"></td>
       <td><select data-prod="${p.id}" data-f="category">${['media', 'addon', 'repair', 'package'].map(k => `<option value="${k}" ${p.category === k ? 'selected' : ''}>${{ media: 'חומרה', addon: 'תוספת', repair: 'תיקון', package: 'חבילה' }[k]}</option>`).join('')}</select></td>
       <td><input type="number" step="0.01" data-prod="${p.id}" data-f="unit_price" value="${p.unit_price}" style="width:90px"></td><td class="num muted">${p.market_avg ? money(p.market_avg) : ''}</td>
@@ -774,7 +799,9 @@ async function vSettings() {
     </tbody></table><button class="btn sm" id="addProd" style="margin-top:8px">+ פריט / תוספת</button>
     <p class="muted small">פריט שכבר נמכר לא נמחק. מכבים אותו ב"פעיל".</p></div>`;
   if (tab === 'lists') body = `<div class="grid cols-3">${Object.entries(LIST_NAMES).map(([list, name]) => `
-    <section class="card"><h2>${name}</h2>${(S.opts[list] || []).map(o => `<div class="row nowrap" style="margin-bottom:6px">
+    <section class="card"><h2>${name}</h2>
+      <div class="row nowrap small muted list-head"><span style="flex:1">שם${info('list.value')}</span>${list === 'stage' ? `<span style="width:90px">חלק${info('list.phase')}</span>` : ''}<span style="width:60px">סדר${info('list.sort')}</span><span style="width:24px">פעיל${info('list.active')}</span></div>
+      ${(S.opts[list] || []).map(o => `<div class="row nowrap" style="margin-bottom:6px">
       <input data-opt="${o.id}" data-f="value" data-old="${esc(o.value)}" data-list="${list}" value="${esc(o.value)}" style="flex:1">${list === 'stage' ? `<select data-opt="${o.id}" data-f="phase" style="width:90px">${['sales', 'ops', 'done', 'lost'].map(p => `<option value="${p}" ${o.phase === p ? 'selected' : ''}>${{ sales: 'מכירה', ops: 'תפעול', done: 'סיום', lost: 'אבוד' }[p]}</option>`).join('')}</select>` : ''}
       <input type="number" data-opt="${o.id}" data-f="sort" value="${o.sort}" style="width:60px" title="סדר">
       <input type="checkbox" data-opt="${o.id}" data-f="active" ${o.active ? 'checked' : ''} title="פעיל"></div>`).join('')}
@@ -784,20 +811,20 @@ async function vSettings() {
       <textarea data-tpl="${t.id}" data-f="body" rows="4" style="margin-top:6px">${esc(t.body)}</textarea></section>`).join('')}</div>
     <button class="btn sm" id="addTpl" style="margin-top:8px">+ תבנית</button>
     <p class="muted small">משתנים: {שם} {הזמנה} {סכום} {קישור} {מעקב} {תאריך איסוף} {ימי קישור}</p>`;
-  if (tab === 'labs') body = `<div class="card table-wrap"><table><thead><tr><th>שם</th><th>שלנו</th><th>איש קשר</th><th>טלפון</th><th>כתובת</th><th>מה ממירה</th><th>פעיל</th></tr></thead><tbody>
+  if (tab === 'labs') body = `<div class="card table-wrap"><table><thead><tr><th>שם${info('lab.name')}</th><th>שלנו${info('lab.is_inhouse')}</th><th>איש קשר</th><th>טלפון</th><th>כתובת</th><th>מה ממירה${info('lab.media_types')}</th><th>פעיל${info('lab.active')}</th></tr></thead><tbody>
     ${S.labs.map(l => `<tr><td><input data-lab="${l.id}" data-f="name" value="${esc(l.name || '')}"></td>
       <td><input type="checkbox" data-lab="${l.id}" data-f="is_inhouse" ${l.is_inhouse ? 'checked' : ''}></td>
       ${['contact_name', 'phone', 'address', 'media_types'].map(f => `<td><input data-lab="${l.id}" data-f="${f}" value="${esc(l[f] || '')}"></td>`).join('')}
       <td><input type="checkbox" data-lab="${l.id}" data-f="active" ${l.active ? 'checked' : ''}></td></tr>`).join('')}
     </tbody></table><button class="btn sm" id="addLab" style="margin-top:8px">+ מעבדה</button></div>`;
-  if (tab === 'coupons') body = `<div class="card table-wrap"><table><thead><tr><th>קוד</th><th>% הנחה</th><th>₪ הנחה</th><th>קמפיין</th><th>בתוקף עד</th><th>פעיל</th></tr></thead><tbody>
+  if (tab === 'coupons') body = `<div class="card table-wrap"><table><thead><tr><th>קוד${info('cp.code')}</th><th>% הנחה${info('cp.percent')}</th><th>₪ הנחה${info('cp.amount')}</th><th>קמפיין${info('cp.campaign')}</th><th>בתוקף עד${info('cp.valid_until')}</th><th>פעיל${info('cp.active')}</th></tr></thead><tbody>
     ${S.coupons.map(x => `<tr><td><b>${esc(x.code)}</b></td><td><input type="number" data-cp="${esc(x.code)}" data-f="percent" value="${x.percent || 0}" style="width:80px"></td>
-      <td><input type="number" data-cp="${esc(x.code)}" data-f="amount" value="${x.amount || 0}" style="width:80px"></td><td><input data-cp="${esc(x.code)}" data-f="campaign" value="${esc(x.campaign || '')}"></td>
+      <td><input type="number" data-cp="${esc(x.code)}" data-f="amount" value="${x.amount || 0}" style="width:80px"></td><td><input data-cp="${esc(x.code)}" data-f="campaign" value="${esc(x.campaign || '')}" style="min-width:170px"></td>
       <td><input type="date" data-cp="${esc(x.code)}" data-f="valid_until" value="${x.valid_until || ''}"></td><td><input type="checkbox" data-cp="${esc(x.code)}" data-f="active" ${x.active ? 'checked' : ''}></td></tr>`).join('') || '<tr><td colspan="6" class="muted">אין קופונים</td></tr>'}
     </tbody></table><button class="btn sm" id="addCp" style="margin-top:8px">+ קופון</button></div>`;
   if (tab === 'staff') { const { data: st } = await sb.from('staff').select('*').order('created_at'); body = `<div class="card">
     <p class="muted small">רק מיילים ברשימה נכנסים. <b>מנהל</b>: הכל כולל מחיקה וצוות. <b>צוות</b>: הכל חוץ מניהול צוות ומחיקה. <b>מעבדה</b>: רואה רק את הפריטים של המעבדה שלה וסורק אותם, בלי פרטי לקוח.</p>
-    <div class="table-wrap"><table><thead><tr><th>מייל</th><th>שם</th><th>תפקיד</th><th>מעבדה</th><th></th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th>מייל</th><th>שם</th><th>תפקיד${info('staff.role')}</th><th>מעבדה${info('staff.lab_id')}</th><th></th></tr></thead><tbody>
     ${st.map(s => `<tr><td>${esc(s.email)}</td><td><input data-staff-row="${esc(s.email)}" data-f="name" value="${esc(s.name || '')}" ${isAdmin() ? '' : 'disabled'}></td>
       <td><select data-staff-row="${esc(s.email)}" data-f="role" ${isAdmin() && s.email !== S.user.email ? '' : 'disabled'}>${[['admin', 'מנהל'], ['staff', 'צוות'], ['lab', 'מעבדה']].map(([k, v]) => `<option value="${k}" ${s.role === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
       <td><select data-staff-row="${esc(s.email)}" data-f="lab_id" ${isAdmin() ? '' : 'disabled'}><option value=""></option>${S.labs.map(l => `<option value="${l.id}" ${s.lab_id === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></td>
@@ -810,7 +837,7 @@ async function vSettings() {
     <button class="btn primary" id="exportBtn">הורדת גיבוי עכשיו</button><p class="muted small" id="exportMsg"></p>
     <p class="muted small">גיבוי לילי אוטומטי לגוגל שיטס יופעל אחרי שהאתר יעלה לאוויר (דרך Make/n8n).</p></div>`;
 
-  view().innerHTML = `<h1>הגדרות</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="tab ${k === tab ? 'on' : ''}" data-stab="${k}">${v}</button>`).join('')}</div>${body}`;
+  view().innerHTML = `<h1>הגדרות</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="tab ${k === tab ? 'on' : ''}" data-stab="${k}">${v}</button>`).join('')}</div>${intro('set.' + tab)}${body}`;
   $$('[data-stab]').forEach(b => b.onclick = () => { sessionStorage.setItem('setTab', b.dataset.stab); vSettings(); });
   const bind = (attr, table, keyCol, cast = v => v) => $$(`[data-${attr}]`).forEach(el => el.addEventListener('change', async () => {
     let v = el.type === 'checkbox' ? el.checked : (el.value === '' ? null : el.value);

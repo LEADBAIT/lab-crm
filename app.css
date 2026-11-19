@@ -212,3 +212,17 @@ td.wrap, th.wrap { white-space: normal; min-width: 140px; }
   #nav { order: 3; flex-basis: 100%; }
   .brand { flex: 1; }
 }
+
+/* ===== help ===== */
+.lt { display: inline-flex; align-items: center; gap: 4px; }
+.i { font: inherit; font-size: 13px; line-height: 1; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--blue); cursor: pointer; display: inline-grid; place-items: center; flex: none; vertical-align: middle; margin-inline-start: 4px; }
+.i:hover, .i.on { background: var(--blue-bg); border-color: var(--blue); }
+.help-pop { flex-basis: 100%; width: 100%; background: var(--blue-bg); color: var(--ink); border-inline-start: 3px solid var(--blue); border-radius: 6px; padding: 8px 10px; font-size: 13px; line-height: 1.55; font-weight: normal; white-space: normal; margin: 4px 0 2px; text-align: right; }
+th .help-pop { min-width: 220px; position: relative; }
+h2 .help-pop { font-size: 13px; }
+.intro { background: var(--blue-bg); border: 1px solid transparent; border-radius: var(--radius); padding: 8px 12px; margin-bottom: 12px; font-size: 14px; line-height: 1.6; }
+.intro summary { cursor: pointer; color: var(--blue); font-weight: bold; }
+.intro p { margin: 6px 0 2px; }
+.intro:not([open]) { background: none; padding: 0 2px; }
+.list-head { margin-bottom: 6px; }
+@media print { .i, .intro, .help-pop { display: none !important; } }
