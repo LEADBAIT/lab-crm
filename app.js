@@ -104,7 +104,15 @@ async function getOrders(filter) {
   const { data, error } = await q; fail(error); return data;
 }
 const getOrder = async id => { const { data, error } = await sb.from('v_orders').select('*').eq('id', id).single(); fail(error); return data; };
-async function markContacted(id) { const { error } = await sb.from('orders').update({ last_contact_at: new Date().toISOString() }).eq('id', id); fail(error); }
+/** Update an order and offer "ביטול" in the toast, which puts back the previous values (plus any extra columns a trigger may change). */
+async function patchOrder(o, patch, msg, { extra = [] } = {}) {
+  const prev = Object.fromEntries([...Object.keys(patch), ...extra].map(k => [k, o[k] ?? null]));
+  const { error } = await sb.from('orders').update(patch).eq('id', o.id); fail(error);
+  if (msg) toast(msg, { undo: () => undoOrder(o.id, prev) });
+  return prev;
+}
+async function undoOrder(id, prev) { const { error } = await sb.from('orders').update(prev).eq('id', id); fail(error); toast('בוטל, חזר למצב הקודם'); route(); }
+const markContacted = (o, msg = 'נרשם שדיברנו') => patchOrder(o, { last_contact_at: new Date().toISOString() }, msg);
 
 // ---------- field autosave with visible state ----------
 /** Saves on change. Each element: data-save="table:id:column". Shows "שומר… / ✓ נשמר / לא נשמר" in its label. */

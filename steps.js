@@ -114,8 +114,9 @@ async function changeStage(o, to, c) {
   } else if (from >= 0 && dest >= 0 && dest < from) {
     if (!await ask(`להחזיר ל"${to}"?`, 'התאריכים שכבר נרשמו נשארים. אפשר לתקן אותם בצ\'קליסט של כל שלב.', { ok: 'להחזיר' })) return false;
   }
-  const { error } = await sb.from('orders').update(patch).eq('id', o.id); fail(error);
-  toast(to === LOST ? 'סומן כלא רלוונטי' : 'עבר לשלב: ' + to); return true;
+  // database triggers may also stamp these; undo puts them back too
+  await patchOrder(o, patch, to === LOST ? 'סומן כלא רלוונטי' : 'עבר לשלב: ' + to, { extra: ['completed_at', 'paid_at', 'cash_received_at'].filter(k => !(k in patch)) });
+  return true;
 }
 
 // ---------- messages ----------

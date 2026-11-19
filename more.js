@@ -194,7 +194,11 @@ function bindSettings(tab) {
   const add = async (table, row) => { const { error } = await sb.from(table).insert(row); fail(error); re(); };
   $$('[data-addprod]').forEach(b => b.onclick = async () => { const cat = b.dataset.addprod; const f = await formModal('הוספה ל' + CAT[cat], `<label class="field">שם<input name="name" required></label><label class="field">מחיר כולל מע"מ (₪)<input name="unit_price" type="number" step="0.01" value="0"></label>`); if (f) add('products', { name: f.name, category: cat, unit_price: Number(f.unit_price || 0), counts_for_tier: cat === 'media', sort: 99 }); });
   $('#addTier')?.addEventListener('click', () => add('discount_tiers', { min_items: Math.max(0, ...S.tiers.map(t => t.min_items)) + 10, percent: 0 }));
-  $$('[data-deltier]').forEach(b => b.onclick = async () => { const { error } = await sb.from('discount_tiers').delete().eq('id', b.dataset.deltier); fail(error); re(); });
+  $$('[data-deltier]').forEach(b => b.onclick = async () => {
+    const t = S.tiers.find(x => String(x.id) === b.dataset.deltier);
+    const { error } = await sb.from('discount_tiers').delete().eq('id', t.id); fail(error); await re();
+    toast('המדרגה הוסרה', { undo: async () => { await sb.from('discount_tiers').insert({ min_items: t.min_items, percent: t.percent }); re(); } });
+  });
   $('#addCp')?.addEventListener('click', async () => { const f = await formModal('קופון חדש', `<label class="field">קוד<input name="code" required placeholder="SUMMER10"><span class="hint">הקוד לא ניתן לשינוי אחרי היצירה.</span></label><label class="field">% הנחה<input name="percent" type="number" value="10"></label><label class="field">קמפיין<input name="campaign"></label>`); if (f) add('coupons', { code: f.code.trim().toUpperCase(), percent: Number(f.percent || 0), campaign: f.campaign || null }); });
   $$('[data-mv]').forEach(b => b.onclick = async () => {
     const [list, i, d] = b.dataset.mv.split(':'); const arr = S.opts[list], a = arr[+i], c = arr[+i + +d]; if (!a || !c) return;
@@ -211,7 +215,9 @@ function bindSettings(tab) {
   // labs, staff
   $('#addLab')?.addEventListener('click', async () => { const f = await formModal('מעבדה חדשה', `<label class="field">שם<input name="name" required></label><label class="field">טלפון<input name="phone"></label><label class="field">מה ממירה<input name="media_types" placeholder="VHS, אודיו, פילם"></label>`); if (f) add('labs', { name: f.name, phone: f.phone || null, media_types: f.media_types || null }); });
   $('#staffForm')?.addEventListener('submit', e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); if (f.role === 'lab' && !f.lab_id) return tell('חסרה מעבדה', 'למשתמש מעבדה בוחרים לאיזו מעבדה הוא שייך.'); add('staff', { email: f.email.trim().toLowerCase(), name: f.name || null, role: f.role, lab_id: f.lab_id ? Number(f.lab_id) : null }); });
-  $$('[data-delstaff]').forEach(b => b.onclick = async () => { if (!await ask('להסיר את ' + b.dataset.delstaff + '?', 'המשתמש לא יוכל להיכנס יותר.', { ok: 'הסרה', danger: true })) return; const { error } = await sb.from('staff').delete().eq('email', b.dataset.delstaff); fail(error); re(); });
+  $$('[data-delstaff]').forEach(b => b.onclick = async () => { if (!await ask('להסיר את ' + b.dataset.delstaff + '?', 'המשתמש לא יוכל להיכנס יותר.', { ok: 'הסרה', danger: true })) return; const { data: row } = await sb.from('staff').select('*').eq('email', b.dataset.delstaff).single();
+    const { error } = await sb.from('staff').delete().eq('email', b.dataset.delstaff); fail(error); await re();
+    toast('המשתמש הוסר', { undo: async () => { const { email, name, role, lab_id } = row; await sb.from('staff').insert({ email, name, role, lab_id }); re(); } }); });
   $('#exportBtn')?.addEventListener('click', exportAll);
 }
 async function exportAll() {

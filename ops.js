@@ -42,17 +42,30 @@ VIEWS.scan = async function vScan() {
     $('[data-finish]')?.addEventListener('click', async e => {
       const miss = its.length - k;
       if (miss && !await ask('חסרים פריטים', `נקלטו ${k} מתוך ${its.length}. חסרים ${miss}. לסיים קליטה ולסמן פער?`, { ok: 'לסיים עם פער' })) return;
-      const { error } = await sb.rpc('finish_intake', { p_order: Number(e.target.dataset.finish) }); fail(error); toast('הקליטה הסתיימה'); focusIn();
+      const oid = Number(e.target.dataset.finish);
+      const { error } = await sb.rpc('finish_intake', { p_order: oid }); fail(error);
+      toast('הקליטה הסתיימה', isLab() ? {} : { undo: () => undoOrder(oid, { intake_done_at: null }) }); focusIn();
     });
   };
   const handle = async code => {
     code = code.trim(); if (!code) return;
     const now = Date.now(); if (code === lastCode && now - lastAt < 3000) return; lastCode = code; lastAt = now;
+    const { data: before } = await sb.from('items').select('status').eq('id', code).maybeSingle();
     const { data, error } = await sb.from('items').update({ status: current }).eq('id', code).select('id, order_id');
     const li = document.createElement('li');
     if (n === 0) $('#log').innerHTML = '';
     if (error || !data?.length) { li.className = 'bad'; li.innerHTML = `<b class="num">${esc(code)}</b><span>לא נמצא${isLab() ? ' (או לא שייך למעבדה שלך)' : ''}</span>`; navigator.vibrate?.(300); }
-    else { li.className = 'good'; li.innerHTML = `<span><b class="num">${esc(code)}</b> <span class="small muted">הזמנה ${data[0].order_id}</span></span><span class="chip green">✓ ${esc(word(current))}</span>`; navigator.vibrate?.(60); showOrder(data[0].order_id); }
+    else {
+      const prev = before?.status, set = current;
+      li.className = 'good'; li.innerHTML = `<span><b class="num">${esc(code)}</b> <span class="small muted">הזמנה ${data[0].order_id}</span></span><span class="row nowrap"><span class="chip green">✓ ${esc(word(set))}</span>${prev && prev !== set ? '<button class="link-btn" type="button">ביטול</button>' : ''}</span>`;
+      navigator.vibrate?.(60); showOrder(data[0].order_id);
+      // undo a wrong scan: put the item back to the status it had before
+      $('button', li)?.addEventListener('click', async ev => {
+        const { error: e2 } = await sb.from('items').update({ status: prev }).eq('id', code); fail(e2);
+        ev.target.closest('.row').innerHTML = `<span class="chip">בוטל, חזר ל"${esc(word(prev))}"</span>`; li.className = '';
+        lastCode = ''; showOrder(data[0].order_id); focusIn();
+      });
+    }
     $('#log').prepend(li); $('#scanN').textContent = ++n;
   };
   $('#manual').onkeydown = e => { if (e.key === 'Enter') { handle(e.target.value); e.target.value = ''; } };

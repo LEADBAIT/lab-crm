@@ -79,13 +79,12 @@ async function runTask(x, btn) {
     if (a.tpl) {
       const tpl = tplByName(a.tpl);
       window.open(waLink(o.phone, fillTemplate(tpl.body, o, null)), '_blank', 'noopener');
-      await markContacted(o.id);
-    } else if (a.contact) await markContacted(o.id);
-    else if (a.cash) { const { error } = await sb.from('orders').update({ payment_status: 'שולם' }).eq('id', o.id); fail(error); }
+      await markContacted(o, 'ההודעה נפתחה ונרשם שדיברנו');
+    } else if (a.contact) await markContacted(o);
+    else if (a.cash) await patchOrder(o, { payment_status: 'שולם' }, 'נרשם שהמזומן הגיע', { extra: ['cash_received_at'] });
     else if (a.advance) { const nx = STEPS[stepIdx(o.stage) + 1]; if (!await changeStage(o, nx.key)) { btn.disabled = false; return; } }
   } catch { btn.disabled = false; return; }
   bumpDone();
   btn.closest('.task').classList.add('done-anim');
-  toast('בוצע. ' + (a.tpl ? 'נרשם שדיברנו' : ''));
   setTimeout(() => VIEWS.queue(), 450);
 }

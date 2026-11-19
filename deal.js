@@ -132,8 +132,11 @@ function checkHtml(ctx, k, j) {
     : k.act === 'intake' ? `<button class="btn sm" data-chk="${j}">סיום קליטה</button>`
     : `<button class="btn sm" data-chk="${j}">סימון ✓</button>`;
   return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
-    ${act}${ok && ms ? `<button class="link-btn" data-msedit="${ms}">שינוי תאריך</button>` : ''}</li>`;
+    ${act}${ok && ms ? `<button class="link-btn" data-msedit="${ms}">שינוי תאריך</button>` : ''}
+    ${ok && canUncheck(k) ? `<button class="link-btn" data-unchk="${j}">ביטול סימון</button>` : ''}</li>`;
 }
+// checks that are a stamp we set (not something derived, like "a lab was chosen") can be un-checked
+const canUncheck = k => !!k.act && (k.act.startsWith('ms:') || ['contact', 'intake', 'cash'].includes(k.act));
 const FIELD_DATE = d => /^\d{4}-\d{2}-\d{2}$/.test(d) ? fmtDate(d) : fmtDT(d);
 
 // ---------- sections ----------
@@ -257,18 +260,24 @@ function afterSave(ctx, table, k, v) {
   $$(`[data-save="${key}"]`).forEach(el => { if (el !== document.activeElement) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; } });
   lightRefresh(ctx, key);
 }
+async function runUncheck(ctx, k) {
+  const o = ctx.o;
+  const patch = k.act === 'contact' ? { last_contact_at: null } : k.act === 'intake' ? { intake_done_at: null }
+    : k.act === 'cash' ? { payment_status: 'מזומן אצל שליח', cash_received_at: null } : { [k.act.slice(3)]: null };
+  await patchOrder(o, patch, `בוטל הסימון: ${k.label}`); reloadDeal(ctx);
+}
 async function runCheck(ctx, k) {
   const o = ctx.o;
-  if (k.act === 'contact') { await markContacted(o.id); return reloadDeal(ctx); }
+  if (k.act === 'contact') { await markContacted(o); return reloadDeal(ctx); }
   if (k.act.startsWith('open:')) { const s = k.act.slice(5), d = $(`[data-sec="${s}"]`); d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   if (k.act === 'items') return genItems(ctx);
-  if (k.act === 'cash') { const { error } = await sb.from('orders').update({ payment_status: 'שולם' }).eq('id', o.id); fail(error); toast('נרשם שהמזומן הגיע'); return reloadDeal(ctx); }
+  if (k.act === 'cash') { await patchOrder(o, { payment_status: 'שולם' }, 'נרשם שהמזומן הגיע', { extra: ['cash_received_at'] }); return reloadDeal(ctx); }
   if (k.act === 'intake') {
     const miss = o.media_qty - o.items_at_lab_or_later;
     if (miss > 0 && !await ask('חסרים פריטים', `נקלטו ${o.items_at_lab_or_later} מתוך ${o.media_qty}. לסיים קליטה ולסמן פער?`, { ok: 'לסיים עם פער' })) return;
-    const { error } = await sb.rpc('finish_intake', { p_order: o.id }); fail(error); toast('הקליטה הסתיימה'); return reloadDeal(ctx);
+    const { error } = await sb.rpc('finish_intake', { p_order: o.id }); fail(error); toast('הקליטה הסתיימה', { undo: () => undoOrder(o.id, { intake_done_at: null }) }); return reloadDeal(ctx);
   }
-  if (k.act.startsWith('ms:')) { const f = k.act.slice(3); const { error } = await sb.from('orders').update({ [f]: new Date().toISOString() }).eq('id', o.id); fail(error); toast('נרשם', { undo: async () => { await sb.from('orders').update({ [f]: null }).eq('id', o.id); reloadDeal(ctx); } }); return reloadDeal(ctx); }
+  if (k.act.startsWith('ms:')) { await patchOrder(o, { [k.act.slice(3)]: new Date().toISOString() }, 'נרשם: ' + k.label); return reloadDeal(ctx); }
 }
 async function genItems(ctx) { const { data, error } = await sb.rpc('generate_items', { p_order: ctx.o.id }); fail(error); toast(data ? `נוצרו ${data} ברקודים` : 'אין ברקודים חדשים ליצירה'); SEC_OPEN[ctx.o.id].add('items'); reloadDeal(ctx); }
 async function openTemplate(ctx, t) {
@@ -278,8 +287,7 @@ async function openTemplate(ctx, t) {
   const stamp = { 'פתיחה ללידים': 'last_contact_at', 'פולואפ להצעה': 'last_contact_at', 'בקשת תשלום': 'last_contact_at', 'הקבצים מוכנים': 'delivery_sent_at', 'בקשת ביקורת': 'review_requested_at', 'בקשת סטורי': 'story_requested_at' }[t?.name];
   if (!stamp || (stamp !== 'last_contact_at' && o[stamp])) return;
   if (stamp === 'delivery_sent_at' && !o.delivery_link) return tell('אין עדיין קישור הורדה', 'ההודעה נפתחה, אבל כדי שהקישור ייכנס להודעה צריך קודם להדביק אותו בשדה "קישור הורדה ללקוח".');
-  const { error } = await sb.from('orders').update({ [stamp]: new Date().toISOString() }).eq('id', o.id); fail(error);
-  toast(stamp === 'last_contact_at' ? 'נרשם שדיברנו עם הלקוח' : 'נרשם בצ\'קליסט', { undo: stamp === 'last_contact_at' ? null : async () => { await sb.from('orders').update({ [stamp]: null }).eq('id', o.id); reloadDeal(ctx); } });
+  await patchOrder(o, { [stamp]: new Date().toISOString() }, stamp === 'last_contact_at' ? 'נרשם שדיברנו עם הלקוח' : 'נרשם בצ\'קליסט');
   reloadDeal(ctx);
 }
 function bindNext(ctx) {
@@ -291,6 +299,7 @@ function bindNext(ctx) {
   $$('#nextBox [data-tpl]').forEach(b => b.onclick = () => openTemplate(ctx, S.templates.find(t => String(t.id) === b.dataset.tpl)));
   $('#sendQuote') && ($('#sendQuote').onclick = () => sendQuote(ctx));
   $$('#nextBox [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
+  $$('#nextBox [data-unchk]').forEach(b => b.onclick = () => runUncheck(ctx, checks[b.dataset.unchk]));
 }
 function sendQuote(ctx) {
   if (!ctx.o.media_qty) return tell('ההצעה ריקה', 'קודם ממלאים כמויות בחלק "הצעת מחיר".');
@@ -338,8 +347,9 @@ function bindDeal(ctx) {
   // after-section checks share the step-8 checklist
   $$('[data-body="after"] [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, STEPS[7].checks[Number(b.dataset.chk.slice(1))]));
   $$('[data-body="after"] [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
+  $$('[data-body="after"] [data-unchk]').forEach(b => b.onclick = () => runUncheck(ctx, STEPS[7].checks[Number(b.dataset.unchk.slice(1))]));
   // side
-  $('#contacted') && ($('#contacted').onclick = async () => { await markContacted(o.id); toast('נרשם שדיברנו'); reloadDeal(ctx); });
+  $('#contacted') && ($('#contacted').onclick = async () => { await markContacted(ctx.o); reloadDeal(ctx); });
   $$('[data-fu]').forEach(b => b.onclick = async () => { const d = addDays(Number(b.dataset.fu)); const { error } = await sb.from('orders').update({ next_followup: d }).eq('id', o.id); fail(error); $$(`[data-save="orders:${o.id}:next_followup"]`).forEach(i => i.value = d); toast('נחזור ללקוח ב-' + fmtDate(d)); });
   $('#noteForm').onsubmit = async e => { e.preventDefault(); const t = new FormData(e.target).get('t'); const { error } = await sb.rpc('add_note', { p_order: o.id, p_text: t }); fail(error); reloadDeal(ctx); };
 }
