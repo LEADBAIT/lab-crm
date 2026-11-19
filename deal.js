@@ -59,7 +59,7 @@ function renderDeal(ctx) {
   <div class="deal-head">
     <div><h1>${esc(custName(c))}</h1><div class="meta" id="dealMeta">${dealMeta(o)}</div></div>
     <div class="row">
-      <a class="btn" href="tel:${esc(c.phone)}" title="חיוג">📞 <bdi dir="ltr">${esc(fmtPhone(c.phone))}</bdi></a>
+      <a class="btn" href="tel:${esc(c.phone)}">📞 <bdi dir="ltr">${esc(fmtPhone(c.phone))}</bdi></a>
       <div class="dd"><button class="btn wa" id="waBtn">וואטסאפ ▾</button></div>
       ${ph !== 'sales' && !lost ? '<button class="btn" id="trackBtn" title="קישור שהלקוח פותח בלי סיסמה ורואה איפה ההזמנה">קישור מעקב ללקוח</button>' : ''}
       <div class="dd"><button class="btn icon-btn" id="moreBtn" aria-label="עוד פעולות">⋯</button></div>
@@ -90,7 +90,7 @@ function stepDate(ctx, s) {
 }
 function stepperHtml(ctx) {
   const cur = stepIdx(ctx.o.stage);
-  const btn = (s, i) => `<button class="step ${i < cur ? 'done' : ''} ${i === cur ? 'cur' : ''} ${i === 2 || i === 7 ? 'last-in-grp' : ''}" data-step="${i}" title="${i === cur ? 'השלב הנוכחי' : 'מעבר לשלב הזה'}">
+  const btn = (s, i) => `<button class="step ${i < cur ? 'done' : ''} ${i === cur ? 'cur' : ''} ${i === 2 || i === 7 ? 'last-in-grp' : ''}" data-step="${i}">
     <span class="c">${i < cur ? '✓' : i + 1}</span><span class="l">${esc(s.key)}</span><span class="d">${i <= cur ? fmtShort(stepDate(ctx, s)) : ''}</span></button>`;
   return `<div class="stepper"><div class="grp" style="grid-column:1/4">מכירה</div><div class="grp" style="grid-column:5/10">עבודה</div>
     ${STEPS.slice(0, 3).map(btn).join('')}<div class="gap"></div>${STEPS.slice(3).map((s, j) => btn(s, j + 3)).join('')}</div>`;
