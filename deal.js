@@ -63,7 +63,7 @@ function renderDeal(ctx) {
   <a class="back" href="#deals/${ph}">→ לקוחות: ${back}</a>
   <div class="deal-top">
     <div class="deal-head">
-      <div class="grow"><h1>${esc(custName(c))}</h1><div class="meta" id="dealMeta">${dealMeta(o)}</div></div>
+      <div class="grow"><h1>${esc(custName(c))}${lost ? '' : phTag(o.stage)}</h1><div class="meta" id="dealMeta">${dealMeta(o)}</div></div>
       <div class="row dh-acts">
         <a class="btn" href="tel:${esc(c.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><bdi dir="ltr">${esc(fmtPhone(c.phone))}</bdi></a>
         <div class="dd"><button class="btn wa" id="waBtn">וואטסאפ ▾</button></div>
@@ -125,8 +125,15 @@ function stepperHtml(ctx) {
   };
   // narrow screens (side panel, phone) show thin segments + this caption instead of the labels
   const cap = cur >= 0 ? `<div class="pbar-cap"><b>${esc(STEPS[cur].key)}</b><span>שלב ${cur + 1} מתוך ${STEPS.length}${days(cur) ? ' · ' + days(cur) + ' בשלב' : ''}</span>${STEPS[cur + 1] ? `<span class="nx">הבא: ${esc(STEPS[cur + 1].key)}</span>` : ''}</div>` : '';
-  return `<div class="pbar" role="list" aria-label="שלבים">${STEPS.map((s, i) => `<button class="step ${i < cur ? 'done' : ''} ${i === cur ? 'cur' : ''}" data-step="${i}" role="listitem" aria-current="${i === cur ? 'step' : 'false'}" aria-label="${esc(s.key)}">
-    <span class="l">${esc(s.key)}</span><span class="d">${days(i)}</span></button>`).join('')}</div>${cap}`;
+  const btn = (s, i) => `<button class="step ph-${s.phase} ${i < cur ? 'done' : ''} ${i === cur ? 'cur' : ''}" data-step="${i}" role="listitem" aria-current="${i === cur ? 'step' : 'false'}" aria-label="${esc(s.key)}">
+    <span class="l">${esc(s.key)}</span><span class="d">${days(i)}</span></button>`;
+  // two groups: sales (lead -> paid) and the lab work (paid -> delivered), with the payment as the gate between them
+  const grp = (ph, label, sub) => { const idx = STEPS.map((s, i) => i).filter(i => (STEPS[i].phase === 'sales') === (ph === 'sales'));
+    return `<div class="pgroup ph-${ph} ${idx.includes(cur) ? '' : 'dim'}"><div class="pgroup-h">${label} <span>${sub}</span></div><div class="prow">${idx.map(i => btn(STEPS[i], i)).join('')}</div></div>`; };
+  const paid = cur >= 0 && STEPS[cur].phase !== 'sales';
+  return `<div class="pbar split" role="list" aria-label="שלבים">${grp('sales', 'מכירה', 'מליד ועד תשלום')}
+    <div class="pay-gate ${paid ? 'paid' : ''}" title="${paid ? 'הלקוח שילם' : 'עוד לא שולם'}"><span>${paid ? 'שולם' : 'תשלום'}</span><div class="coin">₪</div></div>
+    ${grp('ops', 'עבודה במעבדה', 'מתשלום ועד מסירה')}</div>${cap}`;
 }
 
 // ---------- next step card ----------
@@ -138,7 +145,7 @@ function nextCardHtml(ctx) {
   const nxt = STEPS[i + 1];
   const tpls = [s.tpl, s.tpl2].map(tplByName).filter(Boolean);
   return `<section class="card next-card">
-    <div class="eyebrow">שלב ${i + 1} מתוך ${STEPS.length} · ${esc(s.key)}</div>
+    <div class="eyebrow">${phTag(o.stage)}שלב ${i + 1} מתוך ${STEPS.length} · ${esc(s.key)}</div>
     <h2>הצעד הבא: ${esc(s.title)}</h2>
     <p class="todo">${esc(s.todo)}</p>
     ${FU_STAGES.includes(o.stage) ? `<div class="fu-line fu-${fuState(o)}"><span>פולו-אפ הבא: <b>${o.next_followup ? esc(fuLabel(o)) + ' (' + fmtShort(o.next_followup) + ')' : 'אין צעד הבא'}</b>${o.followup_note ? ' · ' + esc(o.followup_note) : ''}${o.stage === 'בשיחה' ? ` · ניסיון ${o.followup_attempts || 1} מתוך ${MAX_ATTEMPTS}` : ''}</span><button class="btn sm" id="fuEdit">${o.next_followup ? 'שינוי' : 'קביעת פולו-אפ'}</button></div>` : ''}

@@ -33,6 +33,10 @@
   --blue: #2F6FD6; --blue-bg: #E7EFFC;
   --violet: #6D4BD1; --violet-bg: #EFEAFC;
   --won: #08A742; --lost: #E2442F;
+  /* the two phases of an order: sales (lead -> paid) and work (paid -> delivered) */
+  --ph-sales: #2F6FD6; --ph-sales-bg: #E7EFFC; --ph-sales-ink: #1F57B3;
+  --ph-ops: #7A4FD6; --ph-ops-bg: #F0EAFD; --ph-ops-ink: #5B35B0;
+  --ph-done: #08893F; --ph-done-bg: #E3F5EA; --ph-done-ink: #01622E;
   --radius: 8px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgba(33,35,44,.06), 0 0 0 1px rgba(33,35,44,.02);
@@ -54,6 +58,9 @@
     --red: #F2705F; --red-bg: #3A1B18; --orange: #F5B547; --orange-bg: #36290F; --yellow: #F5B547;
     --green: #4CC982; --green-bg: #133223; --blue: #79A9F2; --blue-bg: #18263F; --violet: #B3A0F5; --violet-bg: #2A2245;
     --won: #2FBF68; --lost: #F2705F;
+    --ph-sales: #5B95F0; --ph-sales-bg: #18263F; --ph-sales-ink: #8FB8F5;
+    --ph-ops: #A47FF2; --ph-ops-bg: #2A2245; --ph-ops-ink: #C6AEF7;
+    --ph-done: #4CC982; --ph-done-bg: #133223; --ph-done-ink: #6FD99B;
     --shadow: none; --shadow-card: 0 1px 2px rgba(0,0,0,.4); --shadow-lg: 0 10px 30px rgba(0,0,0,.55);
     color-scheme: dark;
   }
@@ -67,6 +74,9 @@
   --red: #F2705F; --red-bg: #3A1B18; --orange: #F5B547; --orange-bg: #36290F; --yellow: #F5B547;
   --green: #4CC982; --green-bg: #133223; --blue: #79A9F2; --blue-bg: #18263F; --violet: #B3A0F5; --violet-bg: #2A2245;
   --won: #2FBF68; --lost: #F2705F;
+  --ph-sales: #5B95F0; --ph-sales-bg: #18263F; --ph-sales-ink: #8FB8F5;
+  --ph-ops: #A47FF2; --ph-ops-bg: #2A2245; --ph-ops-ink: #C6AEF7;
+  --ph-done: #4CC982; --ph-done-bg: #133223; --ph-done-ink: #6FD99B;
   --shadow: none; --shadow-card: 0 1px 2px rgba(0,0,0,.4); --shadow-lg: 0 10px 30px rgba(0,0,0,.55);
   color-scheme: dark;
 }
@@ -821,3 +831,58 @@ html.embed .back { display: none; }
 .timeline.clipped li.extra { display: none; }
 .deal .section-title { margin: var(--s2) 0 0; }
 @media (max-width: 700px) { .action-pick { grid-template-columns: repeat(2, minmax(0, 1fr)); } .toolbar .search-box { flex: 1 1 100%; } .tb-sum { margin-inline-start: 0; } }
+
+/* ---------- phases: sales (blue) vs. work in the lab (purple) vs. done (green) ----------
+   Every place that shows a stage carries its phase color, so it is clear at a glance which part an order is in. */
+.ph-sales { --ph: var(--ph-sales); --ph-bg: var(--ph-sales-bg); --ph-ink: var(--ph-sales-ink); }
+.ph-ops { --ph: var(--ph-ops); --ph-bg: var(--ph-ops-bg); --ph-ink: var(--ph-ops-ink); }
+.ph-done { --ph: var(--ph-done); --ph-bg: var(--ph-done-bg); --ph-ink: var(--ph-done-ink); }
+.ph-lost { --ph: var(--muted); --ph-bg: var(--surface-3); --ph-ink: var(--muted); }
+.ph-all { --ph: var(--ink-2); --ph-bg: var(--surface-3); --ph-ink: var(--ink); }
+.stage-pill[class*="ph-"] { background: var(--ph-bg); color: var(--ph-ink); padding: 1px 9px 1px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.ph-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--ph-ink); background: var(--ph-bg); border: 1px solid color-mix(in srgb, var(--ph) 35%, transparent); padding: 1px 8px; border-radius: 999px; white-space: nowrap; vertical-align: middle; line-height: 1.6; }
+.ph-tag::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--ph); }
+h1 .ph-tag { margin-inline-start: 8px; font-size: 12px; }
+.eyebrow .ph-tag { margin-inline-end: 6px; }
+/* deals tabs: each tab in its phase color */
+.seg.phases button[class*="ph-"]::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ph); }
+.seg.phases button.ph-all::before { display: none; }
+.seg.phases button.on[class*="ph-"] { background: var(--ph-bg); color: var(--ph-ink); box-shadow: inset 0 -3px 0 var(--ph); }
+/* banner above the board / table that names the phase and where it starts and ends */
+.ph-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--ph-bg); border: 1px solid color-mix(in srgb, var(--ph) 30%, transparent); border-inline-start: 5px solid var(--ph); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px; }
+.ph-banner b { color: var(--ph-ink); font-size: 15px; }
+.ph-banner .rng { color: var(--ink-2); font-size: 13px; }
+.ph-banner .rng i { font-style: normal; font-weight: 600; color: var(--ph-ink); }
+.ph-banner .other { margin-inline-start: auto; font-size: 12.5px; color: var(--link); text-decoration: none; }
+.ph-banner .other:hover { text-decoration: underline; }
+/* board: phase line on top of the board, phase-colored column titles and card edges */
+.kanban[class*="ph-"] { border-top: 4px solid var(--ph); }
+.kanban[class*="ph-"] .lane-head .t { color: var(--ph-ink); }
+.kanban[class*="ph-"] .kcard { border-inline-start: 3px solid var(--ph); }
+/* table: a colored start edge on every row by phase */
+tr[class*="ph-"] > td:first-child { box-shadow: inset -4px 0 0 var(--ph); }
+/* deal page: the stage bar split into two labeled groups, with the payment between them */
+.pbar.split { align-items: stretch; }
+.pgroup { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pgroup.ph-sales { flex: 4 1 0; }
+.pgroup.ph-ops { flex: 5 1 0; }
+.pgroup-h { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--ph-ink); padding-inline: 6px; }
+.pgroup-h::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--ph); }
+.pgroup-h span { font-weight: 500; color: var(--muted); }
+.pgroup.dim .pgroup-h { opacity: .6; }
+.prow { display: flex; }
+.pgroup .step.done { background: color-mix(in srgb, var(--ph) 20%, var(--surface)); color: var(--ph-ink); }
+.pgroup .step.cur { background: var(--ph); color: #fff; }
+.pay-gate { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 0 10px; color: var(--muted); font-size: 11px; font-weight: 700; gap: 2px; }
+.pay-gate .coin { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 2px dashed var(--line-2); font-size: 13px; background: var(--surface); margin-bottom: 6px; }
+.pay-gate.paid { color: var(--ph-done-ink); }
+.pay-gate.paid .coin { border: 2px solid var(--ph-done); background: var(--ph-done-bg); }
+.deal-top.stuck .pgroup-h, .deal-top.stuck .pay-gate span { display: none; }
+.deal-top.stuck .pay-gate .coin { width: 22px; height: 22px; margin-bottom: 4px; font-size: 11px; }
+@container (max-width: 760px) {
+  .pbar.split { gap: 6px; }
+  .pgroup .prow { gap: 3px; }
+  .deal-top .pgroup .step.done::before { background: color-mix(in srgb, var(--ph) 45%, var(--surface)); }
+  .deal-top .pgroup .step.cur::before { background: var(--ph); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ph) 30%, transparent); }
+  .pay-gate { padding: 0 2px; } .pay-gate span { display: none; } .pay-gate .coin { width: 18px; height: 18px; font-size: 9px; margin-bottom: 0; border-width: 1px; }
+}

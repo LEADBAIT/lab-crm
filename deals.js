@@ -14,13 +14,15 @@ VIEWS.deals = async function vDeals(tab) {
   const sources = [...new Set(list.map(r => r.source).filter(Boolean))];
   view().innerHTML = `
   <div class="toolbar">
-    <div class="seg">${DEAL_TABS.map(([k, n]) => `<button class="${k === tab ? 'on' : ''}" data-tab="${k}">${n} <span class="n">${counts[k]}</span></button>`).join('')}</div>
+    <div class="seg phases">${DEAL_TABS.map(([k, n]) => `<button class="ph-${k} ${k === tab ? 'on' : ''}" data-tab="${k}">${n} <span class="n">${counts[k]}</span></button>`).join('')}</div>
     <div class="search-box"><input id="fq" type="search" placeholder="שם, טלפון או מספר הזמנה" value="${esc(F.q || '')}" aria-label="סינון"></div>
     ${sources.length ? `<select id="fsrc" class="src-sel" aria-label="מקור"><option value="">כל המקורות</option>${sources.map(s => `<option ${F.src === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>` : ''}
     ${tab !== 'sales' ? `<select id="flab" class="src-sel" aria-label="מעבדה"><option value="">כל המעבדות</option>${S.labs.map(l => `<option ${F.lab === l.name ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>` : ''}
     <label class="fchip ${F.urg ? 'on' : ''}" style="cursor:pointer"><input type="checkbox" id="furg" ${F.urg ? 'checked' : ''} style="display:none">רק מה שדורש טיפול</label>
     ${boardable ? `<div class="seg tb-end-item" role="tablist" aria-label="תצוגה"><button class="${mode === 'board' ? 'on' : ''}" data-mode="board" aria-label="לוח"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg>לוח</button><button class="${mode === 'table' ? 'on' : ''}" data-mode="table" aria-label="רשימה"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>רשימה</button></div>` : ''}
   </div>
+  ${tab === 'sales' || tab === 'ops' ? `<div class="ph-banner ph-${tab}"><b>${PHASE_INFO[tab].name}</b><span class="rng">מ<i>${PHASE_INFO[tab].from}</i> ← עד <i>${PHASE_INFO[tab].to}</i></span>
+    <a class="other" href="#deals/${tab === 'sales' ? 'ops' : 'sales'}">${tab === 'sales' ? `לשלב העבודה במעבדה (${counts.ops}) ←` : `לשלב המכירה (${counts.sales}) ←`}</a></div>` : ''}
   ${tab === 'ops' ? opsTasksHtml(rows) : ''}
   <div id="dealsBody"></div>`;
   const urgent = r => r.flag_late || r.flag_count_mismatch || r.flag_cash_at_courier || (r.stage === 'פנייה חדשה' && !r.last_contact_at);
@@ -54,7 +56,7 @@ function dealFlags(r, onCard) {
 }
 function boardHtml(vis, tab) {
   const lanes = STEPS.filter(s => s.phase === tab);
-  return `<div class="kanban">${lanes.map(s => { const l = vis.filter(r => r.stage === s.key), sum = l.reduce((a, r) => a + Number(r.total || 0), 0);
+  return `<div class="kanban ph-${tab}">${lanes.map(s => { const l = vis.filter(r => r.stage === s.key), sum = l.reduce((a, r) => a + Number(r.total || 0), 0);
     return `<div class="lane" data-stage="${esc(s.key)}"><div class="lane-head"><div class="t"><span class="dot" style="background:${stageColor(s.key)}"></span>${esc(s.key)}</div>
         <span class="sum">${sum ? money(sum) + ' · ' : ''}${l.length === 1 ? 'לקוח אחד' : l.length + ' לקוחות'}</span></div>
       <div class="lane-body">${l.map(kcardHtml).join('') || '<div class="none">אין כאן כרגע</div>'}</div></div>`; }).join('')}</div>
@@ -88,7 +90,7 @@ function tableHtml(vis, tab) {
     ${tab === 'lost' ? '<button class="btn sm primary" id="dbRevive">החזרה לטיפול</button>' : '<button class="btn sm" id="dbLost">סימון כלא רלוונטי</button>'}
     <button class="btn sm ghost" id="dbClear">ביטול הבחירה</button></div>` : '';
   return `${bar}<div class="card flush table-wrap"><table><thead><tr>${sel ? '<th class="sel"><input type="checkbox" id="dselAll" aria-label="בחירת כולם"></th>' : ''}${th('name', 'לקוח')}${th('stage', 'שלב')}<th>מה המצב</th>${tab !== 'sales' ? '<th>מעבדה</th>' : '<th>מקור</th>'}${th('qty', 'פריטים', 'num')}${th('total', 'סכום', 'num')}${th('time', 'נכנס')}<th>דורש תשומת לב</th></tr></thead><tbody>
-    ${vis.map(r => `<tr class="click" data-id="${r.id}">${sel ? `<td class="sel"><input type="checkbox" data-dsel="${r.id}" aria-label="בחירה"></td>` : ''}<td><b>${esc(custName(r))}</b><span class="sub"><bdi dir="ltr">${esc(fmtPhone(r.phone))}</bdi> · #${r.id}</span></td>
+    ${vis.map(r => `<tr class="click ph-${r._ph}" data-id="${r.id}">${sel ? `<td class="sel"><input type="checkbox" data-dsel="${r.id}" aria-label="בחירה"></td>` : ''}<td><b>${esc(custName(r))}</b><span class="sub"><bdi dir="ltr">${esc(fmtPhone(r.phone))}</bdi> · #${r.id}</span></td>
       <td>${stagePill(r.stage)}</td><td class="wrap small">${esc(subStatus(r))}</td>
       <td class="small">${tab !== 'sales' ? (r.lab_name ? esc(r.lab_name) : '<span class="nil">—</span>') : (r.source ? esc(r.source) : '<span class="nil">—</span>')}</td>
       <td class="num">${r.media_qty || '<span class="nil">—</span>'}</td><td class="num">${r.total > 0 ? money(r.total) : '<span class="nil">—</span>'}</td><td>${timeCol(r)}</td><td><div class="row" style="gap:4px">${dealFlags(r)}</div></td></tr>`).join('')

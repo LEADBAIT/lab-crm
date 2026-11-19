@@ -62,7 +62,12 @@ const STEP_DONE = () => stepOf('הושלם');
 const PHASE_NAME = { sales: 'מכירה', ops: 'בעבודה', done: 'הסתיים', lost: 'לא רלוונטי' };
 const phaseOf = k => k === LOST ? 'lost' : stepOf(k)?.phase || 'sales';
 const stageColor = k => (S.opts.stage || []).find(o => o.value === k)?.color || '#9CA3AF';
-const stagePill = k => `<span class="stage-pill"><span class="dot" style="background:${stageColor(k)}"></span>${esc(k)}</span>`;
+/** sales = lead -> paid · ops = paid -> delivered (the lab work) · done · lost */
+const PHASE_INFO = {
+  sales: { name: 'שלב מכירה', from: 'ליד חדש', to: 'הלקוח שילם' },
+  ops: { name: 'שלב עבודה במעבדה', from: 'הלקוח שילם', to: 'הלקוח קיבל הכל' } };
+const phTag = k => { const p = phaseOf(k); return `<span class="ph-tag ph-${p}">${p === 'sales' ? 'מכירה' : p === 'ops' ? 'מעבדה' : PHASE_NAME[p]}</span>`; };
+const stagePill = k => `<span class="stage-pill ph-${phaseOf(k)}"><span class="dot" style="background:${stageColor(k)}"></span>${esc(k)}</span>`;
 
 /** One short line about where it stands inside its step, in plain words. */
 function subStatus(o) {
