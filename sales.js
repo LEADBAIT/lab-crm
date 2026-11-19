@@ -48,7 +48,7 @@ function renderSales(tab) {
   const filtered = F.view || F.stage || F.src || F.hot || F.q;
   view().innerHTML = `
   <div class="sales-head">
-    <div><h1>מכירות</h1><div class="sub">${n.all} לידים פתוחים${n.sum ? ` · הצעות פתוחות ${money(n.sum)}` : ''}</div></div>
+    <div><div class="sub"><b>${n.all}</b> לידים פתוחים${n.sum ? ` · הצעות פתוחות ${money(n.sum)}` : ''}</div></div>
     <div class="kpis">
       ${kpi('late', 'באיחור', n.late, n.late ? 'פולו-אפ שעבר זמנו' : 'הכל בזמן', n.late ? 'red' : 'ok')}
       ${kpi('today', 'להיום', n.today, n.today ? 'לחזור היום / אין צעד הבא' : 'אין להיום', n.today ? 'orange' : 'ok')}

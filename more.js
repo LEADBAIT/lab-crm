@@ -30,7 +30,7 @@ VIEWS.reports = async function vReports() {
   const months = [...new Set(rows.map(r => r.created_at.slice(0, 7)).concat([month]))].sort().reverse();
   const card = (t, body, sub = '') => `<section class="card"><div class="card-head"><h3>${t}</h3>${sub ? `<span class="tiny muted">${sub}</span>` : ''}</div>${body}</section>`;
   view().innerHTML = `
-  <div class="page-head"><div><h1>דוחות</h1><div class="sub">איך העסק עובד בחודש שנבחר.</div></div>
+  <div class="page-head"><div><div class="sub">איך העסק עובד בחודש שנבחר.</div></div>
     <label class="field" style="min-width:200px">חודש<select id="dm">${months.map(m => `<option value="${m}" ${m === sel ? 'selected' : ''}>${mName(m)}</option>`).join('')}</select></label></div>
   <div class="grid cols-4">
     ${kpi('פניות חדשות', A.leads.length, delta(A.leads.length, B.leads.length))}
@@ -67,7 +67,7 @@ VIEWS.expenses = async function vExpenses() {
   const month = today().slice(0, 7), inM = exp.filter(e => e.spent_on.slice(0, 7) === month), sumM = inM.reduce((s, e) => s + Number(e.amount), 0);
   const ads = inM.filter(e => e.category === 'פרסום').reduce((s, e) => s + Number(e.amount), 0);
   view().innerHTML = `
-  <div class="page-head"><div><h1>הוצאות</h1><div class="sub">רושמים כאן כל הוצאה. הוצאות פרסום נכנסות לחישוב "עלות לפנייה" בדוחות.</div></div>
+  <div class="page-head"><div><div class="sub">רושמים כאן כל הוצאה. הוצאות פרסום נכנסות לחישוב "עלות לפנייה" בדוחות.</div></div>
     <div class="row"><div class="card kpi" style="min-width:160px"><span class="l">החודש</span><span class="v">${money(sumM)}</span></div><div class="card kpi" style="min-width:160px"><span class="l">מתוכן פרסום</span><span class="v">${money(ads)}</span></div></div></div>
   <form id="expForm" class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">הוצאה חדשה</h3><div class="fields form-row">
     <label class="field">תאריך<input type="date" name="spent_on" value="${today()}" required></label>
@@ -184,7 +184,7 @@ VIEWS.settings = async function vSettings(tab) {
   if (tab === 'backup') body = `<section class="card" style="max-width:640px"><h3 style="margin-bottom:6px">גיבוי לקבצים</h3><p>מוריד 4 קבצים שנפתחים באקסל ובגוגל שיטס: הזמנות, לקוחות, ברקודים, הוצאות. מומלץ פעם בשבוע.</p>
     <button class="btn primary" id="exportBtn" style="margin-top:12px">הורדת גיבוי עכשיו</button><p class="small muted" id="exportMsg" style="margin-top:8px"></p></section>`;
   const g = SET_GROUPS.find(x => x[0] === tab);
-  view().innerHTML = `<div class="page-head"><div><h1>הגדרות</h1><div class="sub">כל שינוי נשמר לבד ברגע שיוצאים מהשדה.</div></div></div>
+  view().innerHTML = `<div class="page-head"><div><div class="sub">כל שינוי נשמר לבד ברגע שיוצאים מהשדה.</div></div></div>
     <div class="settings"><nav class="subnav">${SET_GROUPS.map(([k, n, d]) => `<button class="${k === tab ? 'on' : ''}" data-stab="${k}">${n}<span class="desc">${d}</span></button>`).join('')}</nav>
     <div><h2 style="margin-bottom:12px">${g[1]}</h2>${body}</div></div>`;
   bindSettings(tab);

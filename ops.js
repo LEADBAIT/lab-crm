@@ -18,7 +18,7 @@ VIEWS.scan = async function vScan() {
   let current = sessionStorage.getItem('scanStatus'); if (!acts.some(a => a[0] === current)) current = 'במעבדה';
   const word = s => (SCAN_ACTIONS.find(a => a[0] === s) || [s, s])[1];
   view().innerHTML = `
-  <div class="page-head"><div><h1>סריקת פריטים</h1><div class="sub">מעדכנים איפה כל קלטת נמצאת, בלי להיכנס להזמנה. עובד עם סורק ברקוד, מצלמת הטלפון או הקלדה.</div></div></div>
+  <div class="page-head"><div><div class="sub">מעדכנים איפה כל קלטת נמצאת, בלי להיכנס להזמנה. עובד עם סורק ברקוד, מצלמת הטלפון או הקלדה.</div></div></div>
   <div class="scan-layout">
     <div class="card steps-num">
       <div><div class="lbl-n">1. מה קורה עכשיו לפריטים?</div><div class="action-pick">${acts.map(([s, t, d]) => `<button data-s="${esc(s)}" class="${s === current ? 'on' : ''}"><b>${esc(t)}</b><span>${esc(d)}</span></button>`).join('')}</div></div>
@@ -144,7 +144,7 @@ VIEWS.manifest = async function vManifest(id) {
 
 // ---------- public tracking page (no login) ----------
 VIEWS.track = async function vTrack(token) {
-  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); $('.topbar').classList.add('hidden');
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#app').classList.add('public'); $('.topbar').classList.add('hidden');
   const { data, error } = await sb.rpc('track_order', { p_token: token });
   if (error || !data) { view().innerHTML = '<div class="card track"><h1>ההזמנה לא נמצאה</h1><p>בדקו את הקישור או כתבו לנו בוואטסאפ.</p></div>'; return; }
   const steps = [['ההזמנה התקבלה', data.paid_at], ['החומרים נאספו', data.picked_up_at], ['במעבדה, בעבודה', data.lab_received_at], ['ההמרה הסתיימה', data.conversion_done_at], ['הקבצים נשלחו אליכם', data.delivery_sent_at], ['הושלם', data.completed_at || data.returned_at]];

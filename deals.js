@@ -13,8 +13,8 @@ VIEWS.deals = async function vDeals(tab) {
   const list = rows.filter(r => tab === 'all' || r._ph === tab);
   const sources = [...new Set(list.map(r => r.source).filter(Boolean))];
   view().innerHTML = `
-  <div class="page-head"><div><h1>לקוחות</h1><div class="sub">כל פנייה והזמנה במקום אחד. לוחצים על לקוח כדי לראות מה הצעד הבא איתו.</div></div>
-    ${boardable ? `<div class="seg" role="tablist" aria-label="תצוגה"><button class="${mode === 'board' ? 'on' : ''}" data-mode="board">לוח</button><button class="${mode === 'table' ? 'on' : ''}" data-mode="table">טבלה</button></div>` : ''}</div>
+  <div class="page-head"><div><div class="sub">כל פנייה והזמנה במקום אחד. לוחצים על לקוח כדי לראות מה הצעד הבא איתו.</div></div>
+    ${boardable ? `<div class="seg" role="tablist" aria-label="תצוגה"><button class="${mode === 'board' ? 'on' : ''}" data-mode="board"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg>לוח</button><button class="${mode === 'table' ? 'on' : ''}" data-mode="table"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>רשימה</button></div>` : ''}</div>
   <div class="row spread" style="margin-bottom:12px">
     <div class="seg">${DEAL_TABS.map(([k, n]) => `<button class="${k === tab ? 'on' : ''}" data-tab="${k}">${n} <span class="n">${counts[k]}</span></button>`).join('')}</div>
     <div class="filters">
@@ -58,10 +58,24 @@ function dealFlags(r) {
 function boardHtml(vis, tab) {
   const lanes = STEPS.filter(s => s.phase === tab);
   return `<div class="kanban">${lanes.map(s => { const l = vis.filter(r => r.stage === s.key), sum = l.reduce((a, r) => a + Number(r.total || 0), 0);
-    return `<div class="lane" data-stage="${esc(s.key)}"><div class="lane-head"><div><span class="stage-pill"><span class="dot" style="background:${stageColor(s.key)}"></span>${esc(s.key)}</span>${sum ? `<span class="sum">${money(sum)}</span>` : ''}</div><span class="n">${l.length}</span></div>
-      ${l.map(r => `<div class="kcard" draggable="true" data-id="${r.id}"><div class="row spread nowrap"><span class="t">${esc(custName(r))}</span>${r.total > 0 ? `<span class="small b num">${money(r.total)}</span>` : ''}</div>
-        <div class="m">${esc(subStatus(r))}</div>${dealFlags(r) ? `<div class="tags">${dealFlags(r)}</div>` : ''}</div>`).join('') || '<p class="tiny muted" style="padding:8px">אין כאן כרגע</p>'}</div>`; }).join('')}</div>
-    <p class="tiny muted" style="margin-top:8px">אפשר לגרור כרטיס לעמודה אחרת כדי להעביר שלב. לטיפול בכמה לקוחות יחד: תצוגת "טבלה".</p>`;
+    return `<div class="lane" data-stage="${esc(s.key)}"><div class="lane-head"><div class="t"><span class="dot" style="background:${stageColor(s.key)}"></span>${esc(s.key)}</div>
+        <span class="sum">${sum ? money(sum) + ' · ' : ''}${l.length === 1 ? 'לקוח אחד' : l.length + ' לקוחות'}</span></div>
+      <div class="lane-body">${l.map(kcardHtml).join('') || '<div class="none">אין כאן כרגע</div>'}</div></div>`; }).join('')}</div>
+    ${tab === 'sales' ? `<div class="dropbar" aria-hidden="true"><div class="dropzone lost" data-drop="${esc(LOST)}"><span>לא רלוונטי</span></div><div class="dropzone won" data-drop="לתאם איסוף"><span>שילם ✓</span></div></div>` : ''}
+    <p class="tiny muted" style="margin-top:8px">גוררים כרטיס לעמודה אחרת כדי להעביר שלב${tab === 'sales' ? ', או לתחתית המסך: "שילם" / "לא רלוונטי"' : ''}. לטיפול בכמה לקוחות יחד: תצוגת "טבלה".</p>`;
+}
+const IND_SVG = { late: '<path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/>', today: '<path d="M15 6l-6 6 6 6"/>', future: '<path d="M15 6l-6 6 6 6"/>', none: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/>' };
+/** Pipedrive activity indicator: red = follow-up late, green = today, grey = planned, yellow = nothing planned. */
+function actInd(r) {
+  const st = fuState(r); if (!st) return '';
+  return `<span class="act-ind ${st}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${IND_SVG[st]}</svg></span>`;
+}
+function kcardHtml(r) {
+  const flags = dealFlags(r);
+  return `<div class="kcard" draggable="true" data-id="${r.id}">${actInd(r)}<span class="t">${esc(custName(r))}</span>
+    <div class="m">${esc(subStatus(r))}</div>
+    <div class="foot">${r.total > 0 ? `<span class="v">${money(r.total)}</span>` : ''}${r.source ? `<span class="muted">${r.total > 0 ? '· ' : ''}${esc(r.source)}</span>` : ''}</div>
+    ${flags ? `<div class="tags">${flags}</div>` : ''}</div>`;
 }
 function tableHtml(vis, tab) {
   const timeCol = r => r._ph === 'ops' && r.days_since_paid != null ? `<span class="chip ${r.flag_late || ''}">${r.days_since_paid} ימים מתשלום</span>` : `<span class="muted small">${ago(r.created_at)}</span>`;
@@ -94,7 +108,18 @@ function bindDealsBody(vis) {
   $('#dbLost') && ($('#dbLost').onclick = async () => { if (await bulkMove(picked(), LOST)) redraw(); });
   $('#dbRevive') && ($('#dbRevive').onclick = async () => { const rs = picked(); await bulkPatch(rs, { stage: 'פנייה חדשה' }, `${rs.length} חזרו לטיפול (פנייה חדשה)`); redraw(); });
   $('#dbLab') && ($('#dbLab').onchange = async e => { const id = Number(e.target.value); if (!id) return; const rs = picked(); await bulkPatch(rs, { lab_id: id }, `${rs.length} שויכו ל${S.labs.find(l => l.id === id)?.name}`); redraw(); });
-  $$('.kcard').forEach(c => { c.addEventListener('dragstart', e => { e.dataTransfer.setData('id', c.dataset.id); c.classList.add('dragging'); }); c.addEventListener('dragend', () => c.classList.remove('dragging')); });
+  $$('.kcard').forEach(c => { c.addEventListener('dragstart', e => { e.dataTransfer.setData('id', c.dataset.id); c.classList.add('dragging'); document.body.classList.add('dragging'); });
+    c.addEventListener('dragend', () => { c.classList.remove('dragging'); document.body.classList.remove('dragging'); }); });
+  // won / lost zones at the bottom of the screen while dragging
+  $$('[data-drop]').forEach(z => {
+    z.addEventListener('dragover', e => { e.preventDefault(); z.classList.add('over'); });
+    z.addEventListener('dragleave', () => z.classList.remove('over'));
+    z.addEventListener('drop', async e => {
+      e.preventDefault(); z.classList.remove('over'); document.body.classList.remove('dragging');
+      const o = vis.find(r => String(r.id) === e.dataTransfer.getData('id'));
+      if (o && await changeStage(o, z.dataset.drop)) VIEWS.deals(sessionStorage.getItem('dealsTab'));
+    });
+  });
   $$('.lane').forEach(l => {
     l.addEventListener('dragover', e => { e.preventDefault(); l.classList.add('drop'); });
     l.addEventListener('dragleave', () => l.classList.remove('drop'));

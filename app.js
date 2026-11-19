@@ -204,6 +204,7 @@ function applyTheme() { const t = themePref(); if (t) document.documentElement.d
 
 // ---------- nav ----------
 const ICONS = {
+  sales: '<path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/>',
   queue: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
   deals: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M16 4a4 4 0 0 1 0 8M22 21c0-3-2-5-4-5.5"/>',
   scan: '<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8v8M11 8v8M15 8v8M18 8v8"/>',
@@ -215,10 +216,12 @@ const ICONS = {
 const icon = k => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ''}</svg>`;
 function buildNav() {
   const items = isLab() ? [['lab', 'ההזמנות שלי', 'lab'], ['scan', 'סריקה', 'scan']]
-    : [['sales', 'מכירות', 'queue'], ['deals', 'לקוחות', 'deals'], ['scan', 'סריקה', 'scan'], ['reports', 'דוחות', 'reports'], ['expenses', 'הוצאות', 'expenses'], ['settings', 'הגדרות', 'settings']];
+    : [['sales', 'מכירות', 'sales'], ['deals', 'לקוחות', 'deals'], ['scan', 'סריקה', 'scan'], ['reports', 'דוחות', 'reports'], ['expenses', 'הוצאות', 'expenses'], ['settings', 'הגדרות', 'settings']];
   $('#nav').innerHTML = items.map(([r, t, ic]) => `<a href="#${r}" data-r="${r}">${icon(ic)}<span class="t">${t}</span>${r === 'sales' ? '<span class="badge hidden" id="qBadge"></span>' : ''}</a>`).join('');
 }
-function setNav(r) { $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r)); }
+// the page title lives in the top bar (Pipedrive style); pages start with their toolbar
+const PAGE_TITLE = { sales: 'מכירות', deals: 'לקוחות', scan: 'סריקת פריטים', reports: 'דוחות', expenses: 'הוצאות', settings: 'הגדרות', lab: 'ההזמנות שלי', quote: 'הצעת מחיר', labels: 'מדבקות ברקוד', manifest: 'דף משלוח' };
+function setNav(r) { $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r)); $('#pageTitle').textContent = PAGE_TITLE[r] || PAGE_TITLE.deals; }
 function setBadge(n) { const b = $('#qBadge'); if (!b) return; b.textContent = n; b.classList.toggle('hidden', !n); }
 $('#userBtn').addEventListener('click', e => {
   e.stopPropagation();
@@ -244,11 +247,12 @@ let _lastHash = null;
 async function routeOnce() {
   if (location.hash.startsWith('#track/')) return VIEWS.track(location.hash.split('/')[1]);
   if (!S.user) return;
-  $('.topbar').classList.remove('hidden');
+  $('.topbar').classList.remove('hidden'); $('#app').classList.remove('public');
   let [r, arg] = (location.hash.slice(1) || (isLab() ? 'lab' : 'sales')).split('/');
   r = ALIAS[r] || r;
   if (isLab() && !['lab', 'scan'].includes(r)) { location.hash = 'lab'; return; }
   setNav(r === 'order' ? 'deals' : r);
+  if (['quote', 'labels', 'manifest'].includes(r)) $('#pageTitle').textContent = PAGE_TITLE[r];
   VIEWS.stopScanner?.();
   closeMenus();
   if (r !== 'sales') $('#salesPanel')?.remove();
