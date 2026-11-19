@@ -195,7 +195,7 @@ const SEC_BODY = {
     <div style="margin-top:12px">${tog(ctx, 'mailing_list')}</div>`,
   quote: ctx => quoteHtml(ctx),
   items: ctx => itemsHtml(ctx),
-  payment: ctx => `<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>`,
+  payment: ctx => `<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}`,
   shipping: ctx => `<div class="fields">${['lab_id', 'courier', 'pickup_date', 'pickup_tracking'].map(k => fld(ctx, k)).join('')}${fld(ctx, 'files_link_from_lab', { wide: true })}</div>
     <div class="row" style="margin-top:12px"><a class="btn sm" href="#labels/${ctx.o.id}">הדפסת מדבקות ברקוד</a><a class="btn sm" href="#manifest/${ctx.o.id}">הדפסת דף משלוח</a></div>`,
   delivery: ctx => `<div class="fields">${fld(ctx, 'delivery_link', { wide: true })}${ro('הקישור יימחק ב-', fmtDate(ctx.o.delivery_link_expires))}${['return_method', 'return_tracking'].map(k => fld(ctx, k)).join('')}
@@ -207,6 +207,45 @@ const SEC_BODY = {
       ${ro('פלטפורמה', ctx.o.meta_platform === 'ig' ? 'אינסטגרם' : ctx.o.meta_platform === 'fb' ? 'פייסבוק' : ctx.o.meta_platform)}${ro('קמפיין', ctx.o.meta_campaign)}${ro('סט מודעות', ctx.o.meta_adset)}${ro('מודעה', ctx.o.meta_ad)}${ro('מילא את הטופס', fmtDT(ctx.o.meta_created_at))}</div>` : ''}`,
   after: ctx => `<ul class="checklist">${STEP_DONE().checks.map((k, j) => checkHtml(ctx, k, 'a' + j)).join('')}</ul><div class="fields">${fld(ctx, 'gift_sent')}</div><div style="margin-top:12px">${tog(ctx, 'story_posted')}</div>`,
 };
+
+// ---------- SUMIT: invoice-receipt, credit, customer page ----------
+function sumitHtml(o) {
+  const doc = o.sumit_doc_id ? `<a class="btn sm" href="${esc(o.sumit_doc_url || '#')}" target="_blank" rel="noopener">חשבונית ${esc(o.invoice_number || '')} (PDF)</a>` : '';
+  const credit = o.sumit_credit_doc_number ? `<a class="btn sm" href="${esc(o.sumit_credit_doc_url || '#')}" target="_blank" rel="noopener">זיכוי ${esc(o.sumit_credit_doc_number)} (PDF)</a>` : '';
+  return `<div class="subhead">SUMIT</div><div class="row">${doc}${credit}
+    ${!o.sumit_doc_id ? '<button class="btn sm primary" data-sumit="receipt">הפקת חשבונית מס-קבלה</button>' : ''}
+    ${o.sumit_doc_id && !o.sumit_credit_doc_number ? '<button class="btn sm" data-sumit="cancel">ביטול החשבונית (זיכוי)</button>' : ''}
+    <button class="btn sm ghost" data-sumit="customer_url">כרטיס הלקוח ב-SUMIT</button></div>
+    <p class="tiny muted">${o.sumit_doc_id ? '' : 'תשלום בקישור SUMIT מפיק חשבונית לבד. הכפתור הוא לתשלום בביט, פייבוקס, העברה או מזומן.'}</p>`;
+}
+async function callSumit(body) {
+  const { data, error } = await sb.functions.invoke('sumit-payment', { body });
+  if (error || data?.error) { tell('SUMIT', data?.error || error?.message || 'שגיאה'); return null; }
+  return data;
+}
+async function sumitAction(ctx, act) {
+  const { o, c } = ctx;
+  if (act === 'customer_url') { toast('פותח את SUMIT…'); const d = await callSumit({ order_id: o.id, action: act }); if (d?.url) window.open(d.url, '_blank', 'noopener'); return; }
+  if (act === 'receipt') {
+    const methods = (S.opts.payment_method || []).filter(x => x.active && !/SUMIT/.test(x.value)).map(x => x.value);
+    const f = await formModal('הפקת חשבונית מס-קבלה', `<label class="field">איך הלקוח שילם<select name="method" required>${methods.map(m => `<option ${m === o.payment_method ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+      <label class="field">סכום (₪, כולל מע"מ)<input name="amount" type="number" step="0.01" min="1" required value="${Number(o.paid_amount || o.total) || ''}"></label>
+      <label class="field">אסמכתא (לא חובה)<input name="reference" placeholder="מספר העברה / שם בביט"></label>
+      <p class="hint">${c.email ? 'החשבונית תישלח במייל אל ' + esc(c.email) + '.' : 'ללקוח אין מייל, אז החשבונית לא תישלח. אפשר לשלוח את ה-PDF בוואטסאפ.'} מסמך שהופק נשאר בהנהלת החשבונות; תיקון רק דרך זיכוי.</p>`, { ok: 'הפקה' });
+    if (!f) return;
+    toast('מפיק חשבונית ב-SUMIT…', { ms: 8000 });
+    const d = await callSumit({ order_id: o.id, action: 'receipt', method: f.method, amount: Number(f.amount), reference: f.reference });
+    if (d) toast(`חשבונית ${d.number} הופקה${d.emailed ? ' ונשלחה ללקוח' : ''}`, { ms: 6000 });
+  }
+  if (act === 'cancel') {
+    const f = await formModal('ביטול חשבונית ' + (o.invoice_number || ''), `<label class="field">סיבה (מודפסת על מסמך הזיכוי)<input name="reason" required></label>
+      <p class="hint">מופק מסמך זיכוי וההזמנה מסומנת "הוחזר". הכסף עצמו לא חוזר אוטומטית: החזר באשראי עושים ב-SUMIT, ביט/העברה מחזירים ידנית.</p>`, { ok: 'הפקת זיכוי' });
+    if (!f) return;
+    const d = await callSumit({ order_id: o.id, action: 'cancel', reason: f.reason });
+    if (d) toast('מסמך זיכוי ' + d.number + ' הופק', { ms: 6000 });
+  }
+  SEC_OPEN[o.id].add('payment'); reloadDeal(ctx);
+}
 
 // ---------- quote builder ----------
 function quoteHtml(ctx) {
@@ -427,6 +466,7 @@ function bindDeal(ctx) {
   $('#copyQuote') && ($('#copyQuote').onclick = async () => { const t = quoteText(ctx.o, c, ctx.lines); try { await navigator.clipboard.writeText(t); toast('הטקסט הועתק'); } catch { tell('טקסט ההצעה', t); } });
   // items
   $$('[data-gen]').forEach(b => b.onclick = () => genItems(ctx));
+  $$('[data-sumit]').forEach(b => b.onclick = () => sumitAction(ctx, b.dataset.sumit));
   $$('[data-isave]').forEach(el => el.addEventListener('change', async () => {
     const [iid, col] = el.dataset.isave.split(':'); const v = el.type === 'checkbox' ? el.checked : (el.value || null);
     const { error } = await sb.from('items').update({ [col]: v }).eq('id', iid); fail(error); toast('נשמר');
