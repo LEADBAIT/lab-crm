@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CRM המעבדה</title>
+<meta name="theme-color" content="#1F2937">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+<div id="login" class="login hidden">
+  <form id="loginForm" class="card login-card">
+    <h1>CRM המעבדה</h1>
+    <label>מייל<input type="email" name="email" required autocomplete="email"></label>
+    <label>סיסמה<input type="password" name="password" required minlength="6" autocomplete="current-password"></label>
+    <button class="btn primary" type="submit">כניסה</button>
+    <button class="btn" type="button" id="signupBtn">הרשמה ראשונה</button>
+    <p class="muted small" id="loginMsg"></p>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+  <header class="topbar">
+    <a class="brand" href="#">CRM המעבדה</a>
+    <nav id="nav">
+      <a href="#today" data-r="today" data-staff>היום</a>
+      <a href="#leads" data-r="leads" data-staff>לידים</a>
+      <a href="#orders" data-r="orders" data-staff>הזמנות</a>
+      <a href="#lab" data-r="lab" data-lab class="hidden">ההזמנות שלי</a>
+      <a href="#scan" data-r="scan">סריקה</a>
+      <a href="#dash" data-r="dash" data-staff>מדדים</a>
+      <a href="#finance" data-r="finance" data-staff>כספים</a>
+      <a href="#settings" data-r="settings" data-staff>הגדרות</a>
+    </nav>
+    <form id="searchForm" class="search" data-staff role="search"><input id="searchInput" type="search" placeholder="חיפוש: שם, טלפון, הזמנה, ברקוד" aria-label="חיפוש"></form>
+    <button class="btn primary sm" id="newLeadBtn" data-staff>+ ליד</button>
+    <button class="btn sm ghost" id="logoutBtn" title="יציאה">יציאה</button>
+  </header>
+  <main id="view"></main>
+</div>
+
+<dialog id="modal"><div id="modalBody"></div></dialog>
+<div id="toast" class="toast hidden"></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

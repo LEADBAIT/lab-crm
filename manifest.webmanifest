@@ -1,0 +1,14 @@
+{
+  "name": "CRM המעבדה להמרת קלטות ודיסקים",
+  "short_name": "CRM המעבדה",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "./#today",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0B0F14",
+  "theme_color": "#1F2937",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
