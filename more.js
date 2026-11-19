@@ -69,7 +69,7 @@ VIEWS.expenses = async function vExpenses() {
   view().innerHTML = `
   <div class="page-head"><div><h1>הוצאות</h1><div class="sub">רושמים כאן כל הוצאה. הוצאות פרסום נכנסות לחישוב "עלות לפנייה" בדוחות.</div></div>
     <div class="row"><div class="card kpi" style="min-width:160px"><span class="l">החודש</span><span class="v">${money(sumM)}</span></div><div class="card kpi" style="min-width:160px"><span class="l">מתוכן פרסום</span><span class="v">${money(ads)}</span></div></div></div>
-  <form id="expForm" class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">הוצאה חדשה</h3><div class="fields" style="grid-template-columns:150px 180px 180px 130px minmax(160px,1fr) auto;align-items:end">
+  <form id="expForm" class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">הוצאה חדשה</h3><div class="fields form-row">
     <label class="field">תאריך<input type="date" name="spent_on" value="${today()}" required></label>
     <label class="field">על מה<select name="category" required>${opts('expense_category', 'פרסום', { empty: false })}</select></label>
     <label class="field">ערוץ (לפרסום)<select name="channel">${opts('source', '', { emptyLabel: '—' })}</select></label>

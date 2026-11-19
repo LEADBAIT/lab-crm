@@ -120,6 +120,9 @@ input[type=checkbox] { width: 18px; height: 18px; min-height: 18px; accent-color
 .check { flex-direction: row; align-items: center; gap: var(--s2); color: var(--ink); font-size: 14px; cursor: pointer; }
 .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--s3); }
 .fields .wide { grid-column: 1 / -1; }
+/* a one-line form (inputs + button) that wraps instead of breaking out of its card */
+.fields.form-row { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); align-items: end; }
+.fields > * { min-width: 0; }
 .field.missing input, .field.missing select { border-color: var(--red); background: var(--red-bg); }
 .save-state { position: absolute; inset-inline-end: 0; top: 0; font-size: 12px; font-weight: 500; }
 .save-state.ok { color: var(--green); }
@@ -174,13 +177,15 @@ input[type=checkbox] { width: 18px; height: 18px; min-height: 18px; accent-color
 .chip.violet { background: var(--violet-bg); color: var(--violet); border-color: transparent; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .stage-pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
-.seg { display: inline-flex; background: var(--surface-3); border-radius: var(--radius-sm); padding: 3px; gap: 2px; }
+.seg { display: inline-flex; background: var(--surface-3); border-radius: var(--radius-sm); padding: 3px; gap: 2px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.seg button { flex: none; white-space: nowrap; }
 .seg button { font: inherit; font-size: 14px; border: 0; background: none; color: var(--ink-2); padding: 5px 12px; border-radius: 5px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
 .seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--shadow); }
 .seg .n { color: var(--muted); font-weight: 400; font-size: 13px; }
 .filters { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
 .filters input, .filters select { width: auto; min-width: 160px; }
 .filters .search-in { min-width: 240px; }
+.filters .check { white-space: nowrap; flex: none; }
 .pills { display: flex; gap: 6px; flex-wrap: wrap; }
 .pills button { font: inherit; font-size: 14px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 4px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
 .pills button.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
@@ -437,7 +442,9 @@ dialog form.grid { gap: var(--s3); }
 @media (max-width: 1000px) {
   .deal, .queue-layout, .scan-layout, .quote-layout, .settings { grid-template-columns: minmax(0, 1fr); }
   .side, .quote-total, .subnav { position: static; max-height: none; }
-  .subnav { display: flex; overflow-x: auto; }
+  .subnav { display: flex; overflow-x: auto; scrollbar-width: none; }
+  .subnav button { white-space: nowrap; flex: none; }
+  .subnav .desc { display: none; }
   .cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #nav a .t { display: none; }
