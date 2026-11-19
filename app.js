@@ -225,7 +225,8 @@ async function vLeads() {
   const lanes = stagesOf('sales');
   const card = r => `<div class="kcard" draggable="true" data-id="${r.id}" data-q="${esc((r.full_name || '') + ' ' + r.phone)}">
     <div class="row spread"><span class="t">${esc(r.full_name || fmtPhone(r.phone))}</span>${r.temperature ? `<span class="chip" style="color:${optColor('temperature', r.temperature)}">${esc(r.temperature)}</span>` : ''}</div>
-    <div class="small muted">${esc(r.source || '')} ${r.media_qty ? '· ' + r.media_qty + ' פריטים · ' + money(r.total) : ''}</div>
+    <div class="small muted">${esc(r.source || '')}${r.city ? ' · ' + esc(r.city) : ''} ${r.media_qty ? '· ' + r.media_qty + ' פריטים · ' + money(r.total) : ''}</div>
+    ${r.est_quantity ? `<div class="small"><span class="chip blue">כמות משוערת: ${esc(r.est_quantity)}</span></div>` : ''}
     <div class="small">${r.flag_followup ? '<span class="chip red">פולואפ</span>' : `<span class="muted">פולואפ ${fmtDate(r.next_followup)}</span>`} ${r.is_repeat ? '<span class="chip blue">חוזר</span>' : ''} ${isMobile() ? `<span class="chip">${esc(r.stage)}</span>` : ''}</div></div>`;
   const pipeline = rows.reduce((s, r) => s + Number(r.total || 0), 0);
   const head = `<div class="row spread"><h1>לידים <span class="muted small">${rows.length} · שווי צנרת ${money(pipeline)}</span></h1><input id="lf" placeholder="סינון שם / טלפון" style="max-width:220px"></div>${intro('leads')}`;
@@ -424,6 +425,15 @@ const TABS = {
     ${o.stage === 'אבוד' ? `<div class="fields" style="margin-top:10px">${SEL(ctx, 'o', 'loss_category', 'סיבה בשורה תחתונה', 'loss_category')}</div>
       <label style="margin-top:8px">למה לא קנה<textarea data-t="o" data-k="loss_note">${esc(o.loss_note || '')}</textarea></label>` : ''}
     </section>
+    ${o.meta_lead_id ? `<section class="card"><h2>מטא — ${esc(o.meta_form || 'טופס לידים')}</h2><div class="fields">
+      <label>כמה קלטות/דיסקים/סלילים (לפי הטופס)<input disabled value="${esc(o.est_quantity || '')}"></label>
+      <label>פלטפורמה<input disabled value="${esc(o.meta_platform === 'ig' ? 'אינסטגרם' : o.meta_platform === 'fb' ? 'פייסבוק' : (o.meta_platform || ''))}"></label>
+      <label>קמפיין<input disabled value="${esc(o.meta_campaign || '')}"></label>
+      <label>סט מודעות<input disabled value="${esc(o.meta_adset || '')}"></label>
+      <label>מודעה<input disabled value="${esc(o.meta_ad || '')}"></label>
+      <label>זמן מילוי הטופס<input disabled value="${esc(fmtDT(o.meta_created_at))}"></label>
+      <label>מזהה ליד במטא<input disabled value="${esc(o.meta_lead_id)}"></label>
+    </div></section>` : ''}
     <section class="card"><h2>הערות קבועות</h2><textarea data-t="o" data-k="notes" rows="5">${esc(o.notes || '')}</textarea>
       <label style="margin-top:10px">טיוטת הודעת פולואפ<textarea data-t="o" data-k="followup_draft" placeholder="בהמשך: AI יכתוב כאן הודעה לפי השיחה">${esc(o.followup_draft || '')}</textarea></label>
       ${o.followup_draft ? `<a class="btn sm" style="margin-top:6px" target="_blank" rel="noopener" href="${waLink(c.phone, o.followup_draft)}">שליחת הטיוטה בוואטסאפ</a>` : ''}
