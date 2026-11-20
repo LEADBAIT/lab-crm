@@ -19,6 +19,7 @@ const FIELD = {
   return_method: { t: 'o', l: 'איך החומרה חוזרת', list: 'return_method' }, return_tracking: { t: 'o', l: 'מספר משלוח (החזרה)' },
   gift_sent: { t: 'o', l: 'מתנה שנשלחה' }, manual_discount: { t: 'o', l: 'הנחה ידנית (₪)', type: 'number', zero: true },
   next_followup: { t: 'o', l: 'לחזור ללקוח ב-', type: 'date' },
+  credit_method: { t: 'o', l: 'איך מזכים', list: 'credit_method' }, credit_amount: { t: 'o', l: 'סכום הזיכוי (₪)', type: 'number' }, credit_note: { t: 'o', l: 'מה ניתן / אסמכתא' },
 };
 const TOGGLE = { mailing_list: ['c', 'מקבל עדכונים ומבצעים'], priority: ['o', 'אקספרס: עד 7 ימי עסקים מהקליטה'], cloud_affiliate: ['o', 'קנה מנוי ענן דרכנו'], story_posted: ['o', 'פרסם סטורי ותייג אותנו'] };
 
@@ -185,7 +186,8 @@ const SECTIONS = [
   ['customer', 'פרטי לקוח וכתובת', ctx => { const m = showRequired(ctx.o) ? missingForPaid(ctx.o, ctx.c).filter(x => x !== 'כמויות בהצעת המחיר') : []; return [ctx.c.city, m.length ? `<span class="chip red">חסרים ${m.length} פרטים</span>` : ''].filter(Boolean).join(' · '); }],
   ['quote', 'הצעת מחיר', ctx => ctx.o.media_qty ? `${ctx.o.media_qty} פריטים · ${money(ctx.o.total)}` : 'עוד אין כמויות'],
   ['items', 'פריטים וברקודים', ctx => ctx.items.length ? `${ctx.items.length} ברקודים · ${ctx.o.items_at_lab_or_later} הגיעו למעבדה · ${ctx.o.items_converted} הומרו` : 'עוד לא נוצרו'],
-  ['payment', 'תשלום', ctx => [ctx.o.payment_status, ctx.o.paid_amount ? money(ctx.o.paid_amount) : '', ctx.o.invoice_number ? 'חשבונית ' + ctx.o.invoice_number : ''].filter(Boolean).join(' · ')],
+  ['payment', 'תשלום, עלות וזיכוי', ctx => [ctx.o.payment_status, ctx.o.paid_amount ? money(ctx.o.paid_amount) : '', ctx.o.invoice_number ? 'חשבונית ' + ctx.o.invoice_number : '',
+    ctx.o.lab_id && ctx.o.paid_at ? 'רווח ' + money(orderProfit(ctx.o)) : '', ctx.o.items_no_charge && !ctx.o.credit_done_at ? `<span class="chip orange">זיכוי פתוח ${money(ctx.o.credit_amount ?? ctx.o.credit_due)}</span>` : ''].filter(Boolean).join(' · ')],
   ['shipping', 'משלוח ומעבדה', ctx => [ctx.o.lab_name, ctx.o.pickup_date ? 'איסוף ' + fmtShort(ctx.o.pickup_date) : ''].filter(Boolean).join(' · ') || 'לא נקבע'],
   ['delivery', 'מסירה והחזרה', ctx => ctx.o.delivery_sent_at ? 'הקישור נשלח ' + fmtShort(ctx.o.delivery_sent_at) : ctx.o.delivery_link ? 'יש קישור, עוד לא נשלח' : ''],
   ['sale', 'מקור ומכירה', ctx => [ctx.o.source, ctx.o.temperature].filter(Boolean).join(' · ')],
@@ -203,7 +205,7 @@ const SEC_BODY = {
     <div style="margin-top:12px">${tog(ctx, 'mailing_list')}</div>`,
   quote: ctx => quoteHtml(ctx),
   items: ctx => itemsHtml(ctx),
-  payment: ctx => `<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}`,
+  payment: ctx => `<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}${creditHtml(ctx)}${moneyHtml(ctx.o)}`,
   shipping: ctx => `<div class="fields">${['lab_id', 'courier', 'pickup_date', 'pickup_tracking'].map(k => fld(ctx, k)).join('')}${fld(ctx, 'files_link_from_lab', { wide: true })}</div>
     <div class="row" style="margin-top:12px"><a class="btn sm" href="#labels/${ctx.o.id}">הדפסת מדבקות ברקוד</a><a class="btn sm" href="#boxlabel/${ctx.o.id}">מדבקת ארגז</a><a class="btn sm" href="#manifest/${ctx.o.id}">הדפסת דף משלוח</a><a class="btn sm" href="#shipments/new/${ctx.o.id}">משלוח חדש עם ההזמנה</a></div>`,
   delivery: ctx => `<div class="fields">${fld(ctx, 'delivery_link', { wide: true })}${ro('הקישור יימחק ב-', fmtDate(ctx.o.delivery_link_expires))}${['return_method', 'return_tracking'].map(k => fld(ctx, k)).join('')}
@@ -215,6 +217,39 @@ const SEC_BODY = {
       ${ro('פלטפורמה', ctx.o.meta_platform === 'ig' ? 'אינסטגרם' : ctx.o.meta_platform === 'fb' ? 'פייסבוק' : ctx.o.meta_platform)}${ro('קמפיין', ctx.o.meta_campaign)}${ro('סט מודעות', ctx.o.meta_adset)}${ro('מודעה', ctx.o.meta_ad)}${ro('מילא את הטופס', fmtDT(ctx.o.meta_created_at))}</div>` : ''}`,
   after: ctx => `<ul class="checklist">${STEP_DONE().checks.map((k, j) => checkHtml(ctx, k, 'a' + j)).join('')}</ul><div class="fields">${fld(ctx, 'gift_sent')}</div><div style="margin-top:12px">${tog(ctx, 'story_posted')}</div>`,
 };
+
+// ---------- lab cost, profit, customer credit ----------
+/** what the order earns: paid − lab cost − money refunded (a gift's cost is not known, so it is not subtracted) */
+const orderProfit = o => Number(o.paid_amount || o.total || 0) - Number(o.lab_cost || 0) - (o.credit_method === 'החזר כספי' && o.credit_done_at ? Number(o.credit_amount || 0) : 0);
+function moneyHtml(o) {
+  if (!o.lab_id) return '';
+  return `<div class="subhead">עלות ורווח</div><div class="totals" style="max-width:360px">
+    <span>הלקוח שילם</span><span>${money(o.paid_amount || o.total)}</span>
+    <span>עלות מעבדה (${esc(o.lab_name || '')})</span><span>-${money(o.lab_cost || 0)}</span>
+    ${o.credit_method === 'החזר כספי' && o.credit_done_at ? `<span>החזר ללקוח</span><span>-${money(o.credit_amount)}</span>` : ''}
+    <span class="grand">רווח</span><span class="grand">${money(orderProfit(o))}</span></div>
+    ${o.lab_cost_missing ? `<div class="warn" style="margin-top:8px">חסר מחיר עלות ל-${o.lab_cost_missing} מוצרים בהזמנה. ממלאים בהגדרות ← מעבדות ← מחירון עלות.</div>` : ''}`;
+}
+function creditHtml(ctx) {
+  const o = ctx.o;
+  if (!o.items_no_charge && !o.credit_method) return '';
+  return `<div class="subhead">זיכוי ללקוח</div>
+    <p class="small">${o.items_no_charge} פריטים לא לחיוב (ריק, תוכן לא משפחתי או לא ניתן להמרה). לפי המחיר שלהם אחרי הנחת הכמות: <b>${money(o.credit_due)}</b>.</p>
+    <div class="fields">${fld(ctx, 'credit_method')}${fld(ctx, 'credit_amount')}${fld(ctx, 'credit_note')}</div>
+    <div class="row" style="margin-top:8px">${o.credit_done_at ? `<span class="chip green">הזיכוי בוצע ${fmtShort(o.credit_done_at)}</span><button class="link-btn" data-credit="undo">ביטול</button>`
+      : `<button class="btn sm primary" data-credit="done">${o.credit_method === 'מתנה בשווי' ? 'המתנה נשלחה' : 'הכסף הוחזר'}</button>${o.credit_amount == null ? `<button class="btn sm" data-credit="fill">מילוי הסכום המחושב (${money(o.credit_due)})</button>` : ''}`}</div>
+    <p class="tiny muted">החזר כספי: מחזירים ב-SUMIT, בביט או בהעברה, ואז לוחצים "הכסף הוחזר". מתנה בשווי (למשל אלבום תמונות): רושמים מה ניתן.</p>`;
+}
+async function creditAction(ctx, act) {
+  const o = ctx.o;
+  if (act === 'fill') await patchOrder(o, { credit_amount: Number(o.credit_due) }, 'הסכום המחושב נכנס');
+  if (act === 'done') {
+    if (!o.credit_method) return tell('חסר איך מזכים', 'בוחרים "החזר כספי" או "מתנה בשווי".');
+    await patchOrder(o, { credit_done_at: new Date().toISOString(), credit_amount: o.credit_amount ?? Number(o.credit_due) }, 'נרשם שהזיכוי בוצע');
+  }
+  if (act === 'undo') await patchOrder(o, { credit_done_at: null }, 'בוטל סימון הזיכוי');
+  SEC_OPEN[o.id].add('payment'); reloadDeal(ctx);
+}
 
 // ---------- SUMIT: invoice-receipt, credit, customer page ----------
 function sumitHtml(o) {
@@ -479,6 +514,7 @@ function bindDeal(ctx) {
   // items
   $$('[data-gen]').forEach(b => b.onclick = () => genItems(ctx));
   $$('[data-sumit]').forEach(b => b.onclick = () => sumitAction(ctx, b.dataset.sumit));
+  $$('[data-credit]').forEach(b => b.onclick = () => creditAction(ctx, b.dataset.credit));
   $$('[data-isave]').forEach(el => el.addEventListener('change', async () => {
     const [iid, col] = el.dataset.isave.split(':'); const v = el.type === 'checkbox' ? el.checked : (el.value || null);
     const { error } = await sb.from('items').update({ [col]: v }).eq('id', iid); fail(error); toast('נשמר');

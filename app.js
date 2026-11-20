@@ -250,7 +250,7 @@ function buildNav() {
   $('#nav').innerHTML = items.map(([r, t, ic]) => `<a href="#${r}" data-r="${r}">${icon(ic)}<span class="t">${t}</span>${r === 'sales' ? '<span class="badge hidden" id="qBadge"></span>' : ''}</a>`).join('');
 }
 // the page title lives in the top bar (Pipedrive style); pages start with their toolbar
-const PAGE_TITLE = { sales: 'מכירות', deals: 'לקוחות', scan: 'סריקת פריטים', reports: 'דוחות', expenses: 'הוצאות', settings: 'הגדרות', lab: 'ההזמנות שלי', quote: 'הצעת מחיר', labels: 'מדבקות ברקוד', manifest: 'דף משלוח', boxlabel: 'מדבקת ארגז', shipments: 'משלוחים', shipment: 'משלוח' };
+const PAGE_TITLE = { sales: 'מכירות', deals: 'לקוחות', scan: 'סריקת פריטים', reports: 'דוחות', expenses: 'הוצאות', settings: 'הגדרות', lab: 'ההזמנות שלי', quote: 'הצעת מחיר', labels: 'מדבקות ברקוד', manifest: 'דף משלוח', boxlabel: 'מדבקת ארגז', shipments: 'משלוחים', shipment: 'משלוח', labbills: 'חשבונות מעבדות' };
 function setNav(r) { $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r)); $('#pageTitle').textContent = PAGE_TITLE[r] || PAGE_TITLE.deals; }
 function setBadge(n) { const b = $('#qBadge'); if (!b) return; b.textContent = n; b.classList.toggle('hidden', !n); }
 $('#userBtn').addEventListener('click', e => {
@@ -281,8 +281,8 @@ async function routeOnce() {
   let [r, arg] = (location.hash.slice(1) || (isLab() ? 'lab' : 'sales')).split('/');
   r = ALIAS[r] || r;
   if (isLab() && !['lab', 'scan'].includes(r)) { location.hash = 'lab'; return; }
-  setNav(r === 'order' ? 'deals' : r === 'shipment' ? 'shipments' : r);
-  if (['quote', 'labels', 'manifest', 'boxlabel', 'shipment'].includes(r)) $('#pageTitle').textContent = PAGE_TITLE[r];
+  setNav(r === 'order' ? 'deals' : r === 'shipment' ? 'shipments' : r === 'labbills' ? 'expenses' : r);
+  if (['quote', 'labels', 'manifest', 'boxlabel', 'shipment', 'labbills'].includes(r)) $('#pageTitle').textContent = PAGE_TITLE[r];
   VIEWS.stopScanner?.();
   closeMenus();
   if (r !== 'sales') $('#salesPanel')?.remove();

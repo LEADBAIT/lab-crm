@@ -68,7 +68,7 @@ VIEWS.expenses = async function vExpenses() {
   const ads = inM.filter(e => e.category === 'פרסום').reduce((s, e) => s + Number(e.amount), 0);
   view().innerHTML = `
   <div class="page-head"><div><div class="sub">רושמים כאן כל הוצאה. הוצאות פרסום נכנסות לחישוב "עלות לפנייה" בדוחות.</div></div>
-    <div class="row"><div class="card kpi" style="min-width:160px"><span class="l">החודש</span><span class="v">${money(sumM)}</span></div><div class="card kpi" style="min-width:160px"><span class="l">מתוכן פרסום</span><span class="v">${money(ads)}</span></div></div></div>
+    <div class="row"><a class="btn" href="#labbills">חשבונות מעבדות</a><div class="card kpi" style="min-width:160px"><span class="l">החודש</span><span class="v">${money(sumM)}</span></div><div class="card kpi" style="min-width:160px"><span class="l">מתוכן פרסום</span><span class="v">${money(ads)}</span></div></div></div>
   <form id="expForm" class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">הוצאה חדשה</h3><div class="fields form-row">
     <label class="field">תאריך<input type="date" name="spent_on" value="${today()}" required></label>
     <label class="field">על מה<select name="category" required>${opts('expense_category', 'פרסום', { empty: false })}</select></label>
@@ -171,12 +171,20 @@ VIEWS.settings = async function vSettings(tab) {
         <div class="row spread"><label class="toggle"><input type="checkbox" data-save="message_templates:${t.id}:active" ${t.active ? 'checked' : ''}> פעילה (מופיעה בתפריט הוואטסאפ)</label>
         <button class="btn sm ghost danger" id="delTpl" data-tip="אם רק לא רוצים אותה כרגע, עדיף לכבות אותה">מחיקת ההודעה</button></div></section>
       <section class="card wa-col"><h3 style="margin-bottom:8px">כך הלקוח יראה</h3><div class="wa-preview"><div class="wa-bubble" id="tplPrev"></div></div><p class="tiny muted" style="margin-top:6px">דוגמה עם לקוח לדוגמה.</p></section>` : ''}</div>`; }
-  if (tab === 'labs') body = `<section class="card flush"><div class="table-wrap"><table><thead><tr><th>שם</th><th>המעבדה שלנו</th><th>איש קשר</th><th>טלפון</th><th>כתובת</th><th>מה ממירה</th><th>פעילה</th></tr></thead><tbody>
+  if (tab === 'labs') { const { data: lp, error: lpe } = await sb.from('lab_prices').select('*'); fail(lpe);
+    const labsOn = S.labs.filter(l => l.active), prods = S.products.filter(p => ['media', 'repair'].includes(p.category) && p.active);
+    const cost = (l, p) => lp.find(x => x.lab_id === l && x.product_id === p)?.cost;
+    body = `<section class="card flush"><div class="table-wrap"><table><thead><tr><th>שם</th><th>המעבדה שלנו</th><th>איש קשר</th><th>טלפון</th><th>כתובת</th><th>מה ממירה</th><th class="num" data-tip="מה המעבדה גובה על קלטת ריקה, תוכן לא משפחתי או פריט שלא ניתן להמיר (לפי ההסכם)">פריט לא לחיוב (₪)</th><th>פעילה</th></tr></thead><tbody>
     ${S.labs.map(l => `<tr><td><label class="field"><input data-save="labs:${l.id}:name" value="${esc(l.name || '')}"></label></td><td><label class="toggle"><input type="checkbox" data-save="labs:${l.id}:is_inhouse" ${l.is_inhouse ? 'checked' : ''}></label></td>
       ${['contact_name', 'phone', 'address', 'media_types'].map(f => `<td><label class="field"><input data-save="labs:${l.id}:${f}" value="${esc(l[f] || '')}"></label></td>`).join('')}
+      <td class="num"><label class="field"><input type="number" step="0.01" min="0" data-save="labs:${l.id}:no_charge_fee" data-num data-zero value="${l.no_charge_fee ?? 0}" style="width:90px;text-align:center"></label></td>
       <td><label class="toggle"><input type="checkbox" data-save="labs:${l.id}:active" ${l.active ? 'checked' : ''}></label></td></tr>`).join('')}</tbody></table></div>
-    <div style="padding:0 16px 14px"><button class="btn sm" id="addLab">+ מעבדה</button></div></section>
-    <p class="tiny muted" style="margin-top:8px">כדי שמעבדה תסרוק בעצמה: מוסיפים לה משתמש ב"צוות והרשאות" עם תפקיד "מעבדה".</p>`;
+    <div style="padding:0 16px 14px"><button class="btn sm" id="addLab">+ מעבדה (גם של קולגה)</button> <a class="btn sm ghost" href="#labbills">חשבונות חודשיים</a></div></section>
+    <section class="card flush" style="margin-top:16px"><div class="card-head" style="padding:14px 16px 0"><h3>מחירון עלות: כמה כל מעבדה גובה מאיתנו</h3><span class="tiny muted">₪ לפריט, לפי ההסכם עם המעבדה. משמש לחישוב העלות, הרווח והחשבון החודשי</span></div>
+      <div class="table-wrap"><table><thead><tr><th>מוצר</th><th class="num">המחיר ללקוח</th>${labsOn.map(l => `<th class="num">${esc(l.name)}</th>`).join('')}</tr></thead><tbody>
+      ${prods.map(p => `<tr><td>${esc(p.name)}</td><td class="num muted">${money(p.unit_price)}</td>${labsOn.map(l => `<td class="num"><label class="field"><input type="number" step="0.01" min="0" data-lp="${l.id}:${p.id}" value="${cost(l.id, p.id) ?? ''}" placeholder="—" style="width:90px;text-align:center" aria-label="עלות ${esc(p.name)} ב${esc(l.name)}"></label></td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <p class="tiny muted" style="padding:0 16px 14px">משבצת ריקה = עוד אין מחיר. הזמנה עם מוצר בלי מחיר תסומן "חסר מחיר עלות".</p></section>
+    <p class="tiny muted" style="margin-top:8px">כדי שמעבדה תסרוק בעצמה: מוסיפים לה משתמש ב"צוות והרשאות" עם תפקיד "מעבדה".</p>`; }
   if (tab === 'staff') { const { data: st } = await sb.from('staff').select('*').order('created_at');
     body = `<div class="grid cols-3" style="margin-bottom:16px"><div class="card"><b>מנהל</b><p class="small muted">רואה ועושה הכל, כולל מחיקה וניהול צוות.</p></div><div class="card"><b>צוות</b><p class="small muted">הכל חוץ מניהול צוות ומחיקת הזמנות.</p></div><div class="card"><b>מעבדה</b><p class="small muted">רק סריקה וההזמנות של המעבדה שלו, בלי טלפון וכתובת של לקוחות.</p></div></div>
     <section class="card flush"><div class="table-wrap"><table><thead><tr><th>מייל</th><th>שם</th><th>תפקיד</th><th>מעבדה (לתפקיד מעבדה)</th><th></th></tr></thead><tbody>
@@ -243,6 +251,13 @@ function bindSettings(tab) {
   });
   $('#addTpl')?.addEventListener('click', async () => { const f = await formModal('הודעה חדשה', `<label class="field">שם<input name="name" required placeholder="למשל: תזכורת לאיסוף"></label>`); if (!f) return; const { data, error } = await sb.from('message_templates').insert({ name: f.name, body: 'היי {שם}, ', sort: 99 }).select('id').single(); fail(error); sessionStorage.setItem('tplCur', data.id); re(); });
   // labs, staff
+  // lab price list cells: one row per (lab, product); empty cell removes the price
+  $$('[data-lp]').forEach(inp => inp.onchange = async () => {
+    const [lab_id, product_id] = inp.dataset.lp.split(':').map(Number), v = inp.value.trim();
+    const { error } = v === '' ? await sb.from('lab_prices').delete().match({ lab_id, product_id })
+      : await sb.from('lab_prices').upsert({ lab_id, product_id, cost: Number(v) }); fail(error);
+    const st = document.createElement('span'); st.className = 'save-state ok'; st.textContent = '✓'; inp.closest('.field').appendChild(st); setTimeout(() => st.remove(), 1500);
+  });
   $('#addLab')?.addEventListener('click', async () => { const f = await formModal('מעבדה חדשה', `<label class="field">שם<input name="name" required></label><label class="field">טלפון<input name="phone"></label><label class="field">מה ממירה<input name="media_types" placeholder="VHS, אודיו, פילם"></label>`); if (f) add('labs', { name: f.name, phone: f.phone || null, media_types: f.media_types || null }); });
   $('#staffForm')?.addEventListener('submit', e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); if (f.role === 'lab' && !f.lab_id) return tell('חסרה מעבדה', 'למשתמש מעבדה בוחרים לאיזו מעבדה הוא שייך.'); add('staff', { email: f.email.trim().toLowerCase(), name: f.name || null, role: f.role, lab_id: f.lab_id ? Number(f.lab_id) : null }); });
   $$('[data-delstaff]').forEach(b => b.onclick = async () => { if (!await ask('להסיר את ' + b.dataset.delstaff + '?', 'המשתמש לא יוכל להיכנס יותר.', { ok: 'הסרה', danger: true })) return; const { data: row } = await sb.from('staff').select('*').eq('email', b.dataset.delstaff).single();
