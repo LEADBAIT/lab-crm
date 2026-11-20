@@ -149,7 +149,7 @@ function nextCardHtml(ctx) {
     <div class="eyebrow">${phTag(o.stage)}שלב ${i + 1} מתוך ${STEPS.length} · ${esc(s.key)}</div>
     <h2>הצעד הבא: ${esc(s.title)}</h2>
     <p class="todo">${esc(s.todo)}</p>
-    ${FU_STAGES.includes(o.stage) ? `<div class="fu-line fu-${fuState(o)}"><span>פולו-אפ הבא: <b>${o.next_followup ? esc(fuLabel(o)) + ' (' + fmtShort(o.next_followup) + ')' : 'אין צעד הבא'}</b>${o.followup_note ? ' · ' + esc(o.followup_note) : ''}${o.stage === 'בשיחה' ? ` · ניסיון ${o.followup_attempts || 1} מתוך ${MAX_ATTEMPTS}` : ''}</span><button class="btn sm" id="fuEdit">${o.next_followup ? 'שינוי' : 'קביעת פולו-אפ'}</button></div>` : ''}
+    ${FU_STAGES.includes(o.stage) ? `<div class="fu-line fu-${fuState(o)}"><span>פולו-אפ הבא: <b>${o.next_followup ? fuCh(o) + ' ' + (FU_CH[o.followup_channel] ? FU_CH[o.followup_channel][1] + ' ' : '') + esc(fuLabel(o)) + ' (' + fmtShort(o.next_followup) + ')' : 'אין צעד הבא'}</b>${o.followup_note ? ' · ' + esc(o.followup_note) : ''}${o.stage === 'בשיחה' ? ` · ניסיון ${o.followup_attempts || 1} מתוך ${MAX_ATTEMPTS}` : ''}</span><button class="btn sm" id="fuEdit">${o.next_followup ? 'שינוי' : 'קביעת פולו-אפ'}</button></div>` : ''}
     ${checks.length ? `<ul class="checklist">${checks.map((k, j) => checkHtml(ctx, k, j)).join('')}</ul>` : ''}
     ${s.fields ? `<div class="fields" style="margin-bottom:12px">${s.fields.map(k => fld(ctx, k)).join('')}</div>` : ''}
     ${s.pay ? `<div class="note" style="margin-bottom:12px">כשהלקוח משלם, לוחצים "${esc(s.btn)}". נפתח חלון קצר לרישום התשלום, וההזמנה עוברת לתיאום איסוף.</div>` : ''}
@@ -417,7 +417,7 @@ function evText(ev) {
 /** Sidebar "סיכום" (Pipedrive summary section): the deal's key facts at a glance. Re-rendered after every save. */
 function summaryHtml(ctx) {
   const { o } = ctx, st = fuState(o);
-  const fu = FU_STAGES.includes(o.stage) ? (o.next_followup ? `<span class="fu-pill ${st === 'late' ? 'late' : st === 'today' ? 'today' : ''}" style="cursor:default">${esc(fuLabel(o))}</span>` : '<span class="fu-pill none" style="cursor:default">אין צעד הבא</span>') : '';
+  const fu = FU_STAGES.includes(o.stage) ? (o.next_followup ? `<span class="fu-pill ${st === 'late' ? 'late' : st === 'today' ? 'today' : ''}" style="cursor:default">${fuCh(o)}${esc(fuLabel(o))}</span>` : '<span class="fu-pill none" style="cursor:default">אין צעד הבא</span>') : '';
   const kv = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : '';
   return `<dl class="kv">
     ${kv('סכום', o.total > 0 ? `<span class="big">${money(o.total)}</span>${o.media_qty ? ` <span class="muted small">${o.media_qty} פריטים</span>` : ''}` : '<span class="muted">עוד אין הצעה</span>')}

@@ -31,6 +31,8 @@ const money = n => (n == null || n === '' || isNaN(n)) ? '' : '₪' + Number(n).
 const tzShift = () => new Date().getTimezoneOffset() * 60000;
 const today = () => new Date(Date.now() - tzShift()).toISOString().slice(0, 10);
 const addDays = n => new Date(Date.now() + n * 864e5 - tzShift()).toISOString().slice(0, 10);
+/** days until the coming weekday (0 = Sunday … 6 = Saturday); on that weekday itself, next week's */
+const daysTo = wd => (wd - new Date().getDay() + 7) % 7 || 7;
 const fmtDate = d => d ? new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', year: '2-digit' }) : '';
 const fmtShort = d => d ? new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '';
 const fmtDT = d => d ? new Date(d).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';

@@ -114,6 +114,9 @@ function fuState(o) {
   if (o.next_followup_time && fuTime(o.next_followup_time) < new Date().toTimeString().slice(0, 5)) return 'late';
   return 'today';
 }
+/** how the follow-up is planned: a phone call or a message (orders.followup_channel) */
+const FU_CH = { call: ['📞', 'שיחה'], msg: ['💬', 'הודעה'] };
+const fuCh = o => FU_CH[o.followup_channel] ? `<span class="fu-ch" aria-label="${FU_CH[o.followup_channel][1]}">${FU_CH[o.followup_channel][0]}</span>` : '';
 /** "היום 17:30" / "מחר" / "לפני 3 ימים" */
 function fuLabel(o) {
   if (!o.next_followup) return '';
@@ -127,17 +130,21 @@ async function followupModal(o, { stage = o.stage, title } = {}) {
   const resched = stage === o.stage && o.stage === 'בשיחה' && o.next_followup;
   const next = resched ? (o.followup_attempts || 1) + 1 : 1;
   const warn = resched ? (next >= MAX_ATTEMPTS ? `<div class="warn">זה הניסיון ה-${MAX_ATTEMPTS}. שמירה תסגור את הליד כ"לא רלוונטי" (לא עונה).</div>` : `<p class="small muted">ניסיון ${next} מתוך ${MAX_ATTEMPTS}</p>`) : '';
+  const ch = o.followup_channel || 'call';
   const p = modal(`<h2>${esc(title || 'מתי חוזרים ל' + custName(o) + '?')}</h2>${warn}<form id="fuF" class="grid">
-    <div class="row">${[[1, 'מחר'], [3, 'בעוד 3 ימים'], [7, 'בעוד שבוע']].map(([n, l]) => `<button type="button" class="btn sm" data-fq="${n}">${l}</button>`).join('')}</div>
+    <div class="field">איך חוזרים <span class="req">*</span><div class="seg big" role="radiogroup" aria-label="איך חוזרים">${Object.entries(FU_CH).map(([k, [ic, l]]) => `<button type="button" role="radio" data-ch="${k}" class="${k === ch ? 'on' : ''}" aria-checked="${k === ch}">${ic} ${l}</button>`).join('')}</div><input type="hidden" name="ch" value="${ch}"></div>
+    <div class="row">${[[1, 'מחר'], [3, 'בעוד 3 ימים'], [7, 'בעוד שבוע'], [daysTo(5), 'שישי הקרוב'], [daysTo(0), 'ראשון הקרוב']].map(([n, l]) => `<button type="button" class="btn sm" data-fq="${n}">${l}</button>`).join('')}</div>
     <div class="row nowrap"><label class="field grow">תאריך <span class="req">*</span><input type="date" name="d" required value="${esc(o.next_followup && o.next_followup >= today() ? o.next_followup : '')}" min="${today()}"></label>
       <label class="field">שעה (לא חובה)<input type="time" name="t" value="${esc(fuTime(o.next_followup_time))}"></label></div>
     <label class="field">למה חוזרים<input name="n" value="${esc(o.followup_note || '')}" placeholder="למשל: שולח תמונות של הקלטות"></label>
-    <label class="field">הודעה מוכנה לשליחה<textarea name="m" rows="4">${esc(draft)}</textarea><span class="hint">נפתחת בכפתור הוואטסאפ בשורה של הליד.</span></label>
+    <label class="field ${ch === 'call' ? 'hidden' : ''}" id="fuMsg">הודעה מוכנה לשליחה<textarea name="m" rows="4">${esc(draft)}</textarea><span class="hint">נפתחת בכפתור הוואטסאפ בשורה של הליד.</span></label>
     <div class="actions"><button class="btn primary">שמירה</button><button type="button" class="btn" id="fuNo">ביטול</button></div></form>`);
   return new Promise(res => {
+    $$('[data-ch]', p).forEach(b => b.onclick = () => { $$('[data-ch]', p).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
+      $('[name=ch]', p).value = b.dataset.ch; $('#fuMsg', p).classList.toggle('hidden', b.dataset.ch === 'call'); });
     $$('[data-fq]', p).forEach(b => b.onclick = () => { $('[name=d]', p).value = addDays(Number(b.dataset.fq)); });
     $('#fuF', p).onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); closeModal();
-      res({ next_followup: f.d, next_followup_time: f.t || null, followup_note: f.n.trim() || null, followup_draft: f.m.trim() || null }); };
+      res({ next_followup: f.d, next_followup_time: f.t || null, followup_channel: f.ch, followup_note: f.n.trim() || null, followup_draft: f.m.trim() || null }); };
     $('#fuNo', p).onclick = () => { closeModal(); res(null); };
     $('#modal').addEventListener('cancel', () => res(null), { once: true });
     setTimeout(() => $('[data-fq]', p)?.focus(), 30);
@@ -146,7 +153,7 @@ async function followupModal(o, { stage = o.stage, title } = {}) {
 /** Set the next follow-up with undo. The trigger may also close the lead, so undo restores stage/attempts too. */
 async function setFollowup(o, opts) {
   const patch = await followupModal(o, opts); if (!patch) return false;
-  await patchOrder(o, patch, 'נקבע פולו-אפ: ' + until(patch.next_followup) + (patch.next_followup_time ? ' ' + patch.next_followup_time : ''), { extra: ['stage', 'loss_category', 'followup_attempts'] });
+  await patchOrder(o, patch, 'נקבע פולו-אפ (' + FU_CH[patch.followup_channel][1] + '): ' + until(patch.next_followup) + (patch.next_followup_time ? ' ' + patch.next_followup_time : ''), { extra: ['stage', 'loss_category', 'followup_attempts'] });
   return true;
 }
 

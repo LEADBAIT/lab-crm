@@ -138,7 +138,7 @@ function fuCell(r) {
   if (st === 'none') return `<td><button class="fu-pill none" data-fu="${r.id}">+ לקבוע פולו-אפ</button></td>`;
   const late = st === 'late', d = -daysSince(r.next_followup + 'T00:00');
   const label = late ? (d < 0 ? `באיחור ${-d === 1 ? 'יום' : -d + ' ימים'}` : 'היום · עבר הזמן') : fuLabel(r);
-  return `<td><button class="fu-pill ${st}" data-fu="${r.id}" data-tip="${esc(fmtDate(r.next_followup) + (r.next_followup_time ? ' ' + fuTime(r.next_followup_time) : '') + ' · לחיצה לשינוי')}">${esc(label)}${late && r.next_followup_time && d === 0 ? ' ' + fuTime(r.next_followup_time) : ''}</button>
+  return `<td><button class="fu-pill ${st}" data-fu="${r.id}" data-tip="${esc((FU_CH[r.followup_channel] ? FU_CH[r.followup_channel][1] + ' · ' : '') + fmtDate(r.next_followup) + (r.next_followup_time ? ' ' + fuTime(r.next_followup_time) : '') + ' · לחיצה לשינוי')}">${fuCh(r)}${esc(label)}${late && r.next_followup_time && d === 0 ? ' ' + fuTime(r.next_followup_time) : ''}</button>
     ${r.followup_note ? `<div class="fu-why">${esc(r.followup_note)}</div>` : ''}</td>`;
 }
 function noteCell(r) {
@@ -154,7 +154,7 @@ function tempCell(r) {
 function nextAct(r) {
   switch (r.stage) {
     case 'פנייה חדשה': return ['wa', 'פנייה בוואטסאפ', 'wa'];
-    case 'בשיחה': return ['wa', 'לנסות שוב', 'wa'];
+    case 'בשיחה': return r.followup_channel === 'call' ? ['call', 'להתקשר', 'call'] : ['wa', 'לנסות שוב', 'wa'];
     case 'בפולואפ': return r.media_qty ? ['quote', 'שליחת הצעה', 'primary'] : ['fillquote', 'מילוי הצעה', ''];
     case 'הצעה נשלחה': return ['pay', r.sumit_payment_url ? 'קישור תשלום ✓' : 'קישור תשלום', 'primary'];
     default: return ['open', 'פתיחה', ''];
@@ -162,7 +162,7 @@ function nextAct(r) {
 }
 function actCell(r) {
   const [k, label, cls] = nextAct(r);
-  const ic = cls === 'wa' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>' : '';
+  const ic = cls === 'call' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>' : cls === 'wa' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>' : '';
   return `<td><div class="row-acts"><button class="btn sm ${cls === 'wa' ? 'wa-o' : ''}" data-act="${k}" data-id="${r.id}">${ic}${esc(label)}</button>
     <div class="dd"><button class="btn sm ghost icon-btn more" data-more="${r.id}" aria-label="עוד פעולות">⋯</button></div></div></td>`;
 }
@@ -219,7 +219,7 @@ function bindSalesRows() {
     dropdown(b, [{ head: 'כמה קרוב לסגירה?' }, ...(S.opts.temperature || []).filter(x => x.active).map(x => ({ label: (x.value === o.temperature ? '✓ ' : '') + x.value, run: () => setHeat(x.value) })),
       ...(o.temperature ? ['sep', { label: 'ניקוי', run: () => setHeat(null) }] : [])]); });
   $$('[data-noteedit]', body).forEach(b => b.onclick = () => editNoteCell(Number(b.dataset.noteedit)));
-  $$('[data-act]', body).forEach(b => b.onclick = () => { const o = rowOf(b.dataset.id); ({ wa: sendWa, quote: sendQuoteRow, pay: paymentLink, open: x => openPanel(x.id), fillquote: x => openPanel(x.id, 'quote') })[b.dataset.act](o); });
+  $$('[data-act]', body).forEach(b => b.onclick = () => { const o = rowOf(b.dataset.id); ({ call: x => { location.href = 'tel:' + x.phone; }, wa: sendWa, quote: sendQuoteRow, pay: paymentLink, open: x => openPanel(x.id), fillquote: x => openPanel(x.id, 'quote') })[b.dataset.act](o); });
   $$('[data-more]', body).forEach(b => b.onclick = e => { e.stopPropagation(); const o = rowOf(b.dataset.more); dropdown(b, [
     { label: 'וואטסאפ', sub: 'עם ההודעה המוכנה', run: () => sendWa(o) },
     { label: 'SMS', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { const tpl = tplByName(stepOf(o.stage)?.tpl || '');

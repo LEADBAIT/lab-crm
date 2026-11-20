@@ -925,3 +925,6 @@ tr.clickable { cursor: pointer; }
   .timeline li { grid-template-columns: 28px minmax(0, 1fr); }
   .timeline::before { inset-inline-start: 13px; }
 }
+
+/* follow-up channel (call / message) icon inside the follow-up pill and line */
+.fu-ch { font-size: 12px; line-height: 1; }
