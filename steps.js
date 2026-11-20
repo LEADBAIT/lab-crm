@@ -2,6 +2,8 @@
    which checks/dates belong to it, and what is required before moving on. */
 'use strict';
 const LOST = 'לא רלוונטי';
+/** file check: every barcode that should have a file has one (file name = barcode). Defined before STEPS, which uses it. */
+const FILES_CHECK = { label: 'בדיקת קבצים: לכל ברקוד יש קובץ', done: o => !!o.files_checked_at && !o.files_missing, at: o => o.files_checked_at, act: 'files', show: o => o.items_count > 0 };
 const STEPS = [
   { key: 'פנייה חדשה', short: 'פנייה', phase: 'sales', date: o => o.created_at,
     title: 'ליצור קשר עם הלקוח', todo: 'להתקשר או לשלוח וואטסאפ, להבין מה יש לו (כמה קלטות/דיסקים, מאיזה סוג) ומה הוא צריך.',
@@ -59,8 +61,6 @@ const STEPS = [
     checks: [{ label: 'ביקשנו ביקורת בגוגל', done: o => !!o.review_requested_at, at: o => o.review_requested_at, act: 'ms:review_requested_at' },
       { label: 'ביקשנו סטורי', done: o => !!o.story_requested_at, at: o => o.story_requested_at, act: 'ms:story_requested_at' }] },
 ];
-/** file check: every barcode that should have a file has one (file name = barcode) */
-const FILES_CHECK = { label: 'בדיקת קבצים: לכל ברקוד יש קובץ', done: o => !!o.files_checked_at && !o.files_missing, at: o => o.files_checked_at, act: 'files', show: o => o.items_count > 0 };
 /** closing count: every barcode scanned "נארז להחזרה" (or closed otherwise) before the hardware leaves */
 function closingDone(o) { return !o.items_count || !!o.returned_at || o.items_packed >= o.items_count; }
 const stepIdx = k => STEPS.findIndex(s => s.key === k);
