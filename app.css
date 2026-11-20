@@ -903,3 +903,25 @@ tr.clickable { cursor: pointer; }
 .bl-facts div { border: 2px solid currentColor; border-radius: 8px; padding: 8px; display: grid; }
 .bl-facts b { font-size: 24px; } .bl-facts span { font-size: 13px; }
 @media print { .box-label { color: #000; } }
+
+/* ---------- v4.3 fixes: narrow stage bar + history alignment ---------- */
+@container (max-width: 760px) {
+  /* thin segments only: the phase colors above must not paint the whole step */
+  .deal-top .pgroup .step.done, .deal-top .pgroup .step.cur { background: transparent; color: inherit; }
+  /* one-line group labels, so both rows of segments line up with the coin */
+  .pgroup-h { white-space: nowrap; padding-inline: 0; font-size: 11px; }
+  .pgroup-h span { display: none; }
+  .pgroup .prow { align-items: center; }
+  .deal-top.stuck .pay-gate .coin { width: 18px; height: 18px; font-size: 9px; margin-bottom: 0; }
+}
+/* history: every icon centered on the line, same column width for notes and events */
+.timeline li { grid-template-columns: 32px minmax(0, 1fr); }
+.timeline .ic, .timeline li:not([data-kind="note"]) .ic { justify-self: center; margin: 0; }
+.timeline li:not([data-kind="note"]) { align-items: center; }
+.timeline::before { inset-inline-start: 15px; }
+.timeline .ic.field { background: var(--surface-3); color: var(--ink-2); }
+.timeline .w bdi { unicode-bidi: isolate; }
+@container (max-width: 560px) {
+  .timeline li { grid-template-columns: 28px minmax(0, 1fr); }
+  .timeline::before { inset-inline-start: 13px; }
+}

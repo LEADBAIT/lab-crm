@@ -122,7 +122,7 @@ function stepperHtml(ctx) {
     const a = start(i), b = i === cur ? Date.now() : stepDate(ctx, STEPS[i + 1]);
     if (!a || !b) return '';
     const n = Math.max(0, Math.floor((new Date(b) - new Date(a)) / 864e5));
-    return n === 1 ? 'יום' : `${n} ימים`;
+    return n === 0 ? 'פחות מיום' : n === 1 ? 'יום' : `${n} ימים`;
   };
   // narrow screens (side panel, phone) show thin segments + this caption instead of the labels
   const cap = cur >= 0 ? `<div class="pbar-cap"><b>${esc(STEPS[cur].key)}</b><span>שלב ${cur + 1} מתוך ${STEPS.length}${days(cur) ? ' · ' + days(cur) + ' בשלב' : ''}</span>${STEPS[cur + 1] ? `<span class="nx">הבא: ${esc(STEPS[cur + 1].key)}</span>` : ''}</div>` : '';
@@ -406,7 +406,7 @@ function itemsHtml(ctx) {
 }
 
 // ---------- side panel ----------
-const EV_IC = { stage: ['→', 'stage'], payment: ['₪', 'payment'], contact: ['☎', 'contact'], note: ['✎', 'note'], followup: ['⏰', 'stage'], field: ['•', 'note'] };
+const EV_IC = { stage: ['←', 'stage'], payment: ['₪', 'payment'], contact: ['☎', 'contact'], note: ['✎', 'note'], followup: ['⏰', 'stage'], field: ['✎', 'field'] };
 function evText(ev) {
   if (ev.kind === 'followup') return `פולו-אפ: <b>${esc(ev.new_value)}</b>`;
   if (ev.kind === 'stage') return `עבר ל<b>${esc(ev.new_value)}</b>`;
@@ -460,7 +460,7 @@ function historyHtml(ctx) {
     </section>
     <div><div class="hist-head"><h3>היסטוריה</h3><div class="pills" role="group" aria-label="סינון היסטוריה">${HIST_F.map(([k, l]) => `<button class="${k ? '' : 'on'}" data-hf="${k}">${l}${k ? '' : ` <span class="n">${ctx.events.length}</span>`}</button>`).join('')}</div></div>
       <ul class="timeline ${ctx.events.length > HIST_SHOW ? 'clipped' : ''}" id="tl">${ctx.events.map((ev, i) => { const [ic, cls] = EV_IC[ev.kind] || EV_IC.note, note = ev.kind === 'note';
-        return `<li data-ev="${ev.id}" data-kind="${esc(ev.kind)}" class="${i >= HIST_SHOW ? 'extra' : ''}"><span class="ic ${note ? 'note' : cls}">${ic}</span><div><div class="ev-t">${evText(ev)}</div><div class="w">${fmtDT(ev.at)}${ev.by_email ? ' · ' + esc(ev.by_email.split('@')[0]) : ''}${ev.edited_at ? ` · <span data-tip="${esc('לפני העריכה: ' + (ev.original_value || ''))}">נערך</span>` : ''}
+        return `<li data-ev="${ev.id}" data-kind="${esc(ev.kind)}" class="${i >= HIST_SHOW ? 'extra' : ''}"><span class="ic ${note ? 'note' : cls}">${ic}</span><div><div class="ev-t">${evText(ev)}</div><div class="w"><bdi dir="ltr">${fmtDT(ev.at)}</bdi>${ev.by_email ? ' · ' + esc(ev.by_email.split('@')[0]) : ''}${ev.edited_at ? ` · <span data-tip="${esc('לפני העריכה: ' + (ev.original_value || ''))}">נערך</span>` : ''}
           ${note ? `<span class="ev-acts"><button class="link-btn" data-evedit="${ev.id}">עריכה</button><button class="link-btn danger" data-evdel="${ev.id}">מחיקה</button></span>` : ''}</div></div></li>`; }).join('') || '<li class="empty-li">עוד אין רישומים</li>'}</ul>
       ${ctx.events.length > HIST_SHOW ? `<button class="btn sm ghost" id="histAll" style="margin-top:8px">הצגת כל ההיסטוריה (${ctx.events.length})</button>` : ''}
       <p class="tiny muted" style="margin-top:10px">הערות אפשר לערוך ולמחוק. מעברי שלב, תשלומים ושיחות נרשמים לבד ולא נערכים, כדי שההיסטוריה תישאר אמינה.</p></div>`;
