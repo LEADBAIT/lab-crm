@@ -4,7 +4,7 @@
 const TASK_TYPES = [
   { k: 'new', name: 'פניות חדשות', test: o => o.stage === 'פנייה חדשה' && !o.last_contact_at,
     why: o => `פנייה חדשה${o.source ? ' מ' + o.source : ''} · נכנסה ${ago(o.created_at)}${o.est_quantity ? ` · כתב "${o.est_quantity}"` : ''}`,
-    urg: o => daysSince(o.created_at) >= 1 ? 0 : 1, act: { label: 'שליחת הודעת פתיחה', tpl: 'פתיחה ללידים' } },
+    urg: o => daysSince(o.created_at) >= 1 ? 0 : 1, act: { label: 'פנייה בוואטסאפ', wa: true } },
   { k: 'cash', name: 'מזומן אצל שליח', test: o => o.flag_cash_at_courier,
     why: o => `השליח גבה ${money(o.paid_amount || o.total)} במזומן. מסמנים כשהכסף מגיע אלינו`, urg: o => daysSince(o.paid_at) > 3 ? 0 : 1, act: { label: 'הכסף הגיע', cash: true } },
   { k: 'pickup', name: 'לתאם איסוף', test: o => o.stage === 'לתאם איסוף' && !o.pickup_date,
@@ -18,7 +18,7 @@ const TASK_TYPES = [
   { k: 'late', name: 'באיחור', test: o => o.flag_sla,
     why: o => `${o.sla_reason} · ${o.stage}${o.lab_name ? ' · ' + o.lab_name : ''}`, urg: o => o.flag_sla === 'red' ? 0 : 1, act: { label: 'פתיחה', open: true } },
   { k: 'expiring', name: 'קישור עומד להימחק', test: o => o.delivery_link_expires && o.delivery_link_expires >= today() && o.delivery_link_expires <= addDays(7),
-    why: o => `קישור ההורדה יימחק ${until(o.delivery_link_expires)}. כדאי להזכיר ללקוח להוריד`, urg: () => 2, act: { label: 'תזכורת להורדה', tpl: 'הקבצים מוכנים' } },
+    why: o => `קישור ההורדה יימחק ${until(o.delivery_link_expires)}. כדאי להזכיר ללקוח להוריד`, urg: () => 2, act: { label: 'תזכורת להורדה', wa: true } },
   // retention: hardware that was never collected, waived hardware, and the files after the link expires
   { k: 'destroy', name: 'להשמיד חומרה', test: o => !o.destroyed_at && ((o.destroy_notice_at && daysSince(o.destroy_notice_at) >= (setting('destroy_notice_days') ?? 14))
       || (o.hardware_waived_at && daysSince(o.hardware_waived_at) >= (setting('waived_keep_days') ?? 30))),
@@ -99,22 +99,21 @@ VIEWS.queue = async function vQueue() {
 // task types where doing all of them at once makes sense (no message to write, same action for each)
 const BULK_TASK = { cash: 'הכסף הגיע בכולן', pickday: 'השליח אסף את כולן' };
 function taskHtml({ o, t, u }) {
-  const a = t.act, tpl = a.tpl && tplByName(a.tpl);
+  const a = t.act;
   return `<div class="task"><span class="urg u${u}"></span>
     <div><div class="who"><a href="#order/${o.id}">${esc(custName(o))}</a><span class="chip">${esc(t.name)}</span>${o.priority ? '<span class="chip orange">אקספרס</span>' : ''}<span class="tiny muted">#${o.id}</span></div>
       <div class="why">${esc(t.why(o))}</div></div>
     <div class="acts">${a.open ? `<a class="btn ${u === 0 ? 'primary' : ''}" href="#order/${o.id}">${esc(a.label)}</a>`
-      : `<button class="btn ${u <= 1 ? 'primary' : ''}" data-tact="${o.id}" ${a.tpl && !tpl ? 'disabled title="התבנית לא קיימת בהגדרות"' : ''}>${esc(a.label)}</button>`}
+      : `<button class="btn ${u <= 1 ? 'primary' : ''}" data-tact="${o.id}">${esc(a.label)}</button>`}
       ${a.open ? '' : `<a class="btn ghost" href="#order/${o.id}">פתיחה</a>`}</div></div>`;
 }
 async function runTask(x, btn) {
   const { o, t } = x, a = t.act;
   btn.disabled = true;
   try {
-    if (a.tpl) {
-      const tpl = tplByName(a.tpl);
-      window.open(waLink(o.phone, fillTemplate(tpl.body, o, null)), '_blank', 'noopener');
-      await markContacted(o, 'ההודעה נפתחה ונרשם שדיברנו');
+    if (a.wa) {
+      window.open(waLink(o.phone), '_blank', 'noopener');
+      await markContacted(o, 'נפתחה שיחת וואטסאפ ונרשם שדיברנו');
     } else if (a.contact) await markContacted(o);
     else if (a.cash) await patchOrder(o, { payment_status: 'שולם' }, 'נרשם שהמזומן הגיע', { extra: ['cash_received_at'] });
     else if (a.advance) { const nx = STEPS[stepIdx(o.stage) + 1]; if (!await changeStage(o, nx.key)) { btn.disabled = false; return; } }

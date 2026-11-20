@@ -222,9 +222,8 @@ function bindSalesRows() {
   $$('[data-noteedit]', body).forEach(b => b.onclick = () => editNoteCell(Number(b.dataset.noteedit)));
   $$('[data-act]', body).forEach(b => b.onclick = () => { const o = rowOf(b.dataset.id); ({ call: x => { location.href = 'tel:' + x.phone; }, wa: sendWa, quote: sendQuoteRow, pay: paymentLink, open: x => openPanel(x.id), fillquote: x => openPanel(x.id, 'quote') })[b.dataset.act](o); });
   $$('[data-more]', body).forEach(b => b.onclick = e => { e.stopPropagation(); const o = rowOf(b.dataset.more); dropdown(b, [
-    { label: 'וואטסאפ', sub: 'עם ההודעה המוכנה', run: () => sendWa(o) },
-    { label: 'SMS', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { const tpl = tplByName(stepOf(o.stage)?.tpl || '');
-      SD.touch = o.id; if (await smsModal(o, o.followup_draft || (tpl ? fillTemplate(tpl.body, o, null) : ''))) route(); } },
+    { label: 'וואטסאפ', sub: 'פתיחת שיחה', run: () => sendWa(o) },
+    { label: 'SMS', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { SD.touch = o.id; if (await smsModal(o, '')) route(); } },
     ...(FU_STAGES.includes(o.stage) ? [{ label: 'קביעת פולו-אפ', run: async () => { SD.touch = o.id; if (await setFollowup(o)) route(); } }] : []),
     { label: 'שליחת הצעת מחיר', run: () => sendQuoteRow(o) }, { label: 'קישור תשלום (SUMIT)', run: () => paymentLink(o) },
     'sep', { label: 'הלקוח שילם', sub: 'מעביר ל"לתאם איסוף"', run: () => markPaid(o) },
@@ -247,16 +246,12 @@ function editNoteCell(id) {
     route();
   };
 }
-/** WhatsApp with the lead's prepared message (or the stage's template), editable before it opens.
-    A new lead: after the first message, offer to move it to "בשיחה" and set when to try again. */
+/** Opens the WhatsApp chat with the lead (no prepared text) and logs that we reached out.
+    A new lead: then offer to move it to "בשיחה" and set when to try again. */
 async function sendWa(o) {
-  const tpl = tplByName(stepOf(o.stage)?.tpl || '');
-  const text = o.followup_draft || (tpl ? fillTemplate(tpl.body, o, null) : '');
-  const f = await formModal('וואטסאפ ל' + custName(o), `<label class="field">ההודעה<textarea name="m" rows="6">${esc(text)}</textarea><span class="hint">${o.followup_draft ? 'ההודעה המוכנה מהפולו-אפ.' : tpl ? 'התבנית של השלב "' + esc(o.stage) + '".' : ''} נפתחת בוואטסאפ, ונרשם שפנינו ללקוח.</span></label>`, { ok: 'פתיחה בוואטסאפ' });
-  if (!f) return;
-  window.open(waLink(o.phone, f.m), '_blank', 'noopener');
+  window.open(waLink(o.phone), '_blank', 'noopener');
   SD.touch = o.id;
-  await markContacted(o, 'ההודעה נפתחה ונרשם שפנינו');
+  await markContacted(o, 'נפתחה שיחת וואטסאפ ונרשם שפנינו');
   if (o.stage === 'פנייה חדשה') await changeStage({ ...o, last_contact_at: new Date().toISOString() }, 'בשיחה');
   else if (o.stage === 'בשיחה') await setFollowup(o, { title: 'מתי לנסות שוב?' });
   route();
@@ -284,8 +279,7 @@ async function paymentLink(o) {
     if (error || !data?.url) return tell('לא נוצר קישור תשלום', (data?.error || error?.message || '') + '\n\nאם זו הפעם הראשונה: צריך להכניס את מפתח ה-API של SUMIT (ההוראות בקובץ crm/README.md).');
     url = data.url; SD.touch = o.id;
   }
-  const tpl = tplByName('בקשת תשלום');
-  const text = (tpl ? fillTemplate(tpl.body, o, null) : `היי ${firstName(o.full_name)}, הנה קישור לתשלום (${money(o.total)}):`) + '\n' + url;
+  const text = `היי ${firstName(o.full_name)}, הנה קישור לתשלום (${money(o.total)}):\n` + url;
   const f = await formModal('קישור תשלום ל' + custName(o), `<label class="field">הקישור<input value="${esc(url)}" dir="ltr" readonly onclick="this.select()"></label>
     <label class="field">ההודעה<textarea name="m" rows="5">${esc(text)}</textarea><span class="hint">כשהלקוח משלם, הליד עובר לבד ל"לתאם איסוף".</span></label>`, { ok: 'שליחה בוואטסאפ' });
   if (f) { window.open(waLink(o.phone, f.m), '_blank', 'noopener'); await markContacted(o, 'קישור התשלום נשלח'); }

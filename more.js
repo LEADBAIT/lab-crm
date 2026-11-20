@@ -101,7 +101,7 @@ VIEWS.expenses = async function vExpenses() {
 
 // ---------- SETTINGS ----------
 const SET_GROUPS = [['prices', 'מחירים', 'מחירון, הנחות, קופונים'], ['process', 'תהליך ותזכורות', 'מתי מזכירים, יעדי זמן'], ['lists', 'רשימות לבחירה', 'מקורות, סיבות, שליחויות'],
-  ['templates', 'הודעות וואטסאפ', 'נוסחים מוכנים'], ['labs', 'מעבדות', 'לאן שולחים חומרה'], ['staff', 'צוות והרשאות', 'מי נכנס ומה רואה'], ['backup', 'גיבוי', 'הורדת כל הנתונים']];
+  ['labs', 'מעבדות', 'לאן שולחים חומרה'], ['staff', 'צוות והרשאות', 'מי נכנס ומה רואה'], ['backup', 'גיבוי', 'הורדת כל הנתונים']];
 const LISTS_EDIT = { source: ['מאיפה לקוחות מגיעים', 'מופיע בכל פנייה ובדוחות לפי ערוץ.'], loss_category: ['סיבות שלקוח לא קנה', 'נבחר כשמסמנים לקוח כלא רלוונטי.'], temperature: ['כמה קרוב לסגירה', 'תחושת בטן: חם, פושר, קר.'],
   payment_method: ['אמצעי תשלום', ''], courier: ['חברות שליחויות', ''], return_method: ['איך החומרה חוזרת ללקוח', ''], expense_category: ['סוגי הוצאות', 'הסוג "פרסום" נכנס לחישוב עלות לפנייה.'] };
 const LIST_COL = { source: ['orders', 'source'], temperature: ['orders', 'temperature'], loss_category: ['orders', 'loss_category'], payment_method: ['orders', 'payment_method'], return_method: ['orders', 'return_method'], courier: ['orders', 'courier'], expense_category: ['expenses', 'category'] };
@@ -131,7 +131,8 @@ const CAT = { media: 'חומרה להמרה', addon: 'תוספות', repair: 'ת
 
 VIEWS.settings = async function vSettings(tab) {
   await loadRef();
-  tab = SET_GROUPS.some(g => g[0] === tab) ? tab : (sessionStorage.getItem('setTab') || 'prices');
+  const known = t => SET_GROUPS.some(g => g[0] === t);
+  tab = known(tab) ? tab : known(sessionStorage.getItem('setTab')) ? sessionStorage.getItem('setTab') : 'prices';
   sessionStorage.setItem('setTab', tab);
   let body = '';
   if (tab === 'prices') body = `
@@ -169,14 +170,6 @@ VIEWS.settings = async function vSettings(tab) {
       <label class="toggle" title="פעיל"><input type="checkbox" data-save="options:${o.id}:active" ${o.active ? 'checked' : ''}></label></div>`).join('')}</div>
     <button class="btn sm" data-addopt="${list}" style="margin-top:10px">+ הוספה</button></section>`).join('')}</div>
     <p class="tiny muted" style="margin-top:12px">ערך שלא משתמשים בו: מכבים אותו (הוא נשאר בהזמנות ישנות). שינוי שם ישאל אם לעדכן גם הזמנות קיימות.</p>`;
-  if (tab === 'templates') { const cur = Number(sessionStorage.getItem('tplCur')) || S.templates[0]?.id, t = S.templates.find(x => x.id === cur) || S.templates[0];
-    body = `<div class="tpl-layout"><section class="card tpl-list">${S.templates.map(x => `<button class="${x.id === t?.id ? 'on' : ''} ${x.active ? '' : 'off'}" data-tcur="${x.id}">${esc(x.name)}${x.active ? '' : ' (כבוי)'}</button>`).join('')}<div class="divider"></div><button class="btn sm block" id="addTpl">+ הודעה חדשה</button></section>
-      ${t ? `<section class="card stack"><label class="field">שם ההודעה<input data-save="message_templates:${t.id}:name" value="${esc(t.name)}"></label>
-        <label class="field">הטקסט<textarea id="tplBody" data-save="message_templates:${t.id}:body" rows="9">${esc(t.body)}</textarea></label>
-        <div><div class="small muted" style="margin-bottom:6px">לוחצים כדי להוסיף פרט שמתמלא לבד:</div><div class="var-chips">${['שם', 'הזמנה', 'סכום', 'קישור', 'מעקב', 'תאריך איסוף', 'ימי קישור'].map(v => `<button type="button" data-var="${v}">{${v}}</button>`).join('')}</div></div>
-        <div class="row spread"><label class="toggle"><input type="checkbox" data-save="message_templates:${t.id}:active" ${t.active ? 'checked' : ''}> פעילה (מופיעה בתפריט הוואטסאפ)</label>
-        <button class="btn sm ghost danger" id="delTpl" data-tip="אם רק לא רוצים אותה כרגע, עדיף לכבות אותה">מחיקת ההודעה</button></div></section>
-      <section class="card wa-col"><h3 style="margin-bottom:8px">כך הלקוח יראה</h3><div class="wa-preview"><div class="wa-bubble" id="tplPrev"></div></div><p class="tiny muted" style="margin-top:6px">דוגמה עם לקוח לדוגמה.</p></section>` : ''}</div>`; }
   if (tab === 'labs') { const { data: lp, error: lpe } = await sb.from('lab_prices').select('*'); fail(lpe);
     const labsOn = S.labs.filter(l => l.active), prods = S.products.filter(p => ['media', 'repair'].includes(p.category) && p.active);
     const cost = (l, p) => lp.find(x => x.lab_id === l && x.product_id === p)?.cost;
@@ -223,7 +216,6 @@ function bindSettings(tab) {
       el.dataset.old = v;
     }
     if (table === 'options' && col === 'active') el.closest('.li')?.classList.toggle('off', !v);
-    if (table === 'message_templates' && col !== 'body') { await loadRef(); return re(); }
     loadRef();
   });
   const add = async (table, row) => { const { error } = await sb.from(table).insert(row); fail(error); re(); };
@@ -242,20 +234,6 @@ function bindSettings(tab) {
     const r = await Promise.all([sb.from('options').update({ sort: sa }).eq('id', a.id), sb.from('options').update({ sort: sc }).eq('id', c.id)]); r.forEach(x => fail(x.error)); re();
   });
   $$('[data-addopt]').forEach(b => b.onclick = async () => { const list = b.dataset.addopt; const f = await formModal('ערך חדש: ' + LISTS_EDIT[list][0], `<label class="field">ערך<input name="v" required></label>`); if (f) add('options', { list, value: f.v.trim(), sort: Math.max(0, ...(S.opts[list] || []).map(o => o.sort)) + 1 }); });
-  // templates
-  const prev = () => { const p = $('#tplPrev'), t = $('#tplBody'); if (p && t) p.textContent = fillTemplate(t.value, { id: 1042, total: 890, delivery_link: 'https://drive.google.com/…', pickup_date: addDays(2), track_token: 'xxxx', full_name: 'דנה כהן' }, { full_name: 'דנה כהן' }); };
-  prev(); $('#tplBody')?.addEventListener('input', prev);
-  $$('[data-tcur]').forEach(b => b.onclick = () => { sessionStorage.setItem('tplCur', b.dataset.tcur); re(); });
-  $$('[data-var]').forEach(b => b.onclick = () => { const t = $('#tplBody'), s = t.selectionStart ?? t.value.length, ins = `{${b.dataset.var}}`; t.value = t.value.slice(0, s) + ins + t.value.slice(t.selectionEnd ?? s); t.focus(); t.selectionStart = t.selectionEnd = s + ins.length; prev(); t.dispatchEvent(new Event('change')); });
-  $('#delTpl')?.addEventListener('click', async () => {
-    const t = S.templates.find(x => x.id === (Number(sessionStorage.getItem('tplCur')) || S.templates[0]?.id)) || S.templates[0];
-    if (!await ask(`למחוק את "${t.name}"?`, 'אפשר לבטל מיד אחרי.', { ok: 'מחיקה', danger: true })) return;
-    const { id: _x, ...back } = t; let id = t.id;
-    await reversible('ההודעה נמחקה', async () => { const { error } = await sb.from('message_templates').delete().eq('id', id); fail(error); sessionStorage.removeItem('tplCur'); },
-      async () => { const { data, error } = await sb.from('message_templates').insert(back).select('id').single(); fail(error); id = data.id; sessionStorage.setItem('tplCur', id); }, re);
-    re();
-  });
-  $('#addTpl')?.addEventListener('click', async () => { const f = await formModal('הודעה חדשה', `<label class="field">שם<input name="name" required placeholder="למשל: תזכורת לאיסוף"></label>`); if (!f) return; const { data, error } = await sb.from('message_templates').insert({ name: f.name, body: 'היי {שם}, ', sort: 99 }).select('id').single(); fail(error); sessionStorage.setItem('tplCur', data.id); re(); });
   // labs, staff
   // lab price list cells: one row per (lab, product); empty cell removes the price
   $$('[data-lp]').forEach(inp => inp.onchange = async () => {

@@ -67,7 +67,7 @@ function renderDeal(ctx) {
       <div class="grow"><h1>${esc(custName(c))}${lost ? '' : phTag(o.stage)}</h1><div class="meta" id="dealMeta">${dealMeta(o)}</div></div>
       <div class="row dh-acts">
         <span class="btn call-btn"><a href="tel:${esc(c.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><bdi dir="ltr">${esc(fmtPhone(c.phone))}</bdi></a><button type="button" class="cp" id="copyPhone" aria-label="העתקת המספר" data-tip="העתקת המספר"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></span>
-        <div class="dd"><button class="btn wa" id="waBtn">וואטסאפ ▾</button></div>
+        <button class="btn wa" id="waBtn" data-tip="פתיחת שיחה בוואטסאפ">וואטסאפ</button>
         ${ph !== 'sales' && !lost ? '<button class="btn" id="trackBtn">קישור מעקב</button>' : ''}
         <div class="dd"><button class="btn icon-btn" id="moreBtn" aria-label="עוד פעולות">⋯</button></div>
         ${sales ? '<span class="sep-v"></span><button class="btn won" id="wonBtn">שילם</button><button class="btn lost" id="lostBtn">לא רלוונטי</button>' : ''}
@@ -144,7 +144,6 @@ function nextCardHtml(ctx) {
   const checks = s.checks.filter(k => !k.show || k.show(o));
   const miss = s.need ? s.need(o) : [];
   const nxt = STEPS[i + 1];
-  const tpls = [s.tpl, s.tpl2].map(tplByName).filter(Boolean);
   return `<section class="card next-card">
     <div class="eyebrow">${phTag(o.stage)}שלב ${i + 1} מתוך ${STEPS.length} · ${esc(s.key)}</div>
     <h2>הצעד הבא: ${esc(s.title)}</h2>
@@ -157,7 +156,7 @@ function nextCardHtml(ctx) {
     <div class="next-actions">
       ${nxt && s.btn ? `<button class="btn primary lg" id="advance">${esc(s.btn)} ←</button>` : ''}
       ${s.key === 'בפולואפ' ? `<button class="btn wa" id="sendQuote">שליחת ההצעה בוואטסאפ</button>` : ''}
-      ${tpls.map(t => `<button class="btn wa" data-tpl="${t.id}">וואטסאפ: ${esc(t.name)}</button>`).join('')}
+      ${s.wa ? '<button class="btn wa" id="waOpen">פתיחת שיחה בוואטסאפ</button>' : ''}
       ${s.key === 'לתאם איסוף' ? `<a class="btn ghost" href="#labels/${o.id}">מדבקות</a><a class="btn ghost" href="#manifest/${o.id}">דף משלוח</a>` : ''}
     </div>
   </section>`;
@@ -441,7 +440,6 @@ function sideHtml(ctx) {
   return `<section class="card"><div class="card-head"><h3>סיכום</h3></div><div id="sumBox">${summaryHtml(ctx)}</div></section>
     <section class="card"><div class="card-head"><h3>איש קשר</h3><button class="link-btn" data-opensec="customer">עריכה</button></div><div id="contactBox">${contactHtml(ctx)}</div>
       ${sales ? `<div class="divider"></div><div class="row spread"><span class="small muted">${o.last_contact_at ? 'דיברנו ' + ago(o.last_contact_at) : 'עוד לא דיברנו'}</span><button class="btn sm" id="contacted">✓ דיברתי איתו עכשיו</button></div>` : ''}
-      ${o.followup_draft ? `<div class="divider"></div><div class="small muted">טיוטת הודעה</div><p class="small" style="white-space:pre-wrap;margin:4px 0 8px">${esc(o.followup_draft)}</p><a class="btn sm wa" target="_blank" rel="noopener" href="${waLink(ctx.c.phone, o.followup_draft)}">שליחת הטיוטה</a>` : ''}
     </section>
     <section class="card"><div class="card-head"><h3>הערות קבועות</h3></div>
       <label class="field"><textarea data-save="orders:${o.id}:notes" rows="4" placeholder="מה חשוב לזכור על הלקוח הזה (למשל: הקלטות של החתונה, רגיש)">${esc(o.notes || '')}</textarea></label></section>`;
@@ -450,13 +448,10 @@ function sideHtml(ctx) {
 const HIST_SHOW = 6; // latest events shown before "show all"
 const HIST_F = [['', 'הכל'], ['note', 'הערות'], ['stage', 'שלבים'], ['contact', 'שיחות'], ['payment', 'תשלומים']];
 function historyHtml(ctx) {
-  const { o, c } = ctx, tpls = S.templates.filter(t => t.active);
+  const { o } = ctx;
   return `<section class="card composer">
-      <div class="ctabs" role="tablist"><button class="on" data-ctab="note" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16v12l-4 4H4z"/><path d="M8 9h8M8 13h5"/></svg>הערה</button>
-        <button data-ctab="wa" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>הודעת וואטסאפ</button></div>
+      <div class="ctabs" role="tablist"><button class="on" data-ctab="note" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16v12l-4 4H4z"/><path d="M8 9h8M8 13h5"/></svg>הערה</button></div>
       <div class="cbody" data-cbody="note"><form id="noteForm" class="stack" style="gap:8px"><textarea name="t" rows="2" placeholder="מה קרה? (שיחה, עדכון, מה הלקוח אמר…)" required></textarea><div class="row" style="justify-content:flex-end"><button class="btn primary sm">שמירת הערה</button></div></form></div>
-      <div class="cbody hidden" data-cbody="wa"><div class="row">${tpls.map(t => `<button class="btn sm" data-ctpl="${t.id}">${esc(t.name)}</button>`).join('')}<button class="btn sm ghost" data-ctpl="">הודעה ריקה</button></div>
-        <p class="tiny muted" style="margin-top:8px">נפתח בוואטסאפ עם השם, הסכום והקישורים של ${esc(firstName(c.full_name) || 'הלקוח')}.</p></div>
     </section>
     <div><div class="hist-head"><h3>היסטוריה</h3><div class="pills" role="group" aria-label="סינון היסטוריה">${HIST_F.map(([k, l]) => `<button class="${k ? '' : 'on'}" data-hf="${k}">${l}${k ? '' : ` <span class="n">${ctx.events.length}</span>`}</button>`).join('')}</div></div>
       <ul class="timeline ${ctx.events.length > HIST_SHOW ? 'clipped' : ''}" id="tl">${ctx.events.map((ev, i) => { const [ic, cls] = EV_IC[ev.kind] || EV_IC.note, note = ev.kind === 'note';
@@ -511,15 +506,11 @@ async function runCheck(ctx, k) {
   if (k.act.startsWith('ms:')) { await patchOrder(o, { [k.act.slice(3)]: new Date().toISOString() }, 'נרשם: ' + k.label); return reloadDeal(ctx); }
 }
 async function genItems(ctx) { const { data, error } = await sb.rpc('generate_items', { p_order: ctx.o.id }); fail(error); toast(data ? `נוצרו ${data} ברקודים` : 'אין ברקודים חדשים ליצירה'); SEC_OPEN[ctx.o.id].add('items'); reloadDeal(ctx); }
-async function openTemplate(ctx, t) {
-  const o = ctx.o;
-  window.open(waLink(ctx.c.phone, t ? fillTemplate(t.body, o, ctx.c) : ''), '_blank', 'noopener');
-  // smart follow-ups: sending some messages *is* the step's checkmark
-  const stamp = { 'פתיחה ללידים': 'last_contact_at', 'פולואפ להצעה': 'last_contact_at', 'בקשת תשלום': 'last_contact_at', 'הקבצים מוכנים': 'delivery_sent_at', 'בקשת ביקורת': 'review_requested_at', 'בקשת סטורי': 'story_requested_at' }[t?.name];
-  if (!stamp || (stamp !== 'last_contact_at' && o[stamp])) return;
-  if (stamp === 'delivery_sent_at' && !await filesOkToSend(o)) return;
-  if (stamp === 'delivery_sent_at' && !o.delivery_link) return tell('אין עדיין קישור הורדה', 'ההודעה נפתחה, אבל כדי שהקישור ייכנס להודעה צריך קודם להדביק אותו בשדה "קישור הורדה ללקוח".');
-  await patchOrder(o, { [stamp]: new Date().toISOString() }, stamp === 'last_contact_at' ? 'נרשם שדיברנו עם הלקוח' : 'נרשם בצ\'קליסט');
+/** WhatsApp chat with the customer, no prepared text. In sales, opening it counts as contacting the lead. */
+async function openWa(ctx) {
+  window.open(waLink(ctx.c.phone), '_blank', 'noopener');
+  if (phaseOf(ctx.o.stage) !== 'sales') return;
+  await patchOrder(ctx.o, { last_contact_at: new Date().toISOString() }, 'נרשם שדיברנו עם הלקוח');
   reloadDeal(ctx);
 }
 function bindNext(ctx) {
@@ -529,7 +520,7 @@ function bindNext(ctx) {
   $('#advance') && ($('#advance').onclick = async () => { const nx = STEPS[stepIdx(ctx.o.stage) + 1]; if (nx && await changeStage(ctx.o, nx.key, ctx.c)) { delete SEC_OPEN[ctx.o.id]; reloadDeal(ctx); } });
   $('#fuEdit') && ($('#fuEdit').onclick = async () => { if (await setFollowup(ctx.o)) reloadDeal(ctx); });
   $('#toLost') && ($('#toLost').onclick = async () => { if (await changeStage(ctx.o, LOST, ctx.c)) reloadDeal(ctx); });
-  $$('#nextBox [data-tpl]').forEach(b => b.onclick = () => openTemplate(ctx, S.templates.find(t => String(t.id) === b.dataset.tpl)));
+  $('#waOpen') && ($('#waOpen').onclick = () => openWa(ctx));
   $('#sendQuote') && ($('#sendQuote').onclick = () => sendQuote(ctx));
   $$('#nextBox [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
   $$('#nextBox [data-unchk]').forEach(b => b.onclick = () => runUncheck(ctx, checks[b.dataset.unchk]));
@@ -555,18 +546,16 @@ function bindDeal(ctx) {
   $$('[data-opensec]').forEach(b => b.onclick = () => { const s = b.dataset.opensec, d = $(`[data-sec="${s}"]`); d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
   // composer tabs + history filter
   $$('[data-ctab]').forEach(b => b.onclick = () => { $$('[data-ctab]').forEach(x => x.classList.toggle('on', x === b)); $$('[data-cbody]').forEach(x => x.classList.toggle('hidden', x.dataset.cbody !== b.dataset.ctab)); });
-  $$('[data-ctpl]').forEach(b => b.onclick = () => b.dataset.ctpl ? openTemplate(ctx, S.templates.find(t => String(t.id) === b.dataset.ctpl)) : window.open(waLink(c.phone), '_blank', 'noopener'));
   const unclip = () => { $('#tl')?.classList.remove('clipped'); $('#histAll')?.remove(); };
   $('#histAll') && ($('#histAll').onclick = unclip);
   $$('[data-hf]').forEach(b => b.onclick = () => { $$('[data-hf]').forEach(x => x.classList.toggle('on', x === b)); const k = b.dataset.hf; if (k) unclip();
     $$('#tl li[data-kind]').forEach(li => li.classList.toggle('hidden', !!k && (k === 'stage' ? !['stage', 'followup'].includes(li.dataset.kind) : li.dataset.kind !== k))); });
   $('#revive') && ($('#revive').onclick = async () => { if (await changeStage(ctx.o, ctx.o.media_qty ? 'בפולואפ' : 'פנייה חדשה', c)) reloadDeal(ctx); });
-  $('#waBtn').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, [{ head: 'הודעה מוכנה (נפתחת בוואטסאפ עם הפרטים של הלקוח)' },
-    ...S.templates.filter(t => t.active).map(t => ({ label: t.name, sub: fillTemplate(t.body, ctx.o, c).slice(0, 80), run: () => openTemplate(ctx, t) })),
-    'sep', { label: 'הצעת המחיר', run: () => sendQuote(ctx) }, { label: 'הודעה ריקה', run: () => window.open(waLink(c.phone), '_blank', 'noopener') },
-    'sep', { label: 'SMS במקום וואטסאפ', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { if (await smsModal(ctx.o, ctx.o.followup_draft || '', c.phone)) reloadDeal(ctx); } }]); };
+  $('#waBtn').onclick = () => openWa(ctx);
   $('#trackBtn') && ($('#trackBtn').onclick = async () => { const u = trackUrl(ctx.o); await navigator.clipboard.writeText(u).catch(() => {}); toast('הקישור הועתק. מדביקים אותו בוואטסאפ ללקוח'); });
   $('#moreBtn').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, [
+    { label: 'שליחת הצעת המחיר בוואטסאפ', run: () => sendQuote(ctx) },
+    { label: 'SMS', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { if (await smsModal(ctx.o, '', c.phone)) reloadDeal(ctx); } }, 'sep',
     { label: 'הדפסת הצעת מחיר (PDF)', run: () => go('quote/' + o.id) }, { label: 'הדפסת מדבקות ברקוד', run: () => go('labels/' + o.id) }, { label: 'הדפסת דף משלוח', run: () => go('manifest/' + o.id) },
     'sep', ctx.o.stage === LOST ? { label: 'להחזיר לטיפול', run: () => $('#revive').click() } : { label: 'סימון כלא רלוונטי', run: async () => { if (await changeStage(ctx.o, LOST, c)) reloadDeal(ctx); } },
     ...(isAdmin() ? [{ label: 'מחיקת ההזמנה', danger: true, run: () => deleteOrder(o) }] : [])]); };

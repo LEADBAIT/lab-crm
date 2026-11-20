@@ -7,25 +7,25 @@ const FILES_CHECK = { label: 'בדיקת קבצים: לכל ברקוד יש קו
 const STEPS = [
   { key: 'פנייה חדשה', short: 'פנייה', phase: 'sales', date: o => o.created_at,
     title: 'ליצור קשר עם הלקוח', todo: 'להתקשר או לשלוח וואטסאפ, להבין מה יש לו (כמה קלטות/דיסקים, מאיזה סוג) ומה הוא צריך.',
-    tpl: 'פתיחה ללידים', btn: 'פניתי ללקוח', open: ['customer', 'sale'],
+    wa: true, btn: 'פניתי ללקוח', open: ['customer', 'sale'],
     checks: [{ label: 'יצרנו קשר', done: o => !!o.last_contact_at, at: o => o.last_contact_at, act: 'contact' }] },
   { key: 'בשיחה', short: 'שיחה', phase: 'sales',
     title: 'להשיג את הלקוח', todo: 'פנינו ועוד לא דיברנו. מנסים שוב במועד הפולו-אפ. אחרי 4 ניסיונות בלי מענה הליד נסגר לבד כ"לא עונה".',
-    tpl: 'פתיחה ללידים', btn: 'דיברנו, ממשיכים לפולו-אפ', open: ['customer', 'sale'],
+    wa: true, btn: 'דיברנו, ממשיכים לפולו-אפ', open: ['customer', 'sale'],
     checks: [{ label: 'יצרנו קשר', done: o => !!o.last_contact_at, at: o => o.last_contact_at, act: 'contact' }] },
   { key: 'בפולואפ', short: 'פולואפ', phase: 'sales',
     title: 'לקדם להצעת מחיר', todo: 'דיברנו, ומשהו צריך לקרות עד מועד הפולו-אפ (תמונות של החומרה, הלקוח חושב). ממלאים כמויות ושולחים הצעה.',
-    tpl: 'פולואפ אחרי שיחה', btn: 'שלחתי הצעת מחיר', open: ['quote', 'customer'],
+    wa: true, btn: 'שלחתי הצעת מחיר', open: ['quote', 'customer'],
     need: o => o.media_qty ? [] : ['כמויות בהצעת המחיר'],
     checks: [{ label: 'מילאנו כמויות בהצעת המחיר', done: o => o.media_qty > 0, act: 'open:quote' },
       { label: 'קיבלנו תמונות של החומרה (לא חובה)', done: o => !!o.drive_folder_url, act: 'open:delivery' }] },
   { key: 'הצעה נשלחה', short: 'הצעה', phase: 'sales',
     title: 'לסגור ולקבל תשלום', todo: 'לעשות פולואפ עד שהלקוח משלם. לפני התשלום משלימים פרטים לחשבונית ולאיסוף.',
-    tpl: 'פולואפ להצעה', tpl2: 'בקשת תשלום', btn: 'הלקוח שילם', pay: true, open: ['customer', 'quote'],
+    wa: true, btn: 'הלקוח שילם', pay: true, open: ['customer', 'quote'],
     checks: [{ label: 'פרטים לחשבונית ולאיסוף מלאים', done: (o, c) => !missingForPaid(o, c).length, act: 'open:customer' }] },
   { key: 'לתאם איסוף', short: 'איסוף', phase: 'ops', date: o => o.paid_at,
     title: 'לתאם איסוף עם שליח', todo: 'לבחור מעבדה, להזמין שליח ולקבוע תאריך. אחר כך לשלוח ללקוח אישור איסוף ולהדפיס מדבקות ודף משלוח.',
-    tpl: 'אישור איסוף', btn: 'השליח אסף את החומרה', set: ['picked_up_at'], open: ['shipping', 'items'],
+    wa: true, btn: 'השליח אסף את החומרה', set: ['picked_up_at'], open: ['shipping', 'items'],
     fields: ['lab_id', 'courier', 'pickup_date', 'pickup_tracking'],
     need: o => [!o.lab_id && 'מעבדה', !o.pickup_date && 'תאריך איסוף'].filter(Boolean),
     checks: [{ label: 'בחרנו מעבדה', done: o => !!o.lab_id },
@@ -38,7 +38,7 @@ const STEPS = [
     checks: [{ label: 'נאסף מהלקוח', done: o => !!o.picked_up_at, at: o => o.picked_up_at, act: 'ms:picked_up_at' }] },
   { key: 'במעבדה', short: 'מעבדה', phase: 'ops', date: o => o.lab_received_at,
     title: 'המעבדה ממירה', todo: 'כשההמרה מסתיימת: מדביקים את קישור הקבצים מהמעבדה ומחזירים את החומרה אלינו.',
-    tpl: 'החומרים במעבדה', btn: 'הקבצים והחומרה אצלנו', set: ['conversion_done_at', 'files_received_at', 'back_from_lab_at'], open: ['items'],
+    wa: true, btn: 'הקבצים והחומרה אצלנו', set: ['conversion_done_at', 'files_received_at', 'back_from_lab_at'], open: ['items'],
     fields: ['files_link_from_lab'],
     checks: [{ label: 'הגיע למעבדה', done: o => !!o.lab_received_at, at: o => o.lab_received_at, act: 'ms:lab_received_at' },
       { label: 'קליטה הסתיימה (כל הפריטים נספרו)', done: o => !!o.intake_done_at, at: o => o.intake_done_at, act: 'intake' },
@@ -48,7 +48,7 @@ const STEPS = [
       { label: 'החומרה חזרה אלינו', done: o => !!o.back_from_lab_at, at: o => o.back_from_lab_at, act: 'ms:back_from_lab_at' }] },
   { key: 'למסירה ללקוח', short: 'מסירה', phase: 'ops', date: o => o.back_from_lab_at,
     title: 'למסור ללקוח', todo: 'לשלוח ללקוח את קישור ההורדה, ולהחזיר לו את הקלטות המקוריות.',
-    tpl: 'הקבצים מוכנים', btn: 'הלקוח קיבל הכל, סיום', set: ['returned_at'], open: ['delivery'],
+    wa: true, btn: 'הלקוח קיבל הכל, סיום', set: ['returned_at'], open: ['delivery'],
     fields: ['delivery_link', 'return_method', 'return_tracking'],
     need: o => [!o.delivery_link && 'קישור הורדה ללקוח', !o.delivery_sent_at && 'לסמן שהקישור נשלח', !closingDone(o) && `ספירת סגירה (${o.items_packed}/${o.items_count} נסרקו "נארז להחזרה")`].filter(Boolean),
     checks: [FILES_CHECK, { label: 'קישור ההורדה נשלח ללקוח', done: o => !!o.delivery_sent_at, at: o => o.delivery_sent_at, act: 'ms:delivery_sent_at' },
@@ -57,7 +57,7 @@ const STEPS = [
       { label: 'הלקוח ויתר על החומרה (לא חוזרת אליו)', done: o => !!o.hardware_waived_at, at: o => o.hardware_waived_at, act: 'waive', show: o => !o.returned_at || !!o.hardware_waived_at }] },
   { key: 'הושלם', short: 'הושלם', phase: 'done', date: o => o.completed_at || o.returned_at,
     title: 'ההזמנה הסתיימה', todo: 'נשאר רק לבקש ביקורת בגוגל וסטורי, ולשלוח מתנה אם רוצים.',
-    tpl: 'בקשת ביקורת', tpl2: 'בקשת סטורי', open: ['after'],
+    wa: true, open: ['after'],
     checks: [{ label: 'ביקשנו ביקורת בגוגל', done: o => !!o.review_requested_at, at: o => o.review_requested_at, act: 'ms:review_requested_at' },
       { label: 'ביקשנו סטורי', done: o => !!o.story_requested_at, at: o => o.story_requested_at, act: 'ms:story_requested_at' }] },
 ];
@@ -122,10 +122,8 @@ function fuLabel(o) {
   if (!o.next_followup) return '';
   return until(o.next_followup) + (o.next_followup_time ? ' ' + fuTime(o.next_followup_time) : '');
 }
-/** Dialog for the next follow-up: date (quick buttons), optional hour, why, and the message to send. Returns the patch or null. */
+/** Dialog for the next follow-up: call or message, date (quick buttons), optional hour, and why. Returns the patch or null. */
 async function followupModal(o, { stage = o.stage, title } = {}) {
-  const tplName = stepOf(stage)?.tpl, tpl = tplName && tplByName(tplName);
-  const draft = o.followup_draft || (tpl ? fillTemplate(tpl.body, o, null) : '');
   // in "בשיחה" rescheduling counts as one more attempt; the 4th closes the lead (database trigger)
   const resched = stage === o.stage && o.stage === 'בשיחה' && o.next_followup;
   const next = resched ? (o.followup_attempts || 1) + 1 : 1;
@@ -137,14 +135,13 @@ async function followupModal(o, { stage = o.stage, title } = {}) {
     <div class="row nowrap"><label class="field grow">תאריך <span class="req">*</span><input type="date" name="d" required value="${esc(o.next_followup && o.next_followup >= today() ? o.next_followup : '')}" min="${today()}"></label>
       <label class="field">שעה (לא חובה)<input type="time" name="t" value="${esc(fuTime(o.next_followup_time))}"></label></div>
     <label class="field">למה חוזרים<input name="n" value="${esc(o.followup_note || '')}" placeholder="למשל: שולח תמונות של הקלטות"></label>
-    <label class="field ${ch === 'call' ? 'hidden' : ''}" id="fuMsg">הודעה מוכנה לשליחה<textarea name="m" rows="4">${esc(draft)}</textarea><span class="hint">נפתחת בכפתור הוואטסאפ בשורה של הליד.</span></label>
     <div class="actions"><button class="btn primary">שמירה</button><button type="button" class="btn" id="fuNo">ביטול</button></div></form>`);
   return new Promise(res => {
     $$('[data-ch]', p).forEach(b => b.onclick = () => { $$('[data-ch]', p).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
-      $('[name=ch]', p).value = b.dataset.ch; $('#fuMsg', p).classList.toggle('hidden', b.dataset.ch === 'call'); });
+      $('[name=ch]', p).value = b.dataset.ch; });
     $$('[data-fq]', p).forEach(b => b.onclick = () => { $('[name=d]', p).value = addDays(Number(b.dataset.fq)); });
     $('#fuF', p).onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); closeModal();
-      res({ next_followup: f.d, next_followup_time: f.t || null, followup_channel: f.ch, followup_note: f.n.trim() || null, followup_draft: f.m.trim() || null }); };
+      res({ next_followup: f.d, next_followup_time: f.t || null, followup_channel: f.ch, followup_note: f.n.trim() || null }); };
     $('#fuNo', p).onclick = () => { closeModal(); res(null); };
     $('#modal').addEventListener('cancel', () => res(null), { once: true });
     setTimeout(() => $('[data-fq]', p)?.focus(), 30);
@@ -192,7 +189,7 @@ async function changeStage(o, to, c) {
   }
   // every follow-up stage needs a next step: ask for it as part of the move
   if (FU_STAGES.includes(to)) {
-    const fu = await followupModal({ ...o, followup_draft: null }, { stage: to, title: `עובר ל"${to}": מתי חוזרים ללקוח?` });
+    const fu = await followupModal(o, { stage: to, title: `עובר ל"${to}": מתי חוזרים ללקוח?` });
     if (!fu) return false;
     Object.assign(patch, fu);
   }
@@ -249,11 +246,6 @@ async function bulkPatch(rows, patch, msg) {
 }
 
 // ---------- messages ----------
-const tplByName = n => S.templates.find(t => t.active && t.name === n);
-function fillTemplate(body, o, c) {
-  const map = { 'שם': firstName(c?.full_name || o.full_name), 'הזמנה': o.id, 'סכום': money(o.total), 'קישור': o.delivery_link || '', 'מעקב': trackUrl(o), 'תאריך איסוף': o.pickup_date ? fmtDate(o.pickup_date) : '', 'ימי קישור': setting('drive_link_days') || 60 };
-  return body.replace(/\{([^}]+)\}/g, (m, k) => map[k] ?? m);
-}
 function quoteText(o, c, lines) {
   const L = [`שלום ${firstName(c.full_name)}, הנה הצעת המחיר מהמעבדה להמרת קלטות ודיסקים (הזמנה ${o.id}):`, ''];
   lines.forEach(l => { const p = S.products.find(x => x.id === l.product_id); if (!p || !l.qty) return; L.push(`• ${l.qty} × ${p.name}: ${money(l.qty * (l.unit_price ?? p.unit_price))}`); });
