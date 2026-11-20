@@ -42,21 +42,25 @@ const STEPS = [
       { label: 'קליטה הסתיימה (כל הפריטים נספרו)', done: o => !!o.intake_done_at, at: o => o.intake_done_at, act: 'intake' },
       { label: 'ההמרה הסתיימה', done: o => !!o.conversion_done_at, at: o => o.conversion_done_at, act: 'ms:conversion_done_at' },
       { label: 'הקבצים התקבלו מהמעבדה', done: o => !!o.files_received_at, at: o => o.files_received_at, act: 'ms:files_received_at' },
+      FILES_CHECK,
       { label: 'החומרה חזרה אלינו', done: o => !!o.back_from_lab_at, at: o => o.back_from_lab_at, act: 'ms:back_from_lab_at' }] },
   { key: 'למסירה ללקוח', short: 'מסירה', phase: 'ops', date: o => o.back_from_lab_at,
     title: 'למסור ללקוח', todo: 'לשלוח ללקוח את קישור ההורדה, ולהחזיר לו את הקלטות המקוריות.',
     tpl: 'הקבצים מוכנים', btn: 'הלקוח קיבל הכל, סיום', set: ['returned_at'], open: ['delivery'],
     fields: ['delivery_link', 'return_method', 'return_tracking'],
     need: o => [!o.delivery_link && 'קישור הורדה ללקוח', !o.delivery_sent_at && 'לסמן שהקישור נשלח', !closingDone(o) && `ספירת סגירה (${o.items_packed}/${o.items_count} נסרקו "נארז להחזרה")`].filter(Boolean),
-    checks: [{ label: 'קישור ההורדה נשלח ללקוח', done: o => !!o.delivery_sent_at, at: o => o.delivery_sent_at, act: 'ms:delivery_sent_at' },
-      { label: 'ספירת סגירה: כל פריט נסרק "נארז להחזרה"', done: closingDone, act: 'closing', show: o => o.items_count > 0 && !o.returned_at },
-      { label: 'החומרה הוחזרה ללקוח', done: o => !!o.returned_at, at: o => o.returned_at, act: 'ms:returned_at' }] },
+    checks: [FILES_CHECK, { label: 'קישור ההורדה נשלח ללקוח', done: o => !!o.delivery_sent_at, at: o => o.delivery_sent_at, act: 'ms:delivery_sent_at' },
+      { label: 'ספירת סגירה: כל פריט נסרק "נארז להחזרה"', done: closingDone, act: 'closing', show: o => o.items_count > 0 && !o.returned_at && !o.hardware_waived_at },
+      { label: 'החומרה הוחזרה ללקוח', done: o => !!o.returned_at, at: o => o.returned_at, act: 'ms:returned_at', show: o => !o.hardware_waived_at },
+      { label: 'הלקוח ויתר על החומרה (לא חוזרת אליו)', done: o => !!o.hardware_waived_at, at: o => o.hardware_waived_at, act: 'waive', show: o => !o.returned_at || !!o.hardware_waived_at }] },
   { key: 'הושלם', short: 'הושלם', phase: 'done', date: o => o.completed_at || o.returned_at,
     title: 'ההזמנה הסתיימה', todo: 'נשאר רק לבקש ביקורת בגוגל וסטורי, ולשלוח מתנה אם רוצים.',
     tpl: 'בקשת ביקורת', tpl2: 'בקשת סטורי', open: ['after'],
     checks: [{ label: 'ביקשנו ביקורת בגוגל', done: o => !!o.review_requested_at, at: o => o.review_requested_at, act: 'ms:review_requested_at' },
       { label: 'ביקשנו סטורי', done: o => !!o.story_requested_at, at: o => o.story_requested_at, act: 'ms:story_requested_at' }] },
 ];
+/** file check: every barcode that should have a file has one (file name = barcode) */
+const FILES_CHECK = { label: 'בדיקת קבצים: לכל ברקוד יש קובץ', done: o => !!o.files_checked_at && !o.files_missing, at: o => o.files_checked_at, act: 'files', show: o => o.items_count > 0 };
 /** closing count: every barcode scanned "נארז להחזרה" (or closed otherwise) before the hardware leaves */
 function closingDone(o) { return !o.items_count || !!o.returned_at || o.items_packed >= o.items_count; }
 const stepIdx = k => STEPS.findIndex(s => s.key === k);

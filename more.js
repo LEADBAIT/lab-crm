@@ -116,6 +116,11 @@ const SENTENCES = {
   stage_days_convert: ['המרה במעבדה עד', 'ימים מהקליטה', 'בהזמנה רגילה. באקספרס חל היעד של האקספרס.'],
   stage_days_return: ['החומרה חוזרת מהמעבדה עד', 'ימים אחרי ההמרה', ''],
   stage_days_delivery: ['מסירה ללקוח עד', 'ימים מחזרת החומרה', ''],
+  uncollected_remind_days: ['חומרה שלא נאספה: תזכורת ללקוח אחרי', 'ימים מששלחנו את הקבצים', ''],
+  storage_fee_days: ['הודעה על דמי אחסון אחרי', 'ימים', 'צריך שיהיה כתוב גם בתקנון.'],
+  destroy_days: ['הודעה אחרונה לפני השמדה אחרי', 'ימים', ''],
+  destroy_notice_days: ['השמדה', 'ימים אחרי ההודעה האחרונה', ''],
+  waived_keep_days: ['חומרה שהלקוח ויתר עליה נשמרת', 'ימים ואז מושמדת', ''],
   drive_link_days: ['קישור ההורדה נשמר', 'ימים ואז נמחק', 'שבוע לפני המחיקה מופיעה משימה להזכיר ללקוח.'],
   min_order: ['מינימום הזמנה:', '₪', 'הזמנה קטנה יותר מחויבת בסכום הזה.'],
   vat_percent: ['מע"מ:', '%', 'המחירים במחירון כוללים מע"מ. משמש רק להצגת "לפני מע"מ".'],
@@ -154,6 +159,7 @@ VIEWS.settings = async function vSettings(tab) {
       </tbody></table></div><div style="padding:0 16px 14px"><button class="btn sm" id="addCp">+ קופון</button></div></section>`;
   if (tab === 'process') body = `<section class="card"><h3 style="margin-bottom:6px">תזכורות ויעדים</h3>${['sla_target_days', 'sla_max_days', 'express_biz_days', 'drive_link_days'].map(sentence).join('')}</section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">זמן מקסימלי לכל שלב</h3><p class="small muted" style="margin-bottom:8px">הזמנה שעוברת את הזמן של השלב שלה נצבעת ומופיעה ב"היום" עם הסיבה.</p>${['stage_days_pickup', 'stage_days_transit', 'stage_days_intake', 'stage_days_convert', 'stage_days_return', 'stage_days_delivery'].map(sentence).join('')}</section>
+    <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">חומרה שנשארת אצלנו</h3><p class="small muted" style="margin-bottom:8px">כל שלב מופיע כמשימה בלשונית "בעבודה", עם הודעת וואטסאפ מוכנה.</p>${['uncollected_remind_days', 'storage_fee_days', 'destroy_days', 'destroy_notice_days', 'waived_keep_days'].map(sentence).join('')}</section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">תקנון בהצעת המחיר</h3><label class="field"><textarea data-save="settings:terms:text_value" rows="6">${esc(S.settings.terms?.text_value || '')}</textarea><span class="hint">מופיע בסוף כל הצעת מחיר. התשלום של הלקוח נחשב הסכמה לטקסט הזה.</span></label></section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">כתובת האתר</h3><label class="field"><input dir="ltr" data-save="settings:public_url:text_value" value="${esc(S.settings.public_url?.text_value || '')}"><span class="hint">משמשת לקישור המעקב שהלקוח מקבל. לא משנים אלא אם האתר עובר כתובת.</span></label></section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">שלבי העבודה</h3><p class="small muted">8 השלבים קבועים, כדי שכולם יעבדו באותו תהליך: ${STEPS.map(s => esc(s.key)).join(' ← ')}. בנוסף: ${LOST}.</p></section>`;

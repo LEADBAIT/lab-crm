@@ -11,15 +11,41 @@ const TASK_TYPES = [
     why: o => `שילם ${ago(o.paid_at)}, צריך ${o.lab_id ? '' : 'לבחור מעבדה ו'}להזמין שליח`, urg: o => daysSince(o.paid_at) >= 2 ? 0 : 1, act: { label: 'תיאום איסוף', open: true } },
   { k: 'pickday', name: 'איסוף היום', test: o => o.stage === 'לתאם איסוף' && o.pickup_date && o.pickup_date <= today(),
     why: o => `השליח ${o.pickup_date < today() ? 'היה אמור להגיע ' + until(o.pickup_date) : 'מגיע היום'}${o.courier ? ' (' + o.courier + ')' : ''}. לסמן כשאסף`, urg: o => o.pickup_date < today() ? 0 : 1, act: { label: 'השליח אסף', advance: true } },
-  { k: 'mismatch', name: 'פער בספירה', test: o => o.flag_count_mismatch,
+  { k: 'mismatch', name: 'פער בספירה', test: o => o.flag_count_mismatch && o.phase === 'ops',
     why: o => `הלקוח הצהיר על ${o.media_qty} פריטים, במעבדה נקלטו ${o.items_at_lab_or_later}`, urg: () => 0, act: { label: 'בדיקה', open: true } },
-  { k: 'deliver', name: 'למסור ללקוח', test: o => (o.files_received_at || o.stage === 'למסירה ללקוח') && !o.delivery_sent_at,
+  { k: 'deliver', name: 'למסור ללקוח', test: o => o.phase === 'ops' && (o.files_received_at || o.stage === 'למסירה ללקוח') && !o.delivery_sent_at,
     why: o => o.delivery_link ? 'הקבצים מוכנים והקישור מוכן. לשלוח ללקוח' : 'הקבצים מוכנים. צריך להדביק קישור הורדה ולשלוח', urg: () => 1, act: { label: 'שליחת הקבצים', open: true } },
   { k: 'late', name: 'באיחור', test: o => o.flag_sla,
     why: o => `${o.sla_reason} · ${o.stage}${o.lab_name ? ' · ' + o.lab_name : ''}`, urg: o => o.flag_sla === 'red' ? 0 : 1, act: { label: 'פתיחה', open: true } },
   { k: 'expiring', name: 'קישור עומד להימחק', test: o => o.delivery_link_expires && o.delivery_link_expires >= today() && o.delivery_link_expires <= addDays(7),
     why: o => `קישור ההורדה יימחק ${until(o.delivery_link_expires)}. כדאי להזכיר ללקוח להוריד`, urg: () => 2, act: { label: 'תזכורת להורדה', tpl: 'הקבצים מוכנים' } },
+  // retention: hardware that was never collected, waived hardware, and the files after the link expires
+  { k: 'destroy', name: 'להשמיד חומרה', test: o => !o.destroyed_at && ((o.destroy_notice_at && daysSince(o.destroy_notice_at) >= (setting('destroy_notice_days') ?? 14))
+      || (o.hardware_waived_at && daysSince(o.hardware_waived_at) >= (setting('waived_keep_days') ?? 30))),
+    why: o => o.hardware_waived_at ? `הלקוח ויתר על החומרה לפני ${daysSince(o.hardware_waived_at)} ימים. משמידים ומסמנים` : `נשלחה הודעה אחרונה לפני ${daysSince(o.destroy_notice_at)} ימים והלקוח לא אסף. משמידים ומסמנים`,
+    urg: () => 1, act: { label: 'החומרה הושמדה', destroy: true } },
+  { k: 'uncollected', name: 'חומרה לא נאספה', test: o => !!hwWaitStep(o),
+    why: o => { const d = daysSince(o.delivery_sent_at); return { remind: `החומרה מחכה ${d} ימים מאז שהקבצים נשלחו. להזכיר ללקוח לאסוף`, fee: `החומרה מחכה ${d} ימים. להודיע ללקוח על דמי אחסון`, notice: `החומרה מחכה ${d} ימים. הודעה אחרונה: אם לא תיאסף תוך ${setting('destroy_notice_days') ?? 14} יום היא תושמד` }[hwWaitStep(o)]; },
+    urg: o => hwWaitStep(o) === 'notice' ? 0 : 1, act: { label: 'שלחתי ללקוח', hwStamp: true } },
+  { k: 'linkdel', name: 'למחוק קבצים', test: o => o.delivery_link_expires && o.delivery_link_expires < today() && !o.files_deleted_at,
+    why: o => `קישור ההורדה פג ${until(o.delivery_link_expires)}. מוחקים את התיקייה בדרייב ומסמנים`, urg: () => 2, act: { label: 'התיקייה נמחקה', stamp: 'files_deleted_at' } },
 ];
+/** hardware back from the lab, files sent, still with us: which reminder is due ('remind' | 'fee' | 'notice' | '') */
+function hwWaitStep(o) {
+  if (!o.back_from_lab_at || !o.delivery_sent_at || o.returned_at || o.hardware_waived_at || o.destroyed_at || o.destroy_notice_at) return '';
+  const d = daysSince(o.delivery_sent_at);
+  if (d >= (setting('destroy_days') ?? 90)) return 'notice';
+  if (d >= (setting('storage_fee_days') ?? 30) && !o.storage_fee_at) return 'fee';
+  if (d >= (setting('uncollected_remind_days') ?? 7) && !o.uncollected_reminded_at) return 'remind';
+  return '';
+}
+const HW_STAMP = { remind: 'uncollected_reminded_at', fee: 'storage_fee_at', notice: 'destroy_notice_at' };
+function hwMessage(o, st) {
+  const n = firstName(o.full_name), d = daysSince(o.delivery_sent_at);
+  return { remind: `שלום ${n}, החומרה המקורית של הזמנה ${o.id} (הקלטות והדיסקים) מחכה לך אצלנו. מתי נוח לך שנתאם החזרה?`,
+    fee: `שלום ${n}, החומרה של הזמנה ${o.id} נמצאת אצלנו כבר ${d} ימים. מעכשיו חלים דמי אחסון. נשמח לתאם החזרה בהקדם.`,
+    notice: `שלום ${n}, תזכורת אחרונה: החומרה של הזמנה ${o.id} מחכה אצלנו ${d} ימים. אם לא נתאם החזרה תוך ${setting('destroy_notice_days') ?? 14} יום, החומרה תושמד.` }[st] || '';
+}
 const doneKey = () => 'qdone.' + today();
 const doneCount = () => Number(lsGet(doneKey()) || 0);
 const bumpDone = () => lsSet(doneKey(), doneCount() + 1);
@@ -31,7 +57,7 @@ function buildTasks(rows) {
 }
 
 VIEWS.queue = async function vQueue() {
-  const rows = await getOrders(q => q.not('stage', 'in', `("הושלם","${LOST}")`));
+  const rows = await getOrders(q => q.neq('stage', LOST));
   const tasks = buildTasks(rows);
   setBadge(tasks.length);
   const filter = sessionStorage.getItem('qFilter') || '';
@@ -92,6 +118,9 @@ async function runTask(x, btn) {
     } else if (a.contact) await markContacted(o);
     else if (a.cash) await patchOrder(o, { payment_status: 'שולם' }, 'נרשם שהמזומן הגיע', { extra: ['cash_received_at'] });
     else if (a.advance) { const nx = STEPS[stepIdx(o.stage) + 1]; if (!await changeStage(o, nx.key)) { btn.disabled = false; return; } }
+    else if (a.stamp) await patchOrder(o, { [a.stamp]: new Date().toISOString() }, 'נרשם: ' + t.name);
+    else if (a.hwStamp) { const st = hwWaitStep(o); window.open(waLink(o.phone, hwMessage(o, st)), '_blank', 'noopener'); await patchOrder(o, { [HW_STAMP[st]]: new Date().toISOString() }, 'נרשם שההודעה נשלחה'); }
+    else if (a.destroy) { if (!await destroyHardware(o)) { btn.disabled = false; return; } }
   } catch { btn.disabled = false; return; }
   bumpDone();
   btn.closest('.task').classList.add('done-anim');

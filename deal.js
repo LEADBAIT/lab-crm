@@ -172,9 +172,12 @@ function checkHtml(ctx, k, j) {
     : k.act === 'cash' ? `<button class="btn sm" data-chk="${j}">הכסף הגיע</button>`
     : k.act === 'intake' ? `<button class="btn sm" data-chk="${j}">סיום קליטה</button>`
     : k.act === 'closing' ? `<button class="btn sm" data-chk="${j}">לסריקה</button>`
+    : k.act === 'files' ? `<button class="btn sm" data-chk="${j}">בדיקת קבצים</button>`
+    : k.act === 'waive' ? `<button class="btn sm ghost" data-chk="${j}">הלקוח ויתר</button>`
     : `<button class="btn sm" data-chk="${j}">סימון ✓</button>`;
-  return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
-    ${act}${ok && ms ? `<button class="link-btn" data-msedit="${ms}">שינוי תאריך</button>` : ''}
+  const missNote = k.act === 'files' && ctx.o.files_missing ? ` <span class="chip red">חסרים ${ctx.o.files_missing} קבצים</span>` : '';
+  return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${missNote}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
+    ${act}${ok && ms ? `<button class="link-btn" data-msedit="${ms}">שינוי תאריך</button>` : ''}${ok && k.act === 'files' ? `<button class="link-btn" data-chk="${j}">בדיקה שוב</button>` : ''}
     ${ok && canUncheck(k) ? `<button class="link-btn" data-unchk="${j}">ביטול סימון</button>` : ''}</li>`;
 }
 // checks that are a stamp we set (not something derived, like "a lab was chosen") can be un-checked
@@ -217,6 +220,70 @@ const SEC_BODY = {
       ${ro('פלטפורמה', ctx.o.meta_platform === 'ig' ? 'אינסטגרם' : ctx.o.meta_platform === 'fb' ? 'פייסבוק' : ctx.o.meta_platform)}${ro('קמפיין', ctx.o.meta_campaign)}${ro('סט מודעות', ctx.o.meta_adset)}${ro('מודעה', ctx.o.meta_ad)}${ro('מילא את הטופס', fmtDT(ctx.o.meta_created_at))}</div>` : ''}`,
   after: ctx => `<ul class="checklist">${STEP_DONE().checks.map((k, j) => checkHtml(ctx, k, 'a' + j)).join('')}</ul><div class="fields">${fld(ctx, 'gift_sent')}</div><div style="margin-top:12px">${tog(ctx, 'story_posted')}</div>`,
 };
+
+// ---------- file check: file name = barcode ----------
+const NO_CHARGE = ['ריק', 'תוכן לא משפחתי', 'לא ניתן להמרה'];
+/** Compare file names to the order's barcodes. A file belongs to 1002-03 if its name starts with 1002-03 and no digit follows (1002-03.mp4, 1002-03_b.mp4). */
+function matchFiles(items, names) {
+  const want = items.filter(i => !NO_CHARGE.includes(i.outcome) && !NO_CHARGE.includes(i.status)).map(i => i.id);
+  const base = names.map(n => n.split(/[\\/]/).pop().trim()).filter(n => n && !n.startsWith('.'));
+  const hit = id => base.some(n => n.toLowerCase().startsWith(id.toLowerCase()) && !/\d/.test(n.charAt(id.length)));
+  const missing = want.filter(id => !hit(id));
+  const extra = base.filter(n => !items.some(i => n.toLowerCase().startsWith(i.id.toLowerCase()) && !/\d/.test(n.charAt(i.id.length))));
+  return { want, missing, extra, files: base.length };
+}
+async function filesCheck(ctx) {
+  const { o, items } = ctx;
+  const p = modal(`<h2>בדיקת קבצים · הזמנה ${o.id}</h2>
+    <p class="small muted">שם כל קובץ צריך להיות הברקוד (למשל ${esc(items[0]?.id || '1001-01')}.mp4). פריטים שסומנו ריק, תוכן לא משפחתי או לא ניתן להמרה לא צריכים קובץ.</p>
+    <div class="grid"><label class="field">בחירת התיקייה מהמחשב (הקבצים לא עולים לשום מקום, נקראים רק השמות)<input type="file" id="fcDir" webkitdirectory multiple></label>
+      <label class="field">או הדבקת רשימת שמות הקבצים, שורה לכל קובץ<textarea id="fcList" rows="5" dir="ltr" placeholder="1001-01.mp4&#10;1001-02.mp4"></textarea></label>
+      <div id="fcRes"></div>
+      <div class="actions"><button class="btn primary" id="fcSave" disabled>שמירת הבדיקה</button><button class="btn" id="fcNo">ביטול</button></div></div>`, { wide: true });
+  let names = [], res = null;
+  const show = () => {
+    res = matchFiles(items, names);
+    $('#fcRes', p).innerHTML = !res.files ? '' : `<div class="row"><span class="chip">${res.files} קבצים</span><span class="chip">${res.want.length} ברקודים שצריכים קובץ</span>
+      ${res.missing.length ? `<span class="chip red">חסרים ${res.missing.length}</span>` : '<span class="chip green">לכל ברקוד יש קובץ ✓</span>'}${res.extra.length ? `<span class="chip orange">${res.extra.length} קבצים בלי ברקוד</span>` : ''}</div>
+      ${res.missing.length ? `<p class="small" style="margin-top:8px"><b>ברקודים בלי קובץ:</b> ${res.missing.map(esc).join(', ')}</p>` : ''}
+      ${res.extra.length ? `<p class="small muted" style="margin-top:4px"><b>קבצים ששמם לא ברקוד של ההזמנה:</b> ${res.extra.slice(0, 15).map(esc).join(', ')}${res.extra.length > 15 ? '…' : ''}</p>` : ''}`;
+    $('#fcSave', p).disabled = !res.files;
+  };
+  $('#fcDir', p).onchange = e => { names = [...e.target.files].map(f => f.webkitRelativePath || f.name); $('#fcList', p).value = ''; show(); };
+  $('#fcList', p).oninput = e => { names = e.target.value.split(/\r?\n/); show(); };
+  return new Promise(resolve => {
+    $('#fcNo', p).onclick = () => { closeModal(); resolve(false); };
+    $('#modal').addEventListener('cancel', () => resolve(false), { once: true });
+    $('#fcSave', p).onclick = async () => {
+      closeModal();
+      await patchOrder(o, { files_checked_at: new Date().toISOString(), files_missing: res.missing.length }, res.missing.length ? `בדיקת קבצים: חסרים ${res.missing.length}` : 'בדיקת קבצים: הכל תקין');
+      resolve(true);
+    };
+  });
+}
+/** before the download link goes to the customer: the file check passed, or the user says to send anyway */
+async function filesOkToSend(o) {
+  if (!o.items_count || (o.files_checked_at && !o.files_missing)) return true;
+  return ask(o.files_checked_at ? `חסרים ${o.files_missing} קבצים` : 'עוד לא נבדקו הקבצים', o.files_checked_at ? 'בבדיקה האחרונה היו ברקודים בלי קובץ. לשלוח ללקוח בכל זאת?' : 'לא בדקנו שלכל ברקוד יש קובץ. לשלוח ללקוח בכל זאת?', { ok: 'לשלוח בכל זאת', cancel: 'קודם לבדוק' });
+}
+/** the customer doesn't want the hardware back: items "לא מוחזר", kept for waived_keep_days, then destroyed (a task in היום) */
+async function waiveHardware(ctx) {
+  const { o, items } = ctx, keep = setting('waived_keep_days') || 30;
+  if (!await ask('הלקוח ויתר על החומרה?', `החומרה לא תחזור אליו. נשמור אותה ${keep} יום ואז תופיע משימה להשמיד אותה.\nכדאי שיהיה אישור מהלקוח בוואטסאפ.`, { ok: 'כן, ויתר' })) return false;
+  const open = items.filter(i => !['הוחזר ללקוח', 'לא מוחזר', 'הושמד'].includes(i.status));
+  if (open.length) { const { error } = await sb.from('items').update({ status: 'לא מוחזר' }).in('id', open.map(i => i.id)); fail(error); }
+  const now = new Date().toISOString();
+  await patchOrder(o, { hardware_waived_at: now, returned_at: o.returned_at || now }, 'נרשם שהלקוח ויתר על החומרה');
+  return true;
+}
+/** destroy kept hardware: items "הושמד" + destroyed_at */
+async function destroyHardware(o) {
+  if (!await ask(`להשמיד את החומרה של הזמנה ${o.id}?`, 'מסמנים אחרי שהחומרה הושמדה בפועל. אי אפשר להחזיר אותה אחר כך.', { ok: 'הושמדה', danger: true })) return false;
+  const { error } = await sb.from('items').update({ status: 'הושמד' }).eq('order_id', o.id).not('status', 'in', '("הוחזר ללקוח","הושמד")'); fail(error);
+  const now = new Date().toISOString();
+  await patchOrder(o, { destroyed_at: now, returned_at: o.returned_at || now }, 'נרשם שהחומרה הושמדה');
+  return true;
+}
 
 // ---------- lab cost, profit, customer credit ----------
 /** what the order earns: paid − lab cost − money refunded (a gift's cost is not known, so it is not subtracted) */
@@ -432,6 +499,9 @@ async function runCheck(ctx, k) {
   if (k.act.startsWith('open:')) { const s = k.act.slice(5), d = $(`[data-sec="${s}"]`); d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   if (k.act === 'items') return genItems(ctx);
   if (k.act === 'closing') { sessionStorage.setItem('scanStatus', 'נארז להחזרה'); return go('scan'); }
+  if (k.act === 'files') { if (await filesCheck(ctx)) reloadDeal(ctx); return; }
+  if (k.act === 'waive') { if (await waiveHardware(ctx)) reloadDeal(ctx); return; }
+  if (k.act === 'ms:delivery_sent_at' && !await filesOkToSend(o)) return;
   if (k.act === 'cash') { await patchOrder(o, { payment_status: 'שולם' }, 'נרשם שהמזומן הגיע', { extra: ['cash_received_at'] }); return reloadDeal(ctx); }
   if (k.act === 'intake') {
     const miss = o.media_qty - o.items_at_lab_or_later;
@@ -447,6 +517,7 @@ async function openTemplate(ctx, t) {
   // smart follow-ups: sending some messages *is* the step's checkmark
   const stamp = { 'פתיחה ללידים': 'last_contact_at', 'פולואפ להצעה': 'last_contact_at', 'בקשת תשלום': 'last_contact_at', 'הקבצים מוכנים': 'delivery_sent_at', 'בקשת ביקורת': 'review_requested_at', 'בקשת סטורי': 'story_requested_at' }[t?.name];
   if (!stamp || (stamp !== 'last_contact_at' && o[stamp])) return;
+  if (stamp === 'delivery_sent_at' && !await filesOkToSend(o)) return;
   if (stamp === 'delivery_sent_at' && !o.delivery_link) return tell('אין עדיין קישור הורדה', 'ההודעה נפתחה, אבל כדי שהקישור ייכנס להודעה צריך קודם להדביק אותו בשדה "קישור הורדה ללקוח".');
   await patchOrder(o, { [stamp]: new Date().toISOString() }, stamp === 'last_contact_at' ? 'נרשם שדיברנו עם הלקוח' : 'נרשם בצ\'קליסט');
   reloadDeal(ctx);

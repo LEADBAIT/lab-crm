@@ -38,14 +38,14 @@ VIEWS.deals = async function vDeals(tab) {
   $('#flab') && ($('#flab').onchange = e => { F.lab = e.target.value; saveF(); draw(); });
   $('#furg').onchange = e => { F.urg = e.target.checked; e.target.closest('.fchip').classList.toggle('on', F.urg); saveF(); draw(); };
   $$('[data-tab]').forEach(b => b.onclick = () => go('deals/' + b.dataset.tab));
-  if (tab === 'ops') { const tasks = buildTasks(rows.filter(r => r._ph === 'ops')).filter(x => x.t.k !== 'new'); $$('[data-tact]').forEach(b => b.onclick = () => runTask(tasks.find(x => String(x.o.id) === b.dataset.tact), b)); }
+  if (tab === 'ops') { const tasks = buildTasks(rows.filter(r => r._ph === 'ops' || r._ph === 'done')).filter(x => x.t.k !== 'new'); $$('[data-tact]').forEach(b => b.onclick = () => runTask(tasks.find(x => String(x.o.id) === b.dataset.tact), b)); }
   $$('[data-mode]').forEach(b => b.onclick = () => { lsSet('dealsView', b.dataset.mode); VIEWS.deals(tab); });
   draw();
 };
 
 /** Operations tasks (cash at courier, pickup today, delivery, late, expiring links): one card above the work board. */
 function opsTasksHtml(rows) {
-  const tasks = buildTasks(rows.filter(r => r._ph === 'ops')).filter(x => x.t.k !== 'new');
+  const tasks = buildTasks(rows.filter(r => r._ph === 'ops' || r._ph === 'done')).filter(x => x.t.k !== 'new');
   if (!tasks.length) return '';
   return `<section class="card flush" style="margin-bottom:12px"><div class="card-head" style="padding:12px 16px 0"><h3>משימות תפעול</h3><span class="small muted">${tasks.length}</span></div>${tasks.map(taskHtml).join('')}</section>`;
 }
