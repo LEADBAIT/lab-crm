@@ -66,7 +66,7 @@ function renderDeal(ctx) {
     <div class="deal-head">
       <div class="grow"><h1>${esc(custName(c))}${lost ? '' : phTag(o.stage)}</h1><div class="meta" id="dealMeta">${dealMeta(o)}</div></div>
       <div class="row dh-acts">
-        <a class="btn" href="tel:${esc(c.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><bdi dir="ltr">${esc(fmtPhone(c.phone))}</bdi></a>
+        <span class="btn call-btn"><a href="tel:${esc(c.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg><bdi dir="ltr">${esc(fmtPhone(c.phone))}</bdi></a><button type="button" class="cp" id="copyPhone" aria-label="העתקת המספר" data-tip="העתקת המספר"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></span>
         <div class="dd"><button class="btn wa" id="waBtn">וואטסאפ ▾</button></div>
         ${ph !== 'sales' && !lost ? '<button class="btn" id="trackBtn">קישור מעקב</button>' : ''}
         <div class="dd"><button class="btn icon-btn" id="moreBtn" aria-label="עוד פעולות">⋯</button></div>
@@ -544,6 +544,7 @@ async function editDate(ctx, k) {
 }
 function bindDeal(ctx) {
   const { o, c } = ctx;
+  $('#copyPhone') && ($('#copyPhone').onclick = async () => { const p = fmtPhone(c.phone); try { await navigator.clipboard.writeText(p); toast('הטלפון הועתק: ' + p); } catch { tell('הטלפון', p); } });
   bindAutosave(view(), (t, k, v) => afterSave(ctx, t, k, v));
   bindNext(ctx);
   $$('details.sec').forEach(d => d.addEventListener('toggle', () => SEC_OPEN[o.id][d.open ? 'add' : 'delete'](d.dataset.sec)));

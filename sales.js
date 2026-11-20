@@ -139,6 +139,7 @@ function fuCell(r) {
   const late = st === 'late', d = -daysSince(r.next_followup + 'T00:00');
   const label = late ? (d < 0 ? `באיחור ${-d === 1 ? 'יום' : -d + ' ימים'}` : 'היום · עבר הזמן') : fuLabel(r);
   return `<td><button class="fu-pill ${st}" data-fu="${r.id}" data-tip="${esc((FU_CH[r.followup_channel] ? FU_CH[r.followup_channel][1] + ' · ' : '') + fmtDate(r.next_followup) + (r.next_followup_time ? ' ' + fuTime(r.next_followup_time) : '') + ' · לחיצה לשינוי')}">${fuCh(r)}${esc(label)}${late && r.next_followup_time && d === 0 ? ' ' + fuTime(r.next_followup_time) : ''}</button>
+    <div class="fu-when">${esc(new Date(r.next_followup + 'T00:00').toLocaleDateString('he-IL', { weekday: 'short' }))} <bdi dir="ltr">${esc(fmtShort(r.next_followup + 'T00:00'))}</bdi>${r.next_followup_time ? ` · <bdi dir="ltr">${esc(fuTime(r.next_followup_time))}</bdi>` : ''}</div>
     ${r.followup_note ? `<div class="fu-why">${esc(r.followup_note)}</div>` : ''}</td>`;
 }
 function noteCell(r) {
