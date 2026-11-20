@@ -240,16 +240,17 @@ const ICONS = {
   reports: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
   expenses: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  shipments: '<path d="M1 4h14v11H1z"/><path d="M15 8h4l3 3v4h-7z"/><circle cx="5.5" cy="17.5" r="2"/><circle cx="18.5" cy="17.5" r="2"/>',
   lab: '<path d="M9 3h6M10 3v6L4 19a1.5 1.5 0 0 0 1.3 2h13.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/>',
 };
 const icon = k => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ''}</svg>`;
 function buildNav() {
   const items = isLab() ? [['lab', 'ההזמנות שלי', 'lab'], ['scan', 'סריקה', 'scan']]
-    : [['sales', 'מכירות', 'sales'], ['deals', 'לקוחות', 'deals'], ['scan', 'סריקה', 'scan'], ['reports', 'דוחות', 'reports'], ['expenses', 'הוצאות', 'expenses'], ['settings', 'הגדרות', 'settings']];
+    : [['sales', 'מכירות', 'sales'], ['deals', 'לקוחות', 'deals'], ['scan', 'סריקה', 'scan'], ['shipments', 'משלוחים', 'shipments'], ['reports', 'דוחות', 'reports'], ['expenses', 'הוצאות', 'expenses'], ['settings', 'הגדרות', 'settings']];
   $('#nav').innerHTML = items.map(([r, t, ic]) => `<a href="#${r}" data-r="${r}">${icon(ic)}<span class="t">${t}</span>${r === 'sales' ? '<span class="badge hidden" id="qBadge"></span>' : ''}</a>`).join('');
 }
 // the page title lives in the top bar (Pipedrive style); pages start with their toolbar
-const PAGE_TITLE = { sales: 'מכירות', deals: 'לקוחות', scan: 'סריקת פריטים', reports: 'דוחות', expenses: 'הוצאות', settings: 'הגדרות', lab: 'ההזמנות שלי', quote: 'הצעת מחיר', labels: 'מדבקות ברקוד', manifest: 'דף משלוח' };
+const PAGE_TITLE = { sales: 'מכירות', deals: 'לקוחות', scan: 'סריקת פריטים', reports: 'דוחות', expenses: 'הוצאות', settings: 'הגדרות', lab: 'ההזמנות שלי', quote: 'הצעת מחיר', labels: 'מדבקות ברקוד', manifest: 'דף משלוח', boxlabel: 'מדבקת ארגז', shipments: 'משלוחים', shipment: 'משלוח' };
 function setNav(r) { $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r)); $('#pageTitle').textContent = PAGE_TITLE[r] || PAGE_TITLE.deals; }
 function setBadge(n) { const b = $('#qBadge'); if (!b) return; b.textContent = n; b.classList.toggle('hidden', !n); }
 $('#userBtn').addEventListener('click', e => {
@@ -280,8 +281,8 @@ async function routeOnce() {
   let [r, arg] = (location.hash.slice(1) || (isLab() ? 'lab' : 'sales')).split('/');
   r = ALIAS[r] || r;
   if (isLab() && !['lab', 'scan'].includes(r)) { location.hash = 'lab'; return; }
-  setNav(r === 'order' ? 'deals' : r);
-  if (['quote', 'labels', 'manifest'].includes(r)) $('#pageTitle').textContent = PAGE_TITLE[r];
+  setNav(r === 'order' ? 'deals' : r === 'shipment' ? 'shipments' : r);
+  if (['quote', 'labels', 'manifest', 'boxlabel', 'shipment'].includes(r)) $('#pageTitle').textContent = PAGE_TITLE[r];
   VIEWS.stopScanner?.();
   closeMenus();
   if (r !== 'sales') $('#salesPanel')?.remove();

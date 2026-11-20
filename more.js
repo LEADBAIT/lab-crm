@@ -107,8 +107,15 @@ const LISTS_EDIT = { source: ['מאיפה לקוחות מגיעים', 'מופי�
 const LIST_COL = { source: ['orders', 'source'], temperature: ['orders', 'temperature'], loss_category: ['orders', 'loss_category'], payment_method: ['orders', 'payment_method'], return_method: ['orders', 'return_method'], courier: ['orders', 'courier'], expense_category: ['expenses', 'category'] };
 const SENTENCES = {
   quote_stale_days: ['הצעת מחיר בלי תשובה עולה במשימות אחרי', 'ימים', ''],
-  sla_target_days: ['היעד: הלקוח מקבל את הקבצים תוך', 'ימים מהתשלום', 'אחרי זה ההזמנה מסומנת בכתום.'],
-  sla_max_days: ['אחרי', 'ימים מהתשלום ההזמנה מסומנת באדום', 'חייב להיות יותר מהיעד.'],
+  sla_target_days: ['היעד: הלקוח מקבל את הקבצים תוך', 'ימים מהקליטה במעבדה', 'השעון מתחיל בקליטה. אחרי היעד ההזמנה מסומנת בכתום.'],
+  sla_max_days: ['אחרי', 'ימים מהקליטה ההזמנה מסומנת באדום', 'חייב להיות יותר מהיעד.'],
+  express_biz_days: ['אקספרס: עד', 'ימי עסקים מהקליטה', 'ימי עסקים = ראשון עד חמישי. יומיים לפני הסוף: כתום. אחרי: אדום.'],
+  stage_days_pickup: ['איסוף מהלקוח עד', 'ימים מהתשלום', ''],
+  stage_days_transit: ['החומרה בדרך למעבדה עד', 'ימים', 'יותר מזה: אדום. חומרה בדרך היא הסיכון הכי גדול לאבד אותה.'],
+  stage_days_intake: ['קליטה במעבדה (ספירה) עד', 'ימים', ''],
+  stage_days_convert: ['המרה במעבדה עד', 'ימים מהקליטה', 'בהזמנה רגילה. באקספרס חל היעד של האקספרס.'],
+  stage_days_return: ['החומרה חוזרת מהמעבדה עד', 'ימים אחרי ההמרה', ''],
+  stage_days_delivery: ['מסירה ללקוח עד', 'ימים מחזרת החומרה', ''],
   drive_link_days: ['קישור ההורדה נשמר', 'ימים ואז נמחק', 'שבוע לפני המחיקה מופיעה משימה להזכיר ללקוח.'],
   min_order: ['מינימום הזמנה:', '₪', 'הזמנה קטנה יותר מחויבת בסכום הזה.'],
   vat_percent: ['מע"מ:', '%', 'המחירים במחירון כוללים מע"מ. משמש רק להצגת "לפני מע"מ".'],
@@ -145,7 +152,8 @@ VIEWS.settings = async function vSettings(tab) {
         <td><label class="field"><input type="number" data-save="coupons:${esc(x.code)}:amount" data-num data-zero value="${x.amount || 0}" style="width:80px"></label></td><td><label class="field"><input data-save="coupons:${esc(x.code)}:campaign" value="${esc(x.campaign || '')}"></label></td>
         <td><label class="field"><input type="date" data-save="coupons:${esc(x.code)}:valid_until" value="${x.valid_until || ''}"></label></td><td><label class="toggle"><input type="checkbox" data-save="coupons:${esc(x.code)}:active" ${x.active ? 'checked' : ''}></label></td></tr>`).join('') || '<tr class="empty-row"><td colspan="6">אין קופונים</td></tr>'}
       </tbody></table></div><div style="padding:0 16px 14px"><button class="btn sm" id="addCp">+ קופון</button></div></section>`;
-  if (tab === 'process') body = `<section class="card"><h3 style="margin-bottom:6px">תזכורות ויעדים</h3>${['sla_target_days', 'sla_max_days', 'drive_link_days'].map(sentence).join('')}</section>
+  if (tab === 'process') body = `<section class="card"><h3 style="margin-bottom:6px">תזכורות ויעדים</h3>${['sla_target_days', 'sla_max_days', 'express_biz_days', 'drive_link_days'].map(sentence).join('')}</section>
+    <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">זמן מקסימלי לכל שלב</h3><p class="small muted" style="margin-bottom:8px">הזמנה שעוברת את הזמן של השלב שלה נצבעת ומופיעה ב"היום" עם הסיבה.</p>${['stage_days_pickup', 'stage_days_transit', 'stage_days_intake', 'stage_days_convert', 'stage_days_return', 'stage_days_delivery'].map(sentence).join('')}</section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">תקנון בהצעת המחיר</h3><label class="field"><textarea data-save="settings:terms:text_value" rows="6">${esc(S.settings.terms?.text_value || '')}</textarea><span class="hint">מופיע בסוף כל הצעת מחיר. התשלום של הלקוח נחשב הסכמה לטקסט הזה.</span></label></section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">כתובת האתר</h3><label class="field"><input dir="ltr" data-save="settings:public_url:text_value" value="${esc(S.settings.public_url?.text_value || '')}"><span class="hint">משמשת לקישור המעקב שהלקוח מקבל. לא משנים אלא אם האתר עובר כתובת.</span></label></section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">שלבי העבודה</h3><p class="small muted">8 השלבים קבועים, כדי שכולם יעבדו באותו תהליך: ${STEPS.map(s => esc(s.key)).join(' ← ')}. בנוסף: ${LOST}.</p></section>`;

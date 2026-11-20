@@ -20,7 +20,7 @@ const FIELD = {
   gift_sent: { t: 'o', l: 'מתנה שנשלחה' }, manual_discount: { t: 'o', l: 'הנחה ידנית (₪)', type: 'number', zero: true },
   next_followup: { t: 'o', l: 'לחזור ללקוח ב-', type: 'date' },
 };
-const TOGGLE = { mailing_list: ['c', 'מקבל עדכונים ומבצעים'], priority: ['o', 'דחוף (קדימות בתור)'], cloud_affiliate: ['o', 'קנה מנוי ענן דרכנו'], story_posted: ['o', 'פרסם סטורי ותייג אותנו'] };
+const TOGGLE = { mailing_list: ['c', 'מקבל עדכונים ומבצעים'], priority: ['o', 'אקספרס: עד 7 ימי עסקים מהקליטה'], cloud_affiliate: ['o', 'קנה מנוי ענן דרכנו'], story_posted: ['o', 'פרסם סטורי ותייג אותנו'] };
 
 function fld(ctx, k, { wide = false, label } = {}) {
   const d = FIELD[k], row = d.t === 'c' ? ctx.c : ctx.o, val = row[k];
@@ -102,8 +102,8 @@ function stickyHead() {
 function dealMeta(o) {
   return `<span>#${o.id}</span><span>·</span><span>${stagePill(o.stage)}</span>${o.total > 0 ? `<span>·</span><b>${money(o.total)}</b>` : ''}
     ${o.source ? `<span>·</span><span>${esc(o.source)}</span>` : ''}${o.lab_name ? `<span>·</span><span>מעבדה: ${esc(o.lab_name)}</span>` : ''}
-    ${o.is_repeat ? '<span class="chip blue">לקוח חוזר</span>' : ''}${o.priority ? '<span class="chip orange">דחוף</span>' : ''}
-    ${o.flag_late ? `<span class="chip ${o.flag_late}">${o.days_since_paid} ימים מהתשלום</span>` : ''}${o.flag_count_mismatch ? '<span class="chip red">פער בספירת פריטים</span>' : ''}
+    ${o.is_repeat ? '<span class="chip blue">לקוח חוזר</span>' : ''}${o.priority ? '<span class="chip orange">אקספרס</span>' : ''}
+    ${o.flag_sla ? `<span class="chip ${o.flag_sla}">${esc(o.sla_reason)}</span>` : o.days_at_lab != null ? `<span class="chip">${o.priority ? o.lab_biz_days + ' ימי עסקים' : o.days_at_lab + ' ימים'} מהקליטה</span>` : ''}${o.flag_count_mismatch ? '<span class="chip red">פער בספירת פריטים</span>' : ''}
     ${o.flag_cash_at_courier ? '<span class="chip orange">מזומן אצל השליח</span>' : ''}`;
 }
 
@@ -170,6 +170,7 @@ function checkHtml(ctx, k, j) {
     : k.act === 'items' ? `<button class="btn sm" data-chk="${j}">יצירת ברקודים</button>`
     : k.act === 'cash' ? `<button class="btn sm" data-chk="${j}">הכסף הגיע</button>`
     : k.act === 'intake' ? `<button class="btn sm" data-chk="${j}">סיום קליטה</button>`
+    : k.act === 'closing' ? `<button class="btn sm" data-chk="${j}">לסריקה</button>`
     : `<button class="btn sm" data-chk="${j}">סימון ✓</button>`;
   return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
     ${act}${ok && ms ? `<button class="link-btn" data-msedit="${ms}">שינוי תאריך</button>` : ''}
@@ -204,7 +205,7 @@ const SEC_BODY = {
   items: ctx => itemsHtml(ctx),
   payment: ctx => `<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}`,
   shipping: ctx => `<div class="fields">${['lab_id', 'courier', 'pickup_date', 'pickup_tracking'].map(k => fld(ctx, k)).join('')}${fld(ctx, 'files_link_from_lab', { wide: true })}</div>
-    <div class="row" style="margin-top:12px"><a class="btn sm" href="#labels/${ctx.o.id}">הדפסת מדבקות ברקוד</a><a class="btn sm" href="#manifest/${ctx.o.id}">הדפסת דף משלוח</a></div>`,
+    <div class="row" style="margin-top:12px"><a class="btn sm" href="#labels/${ctx.o.id}">הדפסת מדבקות ברקוד</a><a class="btn sm" href="#boxlabel/${ctx.o.id}">מדבקת ארגז</a><a class="btn sm" href="#manifest/${ctx.o.id}">הדפסת דף משלוח</a><a class="btn sm" href="#shipments/new/${ctx.o.id}">משלוח חדש עם ההזמנה</a></div>`,
   delivery: ctx => `<div class="fields">${fld(ctx, 'delivery_link', { wide: true })}${ro('הקישור יימחק ב-', fmtDate(ctx.o.delivery_link_expires))}${['return_method', 'return_tracking'].map(k => fld(ctx, k)).join('')}
     ${fld(ctx, 'personal_cloud_link')}${fld(ctx, 'drive_folder_url')}</div><div style="margin-top:12px">${tog(ctx, 'cloud_affiliate')}</div>`,
   sale: ctx => `<div class="fields">${fld(ctx, 'source')}${fld(ctx, 'temperature')}${ro('נכנס', fmtDT(ctx.o.created_at))}${ctx.o.est_quantity ? ro('כמות שהלקוח כתב בטופס', ctx.o.est_quantity) : ''}
@@ -281,20 +282,22 @@ function quoteHtml(ctx) {
 }
 
 // ---------- items ----------
-const ITEM_LOC = { 'ממתין לאיסוף': 'אצל הלקוח', 'נאסף': 'אצל השליח', 'במעבדה': 'במעבדה', 'הומר': 'במעבדה', 'לא ניתן להמרה': 'במעבדה', 'אצלנו': 'אצלנו', 'הוחזר ללקוח': 'חזר ללקוח', 'לא מוחזר': 'לא מוחזר' };
+const ITEM_LOC = { 'ממתין לאיסוף': 'אצל הלקוח', 'נאסף': 'אצל השליח', 'במעבדה': 'במעבדה', 'הומר': 'במעבדה', 'ריק': 'במעבדה', 'תוכן לא משפחתי': 'במעבדה', 'לא ניתן להמרה': 'במעבדה',
+  'אצלנו': 'אצלנו', 'נארז להחזרה': 'ארוז, יוצא ללקוח', 'הוחזר ללקוח': 'חזר ללקוח', 'לא מוחזר': 'אצלנו, הלקוח ויתר', 'הושמד': 'הושמד' };
+const LAB_PLACES = ['במעבדה', 'הומר', 'ריק', 'תוכן לא משפחתי', 'לא ניתן להמרה'];
 function itemsHtml(ctx) {
   const { o, items } = ctx;
   if (!items.length) return `<div class="empty"><div class="big">🏷️</div><h3>עוד אין ברקודים</h3><p>כל קלטת, דיסק או סליל מקבל ברקוד משלו לפי הכמויות בהצעת המחיר.<br>תמונות ושקופיות נספרות כקבוצה בלי ברקוד.</p>
     <button class="btn primary" style="margin-top:12px" data-gen ${o.media_qty ? '' : 'disabled'}>${o.media_qty ? `יצירת ${o.media_qty} ברקודים` : 'קודם ממלאים כמויות בהצעת המחיר'}</button></div>`;
   const statuses = (S.opts.item_status || []).filter(x => x.active).map(x => x.value);
-  return `<div class="row spread" style="margin-bottom:12px"><div class="row small"><span class="chip">הוצהרו ${o.media_qty}</span><span class="chip">ברקודים ${items.length}</span><span class="chip blue">הגיעו למעבדה ${o.items_at_lab_or_later}</span><span class="chip green">הומרו ${o.items_converted}</span>${o.intake_done_at ? `<span class="chip">קליטה הסתיימה ${fmtShort(o.intake_done_at)}</span>` : ''}</div>
-    <div class="row">${items.length < o.media_qty ? `<button class="btn sm" data-gen>יצירת ${o.media_qty - items.length} ברקודים חסרים</button>` : ''}<a class="btn sm" href="#labels/${o.id}">מדבקות</a><a class="btn sm" href="#manifest/${o.id}">דף משלוח</a></div></div>
+  return `<div class="row spread" style="margin-bottom:12px"><div class="row small"><span class="chip">הוצהרו ${o.media_qty}</span><span class="chip">ברקודים ${items.length}</span><span class="chip blue">הגיעו למעבדה ${o.items_at_lab_or_later}</span><span class="chip green">הומרו ${o.items_converted}</span>${o.items_no_charge ? `<span class="chip orange" data-tip="ריק, תוכן לא משפחתי או לא ניתן להמרה: הלקוח לא מחויב עליהם">לא לחיוב ${o.items_no_charge}</span>` : ''}${o.items_packed ? `<span class="chip">נספרו להחזרה ${o.items_packed}/${items.length}</span>` : ''}${o.intake_done_at ? `<span class="chip">קליטה הסתיימה ${fmtShort(o.intake_done_at)}</span>` : ''}</div>
+    <div class="row">${items.length < o.media_qty ? `<button class="btn sm" data-gen>יצירת ${o.media_qty - items.length} ברקודים חסרים</button>` : ''}<a class="btn sm" href="#labels/${o.id}">מדבקות</a><a class="btn sm" href="#boxlabel/${o.id}">מדבקת ארגז</a><a class="btn sm" href="#manifest/${o.id}">דף משלוח</a></div></div>
     <div class="bulk-bar hidden" id="ibulk"><b id="ibulkN"></b><span>להעביר את כולם ל:</span>
       <select id="ibulkTo">${statuses.map(s => `<option>${esc(s)}</option>`).join('')}</select><button class="btn sm primary" id="ibulkGo">החלה</button><span>·</span><button class="btn sm ghost" id="ibulkDel" data-tip="למשל כשהלקוח שלח פחות קלטות. אפשר למחוק רק ברקודים שעוד לא נאספו">מחיקת הברקודים</button><button class="btn sm ghost" id="ibulkClear">ביטול הבחירה</button></div>
     <div class="card flush table-wrap"><table><thead><tr><th class="sel"><input type="checkbox" id="iselAll" aria-label="בחירת כל הפריטים"></th><th>ברקוד</th><th>סוג</th><th>מה כתוב עליו</th><th>איפה הוא</th><th>פגום</th><th>הערה</th></tr></thead><tbody>
     ${items.map(it => `<tr><td class="sel"><input type="checkbox" data-isel="${esc(it.id)}" aria-label="בחירת ${esc(it.id)}"></td><td><b class="num">${esc(it.id)}</b></td><td class="small">${esc(productName(it.product_id).split(' (')[0])}</td>
       <td><input data-isave="${esc(it.id)}:label_text" value="${esc(it.label_text || '')}" placeholder="למשל: חתונה 1994"></td>
-      <td><select data-isave="${esc(it.id)}:status">${statuses.map(s => `<option ${s === it.status ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select><span class="sub">${esc(ITEM_LOC[it.status] || '')}${['במעבדה', 'הומר', 'לא ניתן להמרה'].includes(it.status) && o.lab_name ? ': ' + esc(o.lab_name) : ''}</span></td>
+      <td><select data-isave="${esc(it.id)}:status">${statuses.map(s => `<option ${s === it.status ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select><span class="sub">${esc(ITEM_LOC[it.status] || '')}${LAB_PLACES.includes(it.status) && o.lab_name ? ': ' + esc(o.lab_name) : ''}</span></td>
       <td><input type="checkbox" data-isave="${esc(it.id)}:damaged" ${it.damaged ? 'checked' : ''} aria-label="פגום"></td>
       <td><input data-isave="${esc(it.id)}:notes" value="${esc(it.notes || '')}"></td></tr>`).join('')}</tbody></table></div>
     <p class="tiny muted" style="margin-top:8px">המיקום מתעדכן לבד כשסורקים במסך "סריקה". כדי לעדכן כמה פריטים יחד: מסמנים אותם בעמודה הראשונה (או את כולם בכותרת).</p>`;
@@ -393,6 +396,7 @@ async function runCheck(ctx, k) {
   if (k.act === 'contact') { await markContacted(o); return reloadDeal(ctx); }
   if (k.act.startsWith('open:')) { const s = k.act.slice(5), d = $(`[data-sec="${s}"]`); d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   if (k.act === 'items') return genItems(ctx);
+  if (k.act === 'closing') { sessionStorage.setItem('scanStatus', 'נארז להחזרה'); return go('scan'); }
   if (k.act === 'cash') { await patchOrder(o, { payment_status: 'שולם' }, 'נרשם שהמזומן הגיע', { extra: ['cash_received_at'] }); return reloadDeal(ctx); }
   if (k.act === 'intake') {
     const miss = o.media_qty - o.items_at_lab_or_later;

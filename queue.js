@@ -15,8 +15,8 @@ const TASK_TYPES = [
     why: o => `הלקוח הצהיר על ${o.media_qty} פריטים, במעבדה נקלטו ${o.items_at_lab_or_later}`, urg: () => 0, act: { label: 'בדיקה', open: true } },
   { k: 'deliver', name: 'למסור ללקוח', test: o => (o.files_received_at || o.stage === 'למסירה ללקוח') && !o.delivery_sent_at,
     why: o => o.delivery_link ? 'הקבצים מוכנים והקישור מוכן. לשלוח ללקוח' : 'הקבצים מוכנים. צריך להדביק קישור הורדה ולשלוח', urg: () => 1, act: { label: 'שליחת הקבצים', open: true } },
-  { k: 'late', name: 'באיחור', test: o => o.flag_late,
-    why: o => `${o.days_since_paid} ימים מהתשלום (היעד: ${setting('sla_target_days') || 21}) · ${o.stage}${o.lab_name ? ' · ' + o.lab_name : ''}`, urg: o => o.flag_late === 'red' ? 0 : 1, act: { label: 'פתיחה', open: true } },
+  { k: 'late', name: 'באיחור', test: o => o.flag_sla,
+    why: o => `${o.sla_reason} · ${o.stage}${o.lab_name ? ' · ' + o.lab_name : ''}`, urg: o => o.flag_sla === 'red' ? 0 : 1, act: { label: 'פתיחה', open: true } },
   { k: 'expiring', name: 'קישור עומד להימחק', test: o => o.delivery_link_expires && o.delivery_link_expires >= today() && o.delivery_link_expires <= addDays(7),
     why: o => `קישור ההורדה יימחק ${until(o.delivery_link_expires)}. כדאי להזכיר ללקוח להוריד`, urg: () => 2, act: { label: 'תזכורת להורדה', tpl: 'הקבצים מוכנים' } },
 ];
@@ -57,7 +57,7 @@ VIEWS.queue = async function vQueue() {
         <div><span>במכירה</span><a href="#deals/sales"><b>${sales.length}</b></a></div>
         <div><span>שווי הצעות פתוחות</span><b>${money(sales.reduce((s, r) => s + Number(r.total || 0), 0))}</b></div>
         <div><span>הזמנות בעבודה</span><a href="#deals/ops"><b>${ops.length}</b></a></div>
-        <div><span>באיחור</span><b>${ops.filter(r => r.flag_late).length}</b></div></div></section>
+        <div><span>באיחור</span><b>${ops.filter(r => r.flag_sla).length}</b></div></div></section>
       <section class="card small muted">טיפ: כל כפתור ירוק/צהוב עושה את הפעולה עצמה. "פתיחה" לוקחת לדף הלקוח, ושם כרטיס "הצעד הבא" אומר בדיוק מה לעשות.</section>
     </aside>
   </div>`;
@@ -75,7 +75,7 @@ const BULK_TASK = { cash: 'הכסף הגיע בכולן', pickday: 'השליח �
 function taskHtml({ o, t, u }) {
   const a = t.act, tpl = a.tpl && tplByName(a.tpl);
   return `<div class="task"><span class="urg u${u}"></span>
-    <div><div class="who"><a href="#order/${o.id}">${esc(custName(o))}</a><span class="chip">${esc(t.name)}</span>${o.priority ? '<span class="chip orange">דחוף</span>' : ''}<span class="tiny muted">#${o.id}</span></div>
+    <div><div class="who"><a href="#order/${o.id}">${esc(custName(o))}</a><span class="chip">${esc(t.name)}</span>${o.priority ? '<span class="chip orange">אקספרס</span>' : ''}<span class="tiny muted">#${o.id}</span></div>
       <div class="why">${esc(t.why(o))}</div></div>
     <div class="acts">${a.open ? `<a class="btn ${u === 0 ? 'primary' : ''}" href="#order/${o.id}">${esc(a.label)}</a>`
       : `<button class="btn ${u <= 1 ? 'primary' : ''}" data-tact="${o.id}" ${a.tpl && !tpl ? 'disabled title="התבנית לא קיימת בהגדרות"' : ''}>${esc(a.label)}</button>`}

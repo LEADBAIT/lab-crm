@@ -47,8 +47,9 @@ const STEPS = [
     title: 'למסור ללקוח', todo: 'לשלוח ללקוח את קישור ההורדה, ולהחזיר לו את הקלטות המקוריות.',
     tpl: 'הקבצים מוכנים', btn: 'הלקוח קיבל הכל, סיום', set: ['returned_at'], open: ['delivery'],
     fields: ['delivery_link', 'return_method', 'return_tracking'],
-    need: o => [!o.delivery_link && 'קישור הורדה ללקוח', !o.delivery_sent_at && 'לסמן שהקישור נשלח'].filter(Boolean),
+    need: o => [!o.delivery_link && 'קישור הורדה ללקוח', !o.delivery_sent_at && 'לסמן שהקישור נשלח', !closingDone(o) && `ספירת סגירה (${o.items_packed}/${o.items_count} נסרקו "נארז להחזרה")`].filter(Boolean),
     checks: [{ label: 'קישור ההורדה נשלח ללקוח', done: o => !!o.delivery_sent_at, at: o => o.delivery_sent_at, act: 'ms:delivery_sent_at' },
+      { label: 'ספירת סגירה: כל פריט נסרק "נארז להחזרה"', done: closingDone, act: 'closing', show: o => o.items_count > 0 && !o.returned_at },
       { label: 'החומרה הוחזרה ללקוח', done: o => !!o.returned_at, at: o => o.returned_at, act: 'ms:returned_at' }] },
   { key: 'הושלם', short: 'הושלם', phase: 'done', date: o => o.completed_at || o.returned_at,
     title: 'ההזמנה הסתיימה', todo: 'נשאר רק לבקש ביקורת בגוגל וסטורי, ולשלוח מתנה אם רוצים.',
@@ -56,6 +57,8 @@ const STEPS = [
     checks: [{ label: 'ביקשנו ביקורת בגוגל', done: o => !!o.review_requested_at, at: o => o.review_requested_at, act: 'ms:review_requested_at' },
       { label: 'ביקשנו סטורי', done: o => !!o.story_requested_at, at: o => o.story_requested_at, act: 'ms:story_requested_at' }] },
 ];
+/** closing count: every barcode scanned "נארז להחזרה" (or closed otherwise) before the hardware leaves */
+function closingDone(o) { return !o.items_count || !!o.returned_at || o.items_packed >= o.items_count; }
 const stepIdx = k => STEPS.findIndex(s => s.key === k);
 const stepOf = k => STEPS[stepIdx(k)] || null;
 const STEP_DONE = () => stepOf('הושלם');

@@ -25,7 +25,7 @@ VIEWS.deals = async function vDeals(tab) {
     <a class="other" href="#deals/${tab === 'sales' ? 'ops' : 'sales'}">${tab === 'sales' ? `לשלב העבודה במעבדה (${counts.ops}) ←` : `לשלב המכירה (${counts.sales}) ←`}</a></div>` : ''}
   ${tab === 'ops' ? opsTasksHtml(rows) : ''}
   <div id="dealsBody"></div>`;
-  const urgent = r => r.flag_late || r.flag_count_mismatch || r.flag_cash_at_courier || (r.stage === 'פנייה חדשה' && !r.last_contact_at);
+  const urgent = r => r.flag_sla || r.flag_count_mismatch || r.flag_cash_at_courier || (r.stage === 'פנייה חדשה' && !r.last_contact_at);
   const draw = () => {
     const q = (F.q || '').trim();
     const vis = list.filter(r => (!q || `${r.id} ${r.full_name || ''} ${r.phone || ''}`.includes(q)) && (!F.src || r.source === F.src) && (!F.lab || r.lab_name === F.lab) && (!F.urg || urgent(r)));
@@ -51,8 +51,8 @@ function opsTasksHtml(rows) {
 }
 function dealFlags(r, onCard) {
   return [r.stage === 'פנייה חדשה' && !r.last_contact_at && !onCard && '<span class="chip red">עוד לא דיברנו</span>',
-    r.flag_late && `<span class="chip ${r.flag_late}">${r.days_since_paid} ימים מתשלום</span>`, r.flag_count_mismatch && '<span class="chip red">פער בספירה</span>',
-    r.flag_cash_at_courier && '<span class="chip orange">מזומן אצל שליח</span>', r.priority && '<span class="chip orange">דחוף</span>', r.is_repeat && '<span class="chip blue">חוזר</span>'].filter(Boolean).join('');
+    r.flag_sla && `<span class="chip ${r.flag_sla}" title="${esc(r.sla_reason)}">${esc(r.sla_reason)}</span>`, r.flag_count_mismatch && '<span class="chip red">פער בספירה</span>',
+    r.flag_cash_at_courier && '<span class="chip orange">מזומן אצל שליח</span>', r.priority && '<span class="chip orange">אקספרס</span>', r.is_repeat && '<span class="chip blue">חוזר</span>'].filter(Boolean).join('');
 }
 function boardHtml(vis, tab) {
   const lanes = STEPS.filter(s => s.phase === tab);
@@ -81,7 +81,9 @@ function tableHtml(vis, tab) {
   const so = JSON.parse(sessionStorage.getItem('dealsSort') || 'null');
   if (so && DSORT[so.k]) { const g = DSORT[so.k]; vis = [...vis].sort((a, b) => { const x = g(a), y = g(b); return (x > y ? 1 : x < y ? -1 : 0) * (so.d === 'asc' ? 1 : -1); }); }
   const th = (k, label, cls = '') => `<th class="sort ${cls} ${so?.k === k ? so.d : ''}" data-sort="${k}">${label}</th>`;
-  const timeCol = r => r._ph === 'ops' && r.days_since_paid != null ? `<span class="chip ${r.flag_late || ''}">${r.days_since_paid} ימים מתשלום</span>` : `<span class="muted small">${ago(r.created_at)}</span>`;
+  const timeCol = r => r._ph !== 'ops' ? `<span class="muted small">${ago(r.created_at)}</span>`
+    : r.days_at_lab != null ? `<span class="chip ${r.flag_sla || ''}"${r.sla_reason ? ` title="${esc(r.sla_reason)}"` : ''}>${r.priority ? r.lab_biz_days + ' ימי עסקים' : r.days_at_lab + ' ימים'} מהקליטה</span>`
+    : `<span class="chip ${r.flag_sla || ''}"${r.sla_reason ? ` title="${esc(r.sla_reason)}"` : ''}>לפני קליטה</span>`;
   const sel = tab !== 'done';
   const moveTo = tab === 'sales' ? STEPS.filter(s => s.phase === 'sales') : tab === 'ops' ? STEPS.filter(s => s.phase !== 'sales') : tab === 'all' ? STEPS : [];
   const bar = sel ? `<div class="bulk-bar hidden" id="dbulk"><b id="dbulkN"></b>

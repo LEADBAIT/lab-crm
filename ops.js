@@ -5,16 +5,19 @@ const SCAN_ACTIONS = [
   ['נאסף', 'נאסף מהלקוח', 'השליח לקח את החומרה'],
   ['במעבדה', 'נקלט במעבדה', 'המעבדה קיבלה את הפריט'],
   ['הומר', 'הומר', 'הפריט הומר לקבצים'],
-  ['לא ניתן להמרה', 'לא ניתן להמרה', 'פגום / ריק / לא קריא'],
+  ['ריק', 'ריק', 'אין עליו תוכן. לא מחייבים'],
+  ['תוכן לא משפחתי', 'תוכן לא משפחתי', 'סרט או שיר מסחרי. לא מחייבים'],
+  ['לא ניתן להמרה', 'לא ניתן להמרה', 'פגום או לא קריא. זיכוי ללקוח'],
   ['אצלנו', 'חזר אלינו', 'החומרה חזרה מהמעבדה'],
-  ['הוחזר ללקוח', 'הוחזר ללקוח', 'הלקוח קיבל את המקור'],
+  ['נארז להחזרה', 'ספירת סגירה', 'סורקים כל פריט לפני האריזה ללקוח'],
 ];
+const LAB_SCAN = ['במעבדה', 'הומר', 'ריק', 'תוכן לא משפחתי', 'לא ניתן להמרה'];
 let scanner = null, lastCode = '', lastAt = 0;
 VIEWS.stopScanner = () => { if (scanner) { scanner.stop().catch(() => {}); scanner = null; } };
 
 VIEWS.scan = async function vScan() {
   const active = (S.opts.item_status || []).filter(x => x.active).map(x => x.value);
-  const acts = SCAN_ACTIONS.filter(([s]) => active.includes(s) && (!isLab() || ['במעבדה', 'הומר', 'לא ניתן להמרה'].includes(s)));
+  const acts = SCAN_ACTIONS.filter(([s]) => active.includes(s) && (!isLab() || LAB_SCAN.includes(s)));
   let current = sessionStorage.getItem('scanStatus'); if (!acts.some(a => a[0] === current)) current = 'במעבדה';
   const word = s => (SCAN_ACTIONS.find(a => a[0] === s) || [s, s])[1];
   view().innerHTML = `
@@ -37,7 +40,8 @@ VIEWS.scan = async function vScan() {
     const { data: its } = await sb.from('items').select('id, status').eq('order_id', orderId);
     const k = its.filter(i => i.status === current).length;
     // marking the whole order at once is fine for later stages; intake ("במעבדה") must stay one by one, that's the count check
-    const allBtn = current !== 'במעבדה' && k < its.length ? `<button class="btn block" style="margin-top:8px" data-allorder="${orderId}">לסמן את כל ההזמנה "${esc(word(current))}" (עוד ${its.length - k})</button>` : '';
+    // the closing count before returning to the customer is also one by one
+    const allBtn = !['במעבדה', 'נארז להחזרה'].includes(current) && k < its.length ? `<button class="btn block" style="margin-top:8px" data-allorder="${orderId}">לסמן את כל ההזמנה "${esc(word(current))}" (עוד ${its.length - k})</button>` : '';
     $('#orderBox').innerHTML = `<section class="card"><div class="row spread"><div><div class="small muted">הזמנה ${orderId}</div><b>"${esc(word(current))}"</b></div><div class="big-count">${k}<span class="muted" style="font-size:20px">/${its.length}</span></div></div>
       <div class="progress" style="margin-top:10px"><div style="width:${its.length ? k / its.length * 100 : 0}%"></div></div>
       ${current === 'במעבדה' ? `<button class="btn ${k === its.length ? 'primary' : ''} block" style="margin-top:12px" data-finish="${orderId}">סיום קליטה להזמנה ${orderId}</button><p class="tiny muted" style="margin-top:6px">לוחצים כשסיימתם לספור את כל הפריטים של ההזמנה. אם חסר משהו, היא תסומן "פער בספירה".</p>` : ''}${allBtn}</section>`;
@@ -94,7 +98,7 @@ VIEWS.lab = async function vLab() {
       <div class="card"><b>2. המרה</b><p class="small muted">כשפריט מוכן, סורקים אותו כ"הומר". פריט פגום: "לא ניתן להמרה".</p></div>
       <div class="card"><b>3. החזרה</b><p class="small muted">שולחים למשרד את קישור הקבצים ומחזירים את החומרה.</p></div></div>
     <div class="card flush table-wrap"><table><thead><tr><th>הזמנה</th><th>שם</th><th class="num">פריטים</th><th class="num">נקלטו</th><th class="num">הומרו</th><th>קליטה</th><th></th></tr></thead><tbody>
-    ${data.map(r => `<tr><td><b>${r.id}</b>${r.priority ? ' <span class="chip orange">דחוף</span>' : ''}</td><td>${esc(r.first_name)}</td><td class="num">${r.items_count}</td><td class="num">${r.items_received}</td><td class="num">${r.items_converted}</td>
+    ${data.map(r => `<tr><td><b>${r.id}</b>${r.priority ? ' <span class="chip orange">אקספרס</span>' : ''}</td><td>${esc(r.first_name)}</td><td class="num">${r.items_count}</td><td class="num">${r.items_received}</td><td class="num">${r.items_converted}</td>
       <td>${r.intake_done ? '<span class="chip green">הסתיימה</span>' : '<span class="chip orange">בקליטה</span>'}</td>
       <td>${r.intake_done ? '' : `<button class="btn sm" data-finish="${r.id}">סיום קליטה</button>`}</td></tr>`).join('') || '<tr class="empty-row"><td colspan="7">אין הזמנות פתוחות כרגע</td></tr>'}</tbody></table></div>`;
   $$('[data-finish]').forEach(b => b.onclick = async () => {
@@ -122,18 +126,29 @@ VIEWS.quote = async function vQuote(id) {
       <span>לפני מע"מ</span><span>${money(o.total_before_vat)}</span><span class="grand">סה"כ כולל מע"מ</span><span class="grand">${money(o.total)}</span></div>
     <p class="small" style="margin-top:24px;white-space:pre-line">${esc(S.settings.terms?.text_value || '')}</p></div>`;
 };
+// the lab sees the order number only, never the customer's name (agreement: privacy)
 VIEWS.labels = async function vLabels(id) {
-  const [{ data: items, error }, o] = await Promise.all([sb.from('items').select('*').eq('order_id', id).order('seq'), getOrder(id)]); fail(error);
-  view().innerHTML = printBar(id, 'דף A4, 3×8 מדבקות (70×37 מ"מ). מדביקים מדבקה על כל פריט.') +
-    `<div class="labels">${items.map(it => `<div class="lbl"><svg data-code="${esc(it.id)}"></svg><div>${esc(firstName(o.full_name))} · ${esc(productName(it.product_id).split(' (')[0])} · ${it.seq}/${items.length}</div></div>`).join('') || '<div class="card">אין עדיין ברקודים. יוצרים אותם בדף הלקוח, בחלק "פריטים וברקודים".</div>'}</div>`;
+  const { data: items, error } = await sb.from('items').select('*').eq('order_id', id).order('seq'); fail(error);
+  view().innerHTML = printBar(id, 'דף A4, 3×8 מדבקות (70×37 מ"מ). מדביקים מדבקה על כל פריט. בלי שם הלקוח.') +
+    `<div class="labels">${items.map(it => `<div class="lbl"><svg data-code="${esc(it.id)}"></svg><div>הזמנה ${esc(it.order_id)} · ${esc(productName(it.product_id).split(' (')[0])} · ${it.seq}/${items.length}</div></div>`).join('') || '<div class="card">אין עדיין ברקודים. יוצרים אותם בדף הלקוח, בחלק "פריטים וברקודים".</div>'}</div>`;
   $$('svg[data-code]').forEach(svg => JsBarcode(svg, svg.dataset.code, { format: 'CODE128', height: 50, fontSize: 16, margin: 2 }));
+};
+// one box per order: a big label for the box in the warehouse / at the lab
+VIEWS.boxlabel = async function vBoxLabel(id) {
+  const o = await getOrder(id);
+  view().innerHTML = printBar(id, 'מדפיסים ומדביקים על הארגז של ההזמנה. הזמנה אחת = ארגז אחד.') + `<div class="card paper box-label">
+    <div class="bl-top">${o.priority ? '<span class="bl-exp">אקספרס</span>' : '<span></span>'}<span class="muted">המעבדה להמרת קלטות ודיסקים</span></div>
+    <div class="bl-num">${esc(o.id)}</div><svg id="blbar"></svg>
+    <div class="bl-facts"><div><b>${o.items_count || o.media_qty}</b><span>פריטים</span></div><div><b>${esc(o.lab_name || '—')}</b><span>מעבדה</span></div><div><b>${o.lab_received_at ? fmtShort(o.lab_received_at) : '—'}</b><span>נקלט</span></div></div>
+    <p class="small muted">חומרה של הזמנה אחרת לא נכנסת לארגז הזה. ארגז עם בעיה: סרט אדום עד שהיא נסגרת.</p></div>`;
+  JsBarcode('#blbar', String(o.id), { format: 'CODE128', height: 70, fontSize: 18, margin: 0 });
 };
 VIEWS.manifest = async function vManifest(id) {
   const [o, { data: items }, { data: lines }] = await Promise.all([getOrder(id), sb.from('items').select('*').eq('order_id', id).order('seq'), sb.from('order_lines').select('*').eq('order_id', id)]);
   const byType = lines.filter(l => S.products.find(p => p.id === l.product_id)?.category === 'media' && l.qty);
   view().innerHTML = printBar(id, 'מדפיסים 2 עותקים: אחד נשאר אצל מי שמסר, אחד נוסע עם החבילה.') + `<div class="card paper">
     <div class="row spread"><h1>דף משלוח · הזמנה ${o.id}</h1><svg id="mbar"></svg></div>
-    <div class="fields" style="margin:12px 0"><div><b>לקוח:</b> ${esc(firstName(o.full_name))}${o.city ? ', ' + esc(o.city) : ''}</div><div><b>מעבדה:</b> ${esc(o.lab_name || '________')}</div>
+    <div class="fields" style="margin:12px 0"><div><b>הזמנה:</b> ${esc(o.id)}${o.priority ? ' · <b>אקספרס</b>' : ''}</div><div><b>מעבדה:</b> ${esc(o.lab_name || '________')}</div>
       <div><b>תאריך:</b> ${fmtDate(new Date())}</div><div><b>סה"כ פריטים:</b> ${o.media_qty}</div></div>
     <p style="margin-bottom:12px"><b>לפי סוג:</b> ${byType.map(l => `${esc(productName(l.product_id))}: ${l.qty}`).join(' · ') || '-'}</p>
     <table><thead><tr><th>✓</th><th>ברקוד</th><th>סוג</th><th>מה כתוב עליו</th><th>הערה</th></tr></thead><tbody>

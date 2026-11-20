@@ -886,3 +886,20 @@ tr[class*="ph-"] > td:first-child { box-shadow: inset -4px 0 0 var(--ph); }
   .deal-top .pgroup .step.cur::before { background: var(--ph); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ph) 30%, transparent); }
   .pay-gate { padding: 0 2px; } .pay-gate span { display: none; } .pay-gate .coin { width: 18px; height: 18px; font-size: 9px; margin-bottom: 0; border-width: 1px; }
 }
+
+/* ---------- shipments & box label ---------- */
+.ship-pick { display: grid; gap: 4px; max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+.ship-opt { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 6px; cursor: pointer; flex-wrap: wrap; }
+.ship-opt:hover { background: var(--surface-2, rgba(0,0,0,.04)); }
+.ship-opt span { min-width: 0; }
+tr.clickable { cursor: pointer; }
+#sbar { height: 50px; }
+.box-label { text-align: center; display: grid; gap: 14px; padding: 28px; }
+.bl-top { display: flex; justify-content: space-between; align-items: center; }
+.bl-exp { background: #C62828; color: #fff; font-weight: 800; padding: 4px 14px; border-radius: 6px; font-size: 22px; }
+.bl-num { font-size: 140px; font-weight: 800; line-height: 1; letter-spacing: 2px; font-variant-numeric: tabular-nums; }
+#blbar { height: 90px; margin: auto; }
+.bl-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.bl-facts div { border: 2px solid currentColor; border-radius: 8px; padding: 8px; display: grid; }
+.bl-facts b { font-size: 24px; } .bl-facts span { font-size: 13px; }
+@media print { .box-label { color: #000; } }
