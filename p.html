@@ -4,18 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#22324A">
 <title>הצעת מחיר | המעבדה להמרת קלטות ודיסקים</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <!-- Customer quote page (spec crm/אפיון-הצעת-מחיר.md). Opened as p.html#<orders.quote_token> (staff preview: p.html?preview=1#<token>).
-     Talks only to the edge function "quote". Look: the same design language as the questionnaire (q.html). Step 4 = working page; step 6 = full design. -->
+     Talks only to the edge function "quote". Look: the questionnaire's design language (q.html), motion at the same light level. -->
 <style>
   :root {
     color-scheme: light;
     --backdrop: #DDE2E8; --surface: #FFFFFF; --box-head: #E8EDF3; --ink: #1B1F27; --ink-muted: #59616E;
-    --bar: #22324A; --on-bar: #FFFFFF; --link: #1A4FA0; --stamp: #FFB21E; --on-stamp: #1A1408; --stamp-text: #9A5B00;
-    --rec: #C42A2A; --ok: #1F6F5C; --line: #C9D1DB; --row-alt: #F6F8FA; --sel: #FFF6E0;
+    --bar: #22324A; --bar-2: #2C3F5C; --on-bar: #FFFFFF; --link: #1A4FA0; --stamp: #FFB21E; --stamp-dark: #D9940F; --on-stamp: #1A1408; --stamp-text: #9A5B00;
+    --rec: #C42A2A; --ok: #1F6F5C; --ok-bg: #E9F5F0; --line: #C9D1DB; --row-alt: #F6F8FA; --sel: #FFF6E0;
     --sans: Arial, "Arial Hebrew", Tahoma, sans-serif;
-    --radius-sm: 3px; --shadow-button: inset 0 -3px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(20,26,36,0.18);
+    --radius-sm: 3px; --radius: 6px; --shadow-button: inset 0 -3px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(20,26,36,0.18);
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -23,101 +24,158 @@
   a { color: var(--link); }
   button, input { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  .site { max-width: 720px; margin: 0 auto; background: var(--surface); min-height: 100vh; border-inline: 1px solid var(--line); padding-bottom: 104px; overflow-x: clip; }
+  .site { max-width: 720px; margin: 0 auto; background: var(--surface); min-height: 100vh; border-inline: 1px solid var(--line); padding-bottom: 112px; overflow-x: clip; }
   .header { background: var(--bar); color: var(--on-bar); display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
-  .header svg { width: 56px; height: 56px; flex: none; }
-  .header .t { font-weight: 700; font-size: 17px; line-height: 22px; }
-  .header .s { font-size: 14px; opacity: .85; }
-  .wrap { padding: 16px; display: grid; gap: 24px; }
-  .intro h1 { font-size: 24px; line-height: 30px; margin: 0 0 6px; }
-  .intro p { margin: 0; }
+  .header svg { width: 48px; height: 48px; flex: none; }
+  .header .t { font-weight: 700; font-size: 16px; line-height: 20px; }
+  .header .s { font-size: 13px; opacity: .8; }
   .muted { color: var(--ink-muted); }
   .small { font-size: 14px; line-height: 20px; }
   .num { direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
+  .hidden { display: none !important; }
+
+  /* hero: who it's for, the total, how long it's held */
+  .hero { background: linear-gradient(180deg, var(--bar) 0%, var(--bar-2) 100%); color: var(--on-bar); padding: 20px 16px 22px; display: grid; gap: 14px; }
+  .hero h1 { margin: 0; font-size: 26px; line-height: 32px; }
+  .hero p { margin: 0; opacity: .85; font-size: 15px; line-height: 22px; }
+  .hero-total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .hero-total .amt { font-size: 40px; line-height: 44px; font-weight: 700; letter-spacing: -.5px; }
+  .hero-total s { font-size: 18px; opacity: .65; }
+  .hero-total .lbl { font-size: 14px; opacity: .8; width: 100%; }
+  .hero-save { display: inline-block; background: var(--ok); color: #fff; font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 99px; }
+  .stamp { display: flex; align-items: center; gap: 10px; background: var(--stamp); color: var(--on-stamp); border-radius: var(--radius); padding: 10px 12px; font-weight: 700; font-size: 15px; line-height: 21px; box-shadow: inset 0 -3px 0 var(--stamp-dark); }
+  .stamp svg { width: 22px; height: 22px; flex: none; }
+  .stamp.off { background: #E8EDF3; color: var(--ink); box-shadow: inset 0 -3px 0 var(--line); font-weight: 400; }
+  .hero .btn { justify-self: start; }
+  .thumbs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .thumbs a { flex: none; width: 64px; height: 64px; border: 2px solid rgba(255,255,255,.7); border-radius: var(--radius-sm); overflow: hidden; display: block; }
+  .thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .wrap { padding: 20px 16px; display: grid; gap: 28px; }
   .box { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
   .box-head { background: var(--box-head); border-bottom: 1px solid var(--line); padding: 8px 16px; font-weight: 700; margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .box-head .n { width: 24px; height: 24px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); color: var(--stamp-text); text-align: center; line-height: 22px; font-size: 14px; flex: none; }
+  .box-head .aside { margin-inline-start: auto; font-weight: 400; font-size: 13px; color: var(--ink-muted); }
   .box-body { padding: 12px 16px; display: grid; gap: 12px; }
   .note { background: var(--row-alt); border-inline-start: 3px solid var(--ok); padding: 8px 12px; font-size: 14px; line-height: 20px; }
   .note.warn { border-color: var(--stamp); background: var(--sel); }
-  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
-  .gallery a { display: block; border: 1px solid var(--line); padding: 3px; background: var(--surface); aspect-ratio: 1; }
-  .gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
   /* quote rows */
-  .lrow { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .lines { display: grid; }
+  .lrow { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .lrow:last-child { border-bottom: 0; }
   .lrow svg { width: 44px; height: 32px; }
-  .lrow .nm { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+  .lrow .nm { font-weight: 700; min-width: 0; line-height: 21px; }
   .lrow .sub { display: block; font-size: 13px; color: var(--ink-muted); line-height: 18px; font-weight: 400; }
-  .lrow .sum { font-weight: 700; }
+  .lrow .sub bdi { direction: ltr; }
+  .lrow .sum { font-weight: 700; text-align: left; }
+  .lrow .sum small { display: block; font-weight: 400; font-size: 12px; color: var(--ink-muted); line-height: 16px; }
   .lrow.extra { grid-template-columns: 1fr auto; }
-  .lrow.disc .nm, .lrow.disc .sum { color: var(--ok); }
-  .totals { display: grid; gap: 4px; padding-top: 4px; }
+  .totals { display: grid; gap: 6px; }
   .totals .r { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
-  .totals .grand { font-size: 22px; line-height: 30px; font-weight: 700; border-top: 2px solid var(--ink); padding-top: 8px; margin-top: 4px; align-items: baseline; }
-  .totals s { color: var(--ink-muted); font-weight: 400; font-size: 16px; margin-inline-end: 8px; }
-  .hold { font-weight: 700; color: var(--stamp-text); font-size: 15px; line-height: 22px; }
+  .totals .disc { color: var(--ok); font-weight: 700; }
+  .totals .disc .tag { display: inline-block; background: var(--ok-bg); border-radius: 99px; padding: 0 8px; font-size: 13px; font-weight: 700; margin-inline-start: 6px; }
+  .totals .grand { font-size: 22px; line-height: 30px; font-weight: 700; border-top: 2px solid var(--ink); padding-top: 10px; margin-top: 4px; align-items: baseline; }
+  .totals s { color: var(--ink-muted); font-weight: 400; font-size: 16px; }
+  .totals .grand > span:last-child { display: inline-flex; gap: 10px; align-items: baseline; }
   .vat { font-size: 13px; color: var(--ink-muted); }
+  .flash { animation: flash .9s ease-out; }
+  @keyframes flash { 0% { background: var(--sel); box-shadow: 0 0 0 6px var(--sel); } 100% { background: transparent; box-shadow: 0 0 0 6px transparent; } }
+  /* on dark backgrounds (hero, pay bar) the change shows as a short yellow glow of the number */
+  .hero .flash, .pay-bar .flash { animation: flashDark 1s ease-out; }
+  @keyframes flashDark { 0% { color: var(--stamp); } 100% { color: inherit; } }
+
   /* upsell cards */
-  .offers { display: grid; gap: 8px; }
-  .offer { display: flex; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; background: var(--surface); cursor: pointer; }
-  .offer.on { border-color: #D9940F; background: var(--sel); box-shadow: inset 0 0 0 1px #D9940F; }
-  .offer .tx { flex: 1; min-width: 0; }
-  .offer b { display: block; }
+  .offers { display: grid; gap: 10px; }
+  .offer { display: grid; grid-template-columns: 48px 1fr auto; gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
+  .offer.on { border-color: var(--stamp-dark); background: var(--sel); box-shadow: inset 0 0 0 1px var(--stamp-dark); }
+  .offer .ic { width: 48px; height: 48px; border-radius: var(--radius); background: var(--box-head); display: grid; place-items: center; overflow: hidden; }
+  .offer .ic svg { width: 28px; height: 28px; }
+  .offer .ic img { width: 100%; height: 100%; object-fit: cover; }
+  .offer .tx { min-width: 0; }
+  .offer b { display: block; line-height: 21px; }
   .offer .d { display: block; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
-  .offer .price { font-weight: 700; color: var(--stamp-text); }
+  .offer .price { font-weight: 700; color: var(--stamp-text); font-size: 15px; }
+  .offer .added { color: var(--ok); font-size: 13px; font-weight: 700; }
   .sw { position: relative; width: 52px; height: 30px; flex: none; }
   .sw input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
   .sw span { position: absolute; inset: 0; background: var(--line); border-radius: 99px; transition: background .2s; }
   .sw span::after { content: ''; position: absolute; top: 3px; inset-inline-start: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
-  .sw input:checked + span { background: #D9940F; }
+  .sw input:checked + span { background: var(--stamp-dark); }
   .sw input:checked + span::after { transform: translateX(-22px); }
   .sw input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
-  .sw input:disabled { cursor: default; }
   .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   .pill { cursor: pointer; position: relative; }
   .pill input { position: absolute; opacity: 0; pointer-events: none; }
-  .pill span { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); font-size: 14px; font-weight: 700; }
-  .pill input:checked + span { border-color: #D9940F; background: var(--sel); box-shadow: inset 0 0 0 1px #D9940F; }
+  .pill span { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); font-size: 14px; font-weight: 700; }
+  .pill input:checked + span { border-color: var(--stamp-dark); background: var(--sel); box-shadow: inset 0 0 0 1px var(--stamp-dark); }
+  .pill input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+
   /* fields */
   .field { display: grid; gap: 4px; }
   .field > span { font-weight: 700; font-size: 14px; }
-  .field input { font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); width: 100%; min-height: 44px; }
-  .field.bad input { border-color: var(--rec); }
+  .field input { font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); width: 100%; min-height: 46px; }
+  .field.bad input { border-color: var(--rec); box-shadow: 0 0 0 1px var(--rec); }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
-  .check input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: #D9940F; flex: none; }
-  .terms-text { white-space: pre-wrap; font-size: 13px; line-height: 19px; max-height: 180px; overflow: auto; border: 1px solid var(--line); padding: 10px; background: var(--row-alt); }
+  .check input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--stamp-dark); flex: none; }
+  .check.bad span { color: var(--rec); font-weight: 700; }
+  details.terms summary { cursor: pointer; color: var(--link); text-decoration: underline; font-size: 14px; }
+  details.terms div { white-space: pre-wrap; font-size: 13px; line-height: 19px; max-height: 200px; overflow: auto; border: 1px solid var(--line); padding: 10px; margin-top: 8px; background: var(--row-alt); }
   .err { color: var(--rec); font-weight: 700; font-size: 14px; }
   .err:empty { display: none; }
+  .trust { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-muted); line-height: 18px; }
+  .trust svg { width: 18px; height: 18px; flex: none; }
+  .save-st { font-size: 13px; color: var(--ink-muted); }
+  .save-st:empty { display: none; }
+
   /* buttons */
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 20px; border-radius: var(--radius-sm); font: 700 17px/22px var(--sans); text-decoration: none; cursor: pointer; box-shadow: var(--shadow-button); border: 1px solid transparent; }
   .btn:active { box-shadow: none; transform: translateY(2px); }
-  .btn-primary { background: var(--stamp); color: var(--on-stamp); border-color: #D9940F; }
+  .btn-primary { background: var(--stamp); color: var(--on-stamp); border-color: var(--stamp-dark); }
   .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
-  .btn[disabled] { opacity: .55; cursor: default; }
+  .btn-ghost { background: transparent; color: var(--on-bar); border-color: rgba(255,255,255,.45); box-shadow: none; }
+  .btn[disabled] { opacity: .6; cursor: default; }
   .link { background: none; border: 0; color: var(--link); text-decoration: underline; cursor: pointer; padding: 0; font-size: 14px; }
-  .pay-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 6; background: var(--bar); color: var(--on-bar); padding: 10px max(16px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .foot { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; font-size: 14px; }
+
+  /* sticky pay bar */
+  .pay-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 6; background: var(--bar); color: var(--on-bar); padding: 10px max(16px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); box-shadow: 0 -4px 14px rgba(20,26,36,.18); transform: translateY(0); transition: transform .25s; }
+  .pay-bar.away { transform: translateY(110%); }
   .pay-bar .in { max-width: 688px; margin: 0 auto; display: flex; gap: 12px; align-items: center; }
-  .pay-bar .amt { font-size: 13px; line-height: 16px; opacity: .9; }
+  .pay-bar .amt { font-size: 12px; line-height: 15px; opacity: .9; min-width: 0; }
   .pay-bar .amt b { display: block; font-size: 22px; line-height: 26px; opacity: 1; }
+  .pay-bar .amt s { opacity: .6; font-size: 13px; }
   .pay-bar .btn { flex: 1; }
+
   .center { text-align: center; padding: 48px 16px; }
-  .done { text-align: center; padding: 24px 16px; display: grid; gap: 14px; }
-  .done .big { font-size: 44px; line-height: 1; color: var(--ok); }
-  .done h1 { margin: 0; font-size: 24px; line-height: 30px; }
-  .hidden { display: none !important; }
+  .done { padding: 0 0 8px; }
+  .done .hero { text-align: center; justify-items: center; padding: 28px 16px; }
+  .done .tick { width: 64px; height: 64px; border-radius: 50%; background: var(--ok); display: grid; place-items: center; }
+  .done .tick svg { width: 34px; height: 34px; }
+  .steps { display: grid; gap: 0; counter-reset: s; }
+  .steps li { list-style: none; display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 8px 0; font-size: 15px; line-height: 21px; }
+  .steps li::before { counter-increment: s; content: counter(s); width: 28px; height: 28px; border-radius: 50%; background: var(--box-head); border: 1px solid var(--line); display: grid; place-items: center; font-weight: 700; font-size: 14px; color: var(--stamp-text); }
+  .steps li.now::before { background: var(--ok); border-color: var(--ok); color: #fff; content: '✓'; }
+  .steps { margin: 0; padding: 0; }
   .busy { opacity: .6; pointer-events: none; }
+  .preview-tag { background: var(--rec); color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 4px; }
+  .skel { height: 14px; border-radius: 4px; background: linear-gradient(90deg, var(--box-head), var(--row-alt), var(--box-head)); background-size: 200% 100%; animation: sk 1.2s linear infinite; }
+  @keyframes sk { to { background-position: -200% 0; } }
   #lightbox { border: 0; padding: 0; background: transparent; max-width: 100vw; max-height: 100vh; width: 100vw; height: 100vh; overflow: hidden; }
   #lightbox[open] { display: flex; align-items: center; justify-content: center; }
   #lightbox::backdrop { background: rgba(10,12,16,.88); }
   #lbImg { max-width: calc(100vw - 32px); max-height: calc(100vh - 120px); border-radius: var(--radius-sm); background: #fff; }
   .lb-x { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 14px; width: 48px; height: 48px; border-radius: 50%; border: 2px solid #fff; background: rgba(0,0,0,.55); color: #fff; font: 700 30px/42px var(--sans); cursor: pointer; padding: 0; }
-  .preview-tag { background: var(--rec); color: #fff; text-align: center; font-size: 13px; font-weight: 700; padding: 4px; }
-  @media (max-width: 480px) { .wrap { padding: 12px; } .site { border: 0; } }
+  @media (max-width: 480px) { .wrap { padding: 16px 12px; gap: 24px; } .site { border: 0; } .hero { padding: 18px 12px 20px; } .hero-total .amt { font-size: 36px; } }
+  @media (min-width: 721px) { .site { margin-top: 24px; margin-bottom: 24px; min-height: 0; border-radius: var(--radius); overflow: hidden; box-shadow: 0 6px 24px rgba(20,26,36,.12); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
   @media print {
     body { background: #fff; }
-    .site { border: 0; padding: 0; max-width: none; }
-    .pay-bar, .no-print, .preview-tag { display: none !important; }
+    .site { border: 0; padding: 0; max-width: none; margin: 0; box-shadow: none; }
+    .pay-bar, .no-print, .preview-tag, .thumbs { display: none !important; }
+    .hero { background: #fff; color: var(--ink); border-bottom: 2px solid var(--ink); }
+    .stamp { box-shadow: none; border: 1px solid var(--stamp-dark); }
     .box { break-inside: avoid; }
   }
 </style>
@@ -129,9 +187,9 @@
     <svg viewBox="0 0 240 240" aria-hidden="true"><rect width="240" height="240" rx="28" fill="#D9940F"/><rect width="240" height="228" rx="28" fill="#FFB21E"/><g transform="translate(36.8 62) scale(2.6)"><rect width="64" height="40" rx="3" fill="#1A1408"/><rect x="5" y="5" width="54" height="10" rx="1" fill="#EADFC2"/><circle cx="18" cy="26" r="7.5" fill="#FFB21E"/><circle cx="46" cy="26" r="7.5" fill="#FFB21E"/><circle cx="18" cy="26" r="3" fill="#1A1408"/><circle cx="46" cy="26" r="3" fill="#1A1408"/><rect x="27" y="23" width="10" height="6" rx="1" fill="#FFB21E"/><circle cx="57" cy="34" r="3" fill="#C42A2A"/></g></svg>
     <div><div class="t">המעבדה להמרת קלטות ודיסקים</div><div class="s" id="hdrSub">הצעת מחיר</div></div>
   </header>
-  <main id="main"><div class="center muted">טוען את ההצעה…</div></main>
+  <main id="main"><div class="wrap" aria-busy="true"><div class="skel" style="width:60%;height:26px"></div><div class="skel"></div><div class="skel" style="width:80%"></div><div class="skel" style="width:40%"></div></div></main>
 </div>
-<div class="pay-bar hidden" id="bar"><div class="in"><div class="amt">לתשלום<b class="num" id="barAmt"></b></div><button class="btn btn-primary" id="payBtn">אישור ותשלום</button></div></div>
+<div class="pay-bar hidden" id="bar"><div class="in"><div class="amt">לתשלום <s class="num" id="barFull"></s><b class="num" id="barAmt"></b></div><button class="btn btn-primary" id="payBtn">אישור ותשלום</button></div></div>
 <dialog id="lightbox" aria-label="תמונה בגודל מלא"><button type="button" class="lb-x" id="lbX" aria-label="סגירה">×</button><img id="lbImg" alt=""></dialog>
 
 <script src="config.js"></script>
@@ -145,7 +203,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const ils = n => Number(n).toLocaleString('he-IL', { maximumFractionDigits: 2 }) + ' ₪';
 let D = null;
 
-// media icons, same as the questionnaire
+// ---------- icons ----------
 const IC = {
   1: '<rect x="2" y="6" width="40" height="22" rx="2" fill="#1B1F27"/><rect x="6" y="9" width="32" height="6" fill="#EADFC2"/><circle cx="14" cy="21" r="4" fill="#FFB21E"/><circle cx="30" cy="21" r="4" fill="#FFB21E"/>',
   2: '<rect x="8" y="8" width="28" height="18" rx="2" fill="#1B1F27"/><rect x="11" y="10" width="22" height="5" fill="#EADFC2"/><circle cx="16" cy="20" r="3" fill="#FFB21E"/><circle cx="28" cy="20" r="3" fill="#FFB21E"/>',
@@ -159,6 +217,20 @@ const IC = {
   21: '<circle cx="11" cy="15" r="10" fill="#8C96A3"/><circle cx="11" cy="15" r="7" fill="#3A2A20"/><circle cx="33" cy="15" r="10" fill="#8C96A3"/><circle cx="33" cy="15" r="7" fill="#3A2A20"/><path d="M11 25 L33 25" stroke="#1B1F27" stroke-width="1.6"/>',
 };
 const icon = id => `<svg viewBox="0 0 44 34" aria-hidden="true">${IC[id] || IC[1]}</svg>`;
+// upsell icons (until the catalog sends a picture)
+const OFFER_IC = {
+  14: '<path d="M13 2 4 14h6l-1 8 9-12h-6z" fill="#D9940F" stroke="#1B1F27" stroke-width="1.2" stroke-linejoin="round"/>',
+  13: '<path d="M2 7h12v9H2zM14 10h4l3 3v3h-7z" fill="#22324A"/><circle cx="6" cy="17.5" r="2" fill="#FFB21E" stroke="#1B1F27"/><circle cx="17" cy="17.5" r="2" fill="#FFB21E" stroke="#1B1F27"/>',
+  usb: '<rect x="8" y="2" width="8" height="5" fill="#8C96A3"/><rect x="6" y="7" width="12" height="15" rx="2" fill="#22324A"/><rect x="10" y="3.5" width="1.5" height="1.5" fill="#fff"/><rect x="12.5" y="3.5" width="1.5" height="1.5" fill="#fff"/>',
+};
+const offerIcon = o => o.image ? `<img src="${esc(o.image)}" alt="">` : `<svg viewBox="0 0 24 24" aria-hidden="true">${OFFER_IC[o.pid] || OFFER_IC.usb}</svg>`;
+const SV = {
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  tick: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17l9-10"/></svg>',
+};
+/** "קלטת וידאו (VHS / VHS-C)" → main "קלטת וידאו" + latin sub "VHS / VHS-C", so mixed Hebrew/English never breaks mid-line */
+function splitName(n) { const m = String(n || '').match(/^(.*?)\s*\(([^)]*)\)\s*$/); return m ? [m[1], m[2]] : [n, '']; }
 
 // ---------- server ----------
 async function api(body) {
@@ -178,9 +250,9 @@ async function start() {
 }
 function fatal(t, p) { $('#bar').classList.add('hidden'); $('#main').innerHTML = `<div class="center"><h1 style="font-size:22px;margin:0 0 8px">${esc(t)}</h1><p class="muted">${esc(p)}</p>${waBtn()}</div>`; }
 function waNum() { return String(D?.settings?.business_whatsapp || '').replace(/\D/g, ''); }
-function waBtn(text = 'שלום, יש לי שאלה על הצעת המחיר') { const n = waNum(); return n ? `<a class="btn btn-secondary" href="https://wa.me/${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">כתבו לנו בוואטסאפ</a>` : ''; }
+function waBtn(text = 'שלום, יש לי שאלה על הצעת המחיר', cls = 'btn btn-secondary', label = 'כתבו לנו בוואטסאפ') { const n = waNum(); return n ? `<a class="${cls}" href="https://wa.me/${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">${label}</a>` : ''; }
 
-// "המחיר שמור לך עד יום חמישי 26.11 בשעה 23:59"
+// "המחיר הזה שמור לך עד יום חמישי 26.11 בשעה 23:59"
 function holdText() {
   if (!D.valid_until || D.expired) return '';
   const d = new Date(D.valid_until), tz = { timeZone: 'Asia/Jerusalem' };
@@ -188,90 +260,118 @@ function holdText() {
   const time = d.toLocaleTimeString('he-IL', { ...tz, hour: '2-digit', minute: '2-digit', hour12: false });
   return `המחיר הזה שמור לך עד ${day} ${date} בשעה ${time}`;
 }
+const hasSaving = () => D.quote.discounts.length > 0 && D.quote.full_price > D.quote.total;
+const itemsCount = () => D.quote.media.reduce((s, l) => s + Number(l.qty || 0), 0);
 
-// ---------- page ----------
-function quoteHtml() {
-  const q = D.quote, hold = holdText(), hasDisc = q.discounts.length > 0;
-  return `<section class="box"><h2 class="box-head">מה אנחנו ממירים בשבילך</h2><div class="box-body" style="gap:0">
-      ${q.media.map(l => `<div class="lrow">${icon(l.product_id)}<div class="nm">${esc(l.name)}<span class="sub"><span class="num">${l.qty}</span> × <span class="num">${ils(l.unit_price)}</span></span></div><div class="sum num">${ils(l.sum)}</div></div>`).join('')}
-    </div></section>
-    ${q.extras.length ? `<section class="box"><h2 class="box-head">תוספות</h2><div class="box-body" style="gap:0">
-      ${q.extras.map(l => `<div class="lrow extra"><div class="nm">${esc(l.name)}${l.qty > 1 ? `<span class="sub"><span class="num">${l.qty}</span> × <span class="num">${ils(l.unit_price)}</span></span>` : ''}</div><div class="sum num">${ils(l.sum)}</div></div>`).join('')}
-    </div></section>` : ''}
-    <section class="box" id="totalBox"><h2 class="box-head">סיכום</h2><div class="box-body">
-      <div class="totals">
-        ${hasDisc || q.min_order_fill > 0 ? `<div class="r"><span>סה"כ לפני הנחות</span><span class="num">${ils(q.subtotal)}</span></div>` : ''}
-        ${q.discounts.map(x => `<div class="r lrow disc" style="border:0;padding:0;display:flex"><span class="nm">${esc(x.label)}</span><span class="sum num">−${ils(x.amount)}</span></div>`).join('')}
-        ${q.min_order_fill > 0 ? `<div class="r"><span>השלמה למינימום הזמנה</span><span class="num">${ils(q.min_order_fill)}</span></div>` : ''}
-        <div class="r grand"><span>לתשלום</span><span>${hasDisc && q.full_price > q.total ? `<s class="num">${ils(q.full_price)}</s>` : ''}<span class="num">${ils(q.total)}</span></span></div>
-        <div class="vat">כל המחירים כוללים מע"מ</div>
-      </div>
-      ${hold ? `<div class="hold">${esc(hold)}${hasDisc ? '. אחרי זה ההנחות יורדות.' : ''}</div>` : ''}
-      ${D.expired ? '<div class="note warn">תוקף ההנחות בהצעה הזו הסתיים, ולכן המחיר הוא המחיר המלא. אפשר עדיין לאשר ולשלם, או לכתוב לנו.</div>' : ''}
-    </div></section>`;
+// ---------- page parts ----------
+function heroHtml() {
+  const c = D.customer, q = D.quote, hold = holdText();
+  return `<section class="hero">
+    <div><h1>${esc(c.first_name ? c.first_name + ', ההצעה שלך מוכנה' : 'ההצעה שלך מוכנה')}</h1>
+      <p>עברנו על מה ששלחת. זה המחיר הסופי, כולל כל מה שבחרת בשאלון.</p></div>
+    ${D.photos.length ? `<div class="thumbs">${D.photos.map(p => `<a href="${esc(p.url)}" aria-label="תמונה של החומרה"><img src="${esc(p.url)}" alt=""></a>`).join('')}</div>` : ''}
+    <div class="hero-total" id="heroTotal"><span class="lbl">${itemsCount() ? `${itemsCount()} פריטים להמרה · ` : ''}לתשלום, כולל מע"מ</span>
+      <span class="amt num">${ils(q.total)}</span>${hasSaving() ? `<s class="num">${ils(q.full_price)}</s> <span class="hero-save">חוסכים <span class="num">${ils(q.saving)}</span></span>` : ''}</div>
+    ${hold ? `<div class="stamp">${SV.clock}<span>${esc(hold)}${hasSaving() ? '. אחרי זה ההנחות יורדות.' : ''}</span></div>` : ''}
+    ${D.expired ? `<div class="stamp off">${SV.clock}<span>תוקף ההנחות בהצעה הזו הסתיים, ולכן זה המחיר המלא. אפשר עדיין לאשר ולשלם.</span></div>` : ''}
+  </section>`;
+}
+function linesHtml() {
+  const q = D.quote;
+  return `<section class="box"><h2 class="box-head"><span class="n">1</span>מה אנחנו ממירים בשבילך<span class="aside">${itemsCount()} פריטים</span></h2><div class="box-body"><div class="lines">
+      ${q.media.map(l => { const [a, b] = splitName(l.name); return `<div class="lrow">${icon(l.product_id)}<div class="nm">${esc(a)}<span class="sub">${b ? `<bdi>${esc(b)}</bdi> · ` : ''}<span class="num">${l.qty}</span> × <span class="num">${ils(l.unit_price)}</span></span></div><div class="sum num">${ils(l.sum)}</div></div>`; }).join('')}
+      ${q.extras.map(l => { const [a, b] = splitName(l.name); return `<div class="lrow extra"><div class="nm">${esc(a)}${b || l.qty > 1 ? `<span class="sub">${b ? `<bdi>${esc(b)}</bdi>` : ''}${b && l.qty > 1 ? ' · ' : ''}${l.qty > 1 ? `<span class="num">${l.qty}</span> × <span class="num">${ils(l.unit_price)}</span>` : ''}</span>` : ''}</div><div class="sum num">${ils(l.sum)}</div></div>`; }).join('')}
+    </div>
+    <div class="totals" id="totals">
+      ${hasSaving() || q.min_order_fill > 0 ? `<div class="r"><span>סה"כ לפני הנחות</span><span class="num">${ils(q.subtotal)}</span></div>` : ''}
+      ${q.discounts.map(x => `<div class="r disc"><span>${esc(x.label)}</span><span class="num">−${ils(x.amount)}</span></div>`).join('')}
+      ${q.min_order_fill > 0 ? `<div class="r"><span>השלמה למינימום הזמנה</span><span class="num">${ils(q.min_order_fill)}</span></div>` : ''}
+      <div class="r grand"><span>לתשלום</span><span>${hasSaving() ? `<s class="num">${ils(q.full_price)}</s>` : ''}<span class="num">${ils(q.total)}</span></span></div>
+      <div class="vat">כל המחירים כוללים מע"מ</div>
+    </div></div></section>`;
 }
 function offersHtml() {
   if (!D.offers.length) return '';
-  return `<section class="box no-print"><h2 class="box-head">רוצים להוסיף?</h2><div class="box-body"><div class="offers">${D.offers.map(o => {
-    const usb = o.pid === 'usb', price = usb ? (o.sizes.find(s => s.size === (o.size || 32))?.price ?? o.price) : o.price;
-    const name = usb ? 'דיסק און קי עם כל הקבצים' : o.name;
-    return `<div class="offer ${o.on ? 'on' : ''}" data-offer="${esc(o.pid)}"><div class="tx"><b>${esc(name)}</b>${o.notes ? `<span class="d">${esc(o.notes)}</span>` : ''}
-        ${usb ? `<div class="pills">${o.sizes.map(s => `<label class="pill"><input type="radio" name="usbSize" value="${s.size}" ${(o.size || 32) === s.size ? 'checked' : ''}><span>${s.size}GB · <span class="num">${ils(s.price)}</span></span></label>`).join('')}</div>` : `<span class="price num">+${ils(price)}</span>`}</div>
+  return `<section class="box no-print"><h2 class="box-head"><span class="n">2</span>רוצים להוסיף?<span class="aside">לא חובה</span></h2><div class="box-body"><div class="offers">${D.offers.map(o => {
+    const usb = o.pid === 'usb', cur = usb ? (o.sizes.find(s => s.size === (o.size || 32)) || o.sizes[0]) : null, price = usb ? cur.price : o.price;
+    const [name] = splitName(usb ? 'דיסק און קי עם כל הקבצים' : o.name);
+    return `<div class="offer ${o.on ? 'on' : ''}" data-offer="${esc(o.pid)}"><div class="ic">${offerIcon(o)}</div><div class="tx"><b>${esc(name)}</b>${o.notes ? `<span class="d">${esc(o.notes)}</span>` : ''}
+        ${usb ? `<div class="pills" role="radiogroup" aria-label="גודל">${o.sizes.map(s => `<label class="pill"><input type="radio" name="usbSize" value="${s.size}" ${(o.size || 32) === s.size ? 'checked' : ''}><span><span class="num">${s.size}GB</span> · <span class="num">${ils(s.price)}</span></span></label>`).join('')}</div>`
+          : o.on ? `<span class="added">✓ נוסף להזמנה · <span class="num">${ils(price)}</span></span>` : `<span class="price num">+${ils(price)}</span>`}</div>
       <label class="sw"><input type="checkbox" data-addon="${esc(o.pid)}" ${o.on ? 'checked' : ''} aria-label="הוספת ${esc(name)}"><span></span></label></div>`;
-  }).join('')}</div><div class="small muted">התוספות במחיר מלא. הסכום מתעדכן מיד.</div></div></section>`;
+  }).join('')}</div><div class="small muted">התוספות במחיר מלא, והסכום מתעדכן מיד.</div></div></section>`;
 }
-function invoiceHtml() {
+function invoiceHtml(n) {
   const c = D.customer;
-  return `<section class="box"><h2 class="box-head">פרטים לחשבונית</h2><div class="box-body">
+  return `<section class="box"><h2 class="box-head"><span class="n">${n}</span>פרטים לחשבונית<span class="aside save-st" id="invSave"></span></h2><div class="box-body">
+    <div class="small" id="invPriv" ${c.invoice_business ? 'hidden' : ''}>החשבונית תצא על שם <b>${esc(c.full_name || '')}</b>${c.id_number ? ` · ת"ז <span class="num">${esc(c.id_number)}</span>` : ''}</div>
     <label class="check"><input type="checkbox" id="invBiz" ${c.invoice_business ? 'checked' : ''}><span>חשבונית על שם עסק</span></label>
     <div class="row2 ${c.invoice_business ? '' : 'hidden'}" id="invBizF">
       <label class="field"><span>שם העסק</span><input data-inv="business_name" value="${esc(c.business_name || '')}" autocomplete="organization"></label>
       <label class="field"><span>ח.פ / עוסק מורשה</span><input data-inv="business_id" value="${esc(c.business_id || '')}" inputmode="numeric"></label>
     </div>
-    <div class="small muted" id="invPriv" ${c.invoice_business ? 'hidden' : ''}>החשבונית תצא על שם <b>${esc(c.full_name || '')}</b>${c.id_number ? ` (ת"ז <span class="num">${esc(c.id_number)}</span>)` : ''}.</div>
-    <span class="small muted" id="invSave"></span>
   </div></section>`;
 }
-function acceptHtml() {
+function acceptHtml(n) {
   const c = D.customer;
-  return `<section class="box" id="acceptBox"><h2 class="box-head">אישור ההזמנה</h2><div class="box-body">
-    ${D.settings.terms ? `<div class="terms-text">${esc(D.settings.terms)}</div>` : ''}
-    <label class="check"><input type="checkbox" id="terms"><span>קראתי ואני מאשר/ת את תנאי השירות</span></label>
+  return `<section class="box" id="acceptBox"><h2 class="box-head"><span class="n">${n}</span>אישור ההזמנה</h2><div class="box-body">
+    <label class="check" id="termsL"><input type="checkbox" id="terms"><span>קראתי ואני מאשר/ת את תנאי השירות</span></label>
+    ${D.settings.terms ? `<details class="terms"><summary>לקריאת תנאי השירות</summary><div>${esc(D.settings.terms)}</div></details>` : ''}
     <label class="field" id="nameF"><span>שם מלא</span><input id="accName" value="${esc(D.accepted_name || c.full_name || '')}" autocomplete="name" placeholder="שם פרטי ומשפחה"></label>
-    <div class="err" id="accErr"></div>
-    <div class="small muted">אחרי האישור עוברים לדף תשלום מאובטח (אשראי, עד 3 תשלומים). מיד אחרי התשלום נתאם איתך את איסוף החומרים.</div>
+    <div class="err" id="accErr" role="alert"></div>
+    <button class="btn btn-primary" id="payBtn2" style="width:100%">אישור ותשלום · <span class="num" id="payAmt2">${ils(D.quote.total)}</span></button>
+    <div class="trust">${SV.lock}<span>תשלום מאובטח באשראי דרך SUMIT, עד 3 תשלומים. חשבונית נשלחת למייל מיד.</span></div>
   </div></section>`;
+}
+function nextHtml() {
+  return `<section class="box"><h2 class="box-head">מה קורה אחרי התשלום</h2><div class="box-body"><ol class="steps">
+    <li>מתאמים איתך יום לאיסוף החומרים מהבית</li><li>החומרים מגיעים למעבדה, וכל פריט מקבל ברקוד</li><li>ממירים, ושולחים לך את הקבצים בדרך שבחרת</li></ol></div></section>`;
 }
 function render() {
-  const c = D.customer;
-  $('#hdrSub').textContent = 'הצעת מחיר להזמנה ' + D.order_id;
-  $('#main').innerHTML = `<div class="wrap">
-    <div class="intro"><h1>${esc(c.first_name ? c.first_name + ', ההצעה שלך מוכנה' : 'ההצעה שלך מוכנה')}</h1>
-      <p class="muted">עברנו על מה ששלחת. זה המחיר המלא, כולל כל מה שבחרת בשאלון.</p></div>
-    ${D.photos.length ? `<div class="gallery">${D.photos.map(p => `<a href="${esc(p.url)}"><img src="${esc(p.url)}" alt="החומרה ששלחת" loading="lazy"></a>`).join('')}</div>` : ''}
-    <div id="quoteBox" style="display:grid;gap:24px">${quoteHtml()}</div>
-    <div id="offersBox">${offersHtml()}</div>
-    ${invoiceHtml()}
-    ${acceptHtml()}
-    <div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="link" id="printBtn">שמירה כ-PDF / הדפסה</button>${waNum() ? `<span class="muted">·</span>${waBtn('שלום, אני רוצה לשנות משהו בהצעה').replace('btn btn-secondary', 'link')}` : ''}</div>
+  $('#hdrSub').textContent = 'הצעת מחיר · הזמנה ' + D.order_id;
+  const hasOffers = D.offers.length > 0;
+  $('#main').innerHTML = `${heroHtml()}<div class="wrap">
+    <div id="linesBox">${linesHtml()}</div>
+    <div id="offersBox" ${hasOffers ? '' : 'hidden'}>${offersHtml()}</div>
+    ${invoiceHtml(hasOffers ? 3 : 2)}
+    ${acceptHtml(hasOffers ? 4 : 3)}
+    ${nextHtml()}
+    <div class="foot no-print"><button class="link" id="printBtn">שמירה כ-PDF / הדפסה</button>${waNum() ? `<span class="muted">·</span>${waBtn('שלום, אני רוצה לשנות משהו בהצעה', 'link', 'רוצים לשנות משהו? כתבו לנו')}` : ''}</div>
   </div>`;
-  paintBar(); bind();
+  paintBar(); bind(); watchBar();
 }
-function paintBar() { $('#barAmt').textContent = ils(D.quote.total); $('#bar').classList.remove('hidden'); }
-function repaintQuote() { $('#quoteBox').innerHTML = quoteHtml(); $('#offersBox').innerHTML = offersHtml(); bindOffers(); paintBar(); }
+function paintBar() {
+  $('#barAmt').textContent = ils(D.quote.total);
+  $('#barFull').textContent = hasSaving() ? ils(D.quote.full_price) : '';
+  $('#bar').classList.remove('hidden');
+}
+function repaintQuote() {
+  const old = D._lastTotal; D._lastTotal = D.quote.total;
+  const hero = $('.hero'); hero.outerHTML = heroHtml();
+  $('#linesBox').innerHTML = linesHtml();
+  $('#offersBox').innerHTML = offersHtml();
+  if ($('#payAmt2')) $('#payAmt2').textContent = ils(D.quote.total);
+  bindOffers(); paintBar();
+  if (old !== undefined && old !== D.quote.total) ['#heroTotal', '#totals .grand', '#barAmt'].forEach(s => { const el = $(s); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } });
+}
+// the sticky bar steps aside while the accept box (with its own pay button) is on screen
+function watchBar() {
+  if (!('IntersectionObserver' in window)) return;
+  new IntersectionObserver(([e]) => $('#bar').classList.toggle('away', e.isIntersecting), { threshold: 0.35 }).observe($('#acceptBox'));
+}
 
 // ---------- behavior ----------
 function bindOffers() {
   $$('[data-addon]').forEach(inp => inp.onchange = () => toggleAddon(inp.dataset.addon, inp.checked));
+  $$('input[name=usbSize]').forEach(r => r.onchange = () => { if ($('[data-addon="usb"]')?.checked) toggleAddon('usb', true); else { const o = D.offers.find(x => x.pid === 'usb'); if (o) { o.size = Number(r.value); } } });
   // the whole card is the tap target, not only the small switch
   $$('[data-offer]').forEach(card => card.onclick = e => { if (e.target.closest('input, label')) return; const inp = $('[data-addon]', card); inp.checked = !inp.checked; inp.dispatchEvent(new Event('change')); });
-  $$('input[name=usbSize]').forEach(r => r.onchange = () => { const on = $('[data-addon="usb"]'); if (on?.checked) toggleAddon('usb', true); else repaintUsbPrice(); });
 }
-function repaintUsbPrice() { /* price shows in the pill itself */ }
 async function toggleAddon(pid, on) {
   const box = $('#offersBox'); box.classList.add('busy');
   try {
     const size = Number($('input[name=usbSize]:checked')?.value || 32);
+    D._lastTotal = D.quote.total;
     const r = await api({ op: 'addon', pid: pid === 'usb' ? 'usb' : Number(pid), on, size });
     Object.assign(D, { quote: r.quote, offers: r.offers });
     repaintQuote();
@@ -279,13 +379,13 @@ async function toggleAddon(pid, on) {
   finally { box.classList.remove('busy'); }
 }
 let invT = null;
+const invData = () => { const customer = { invoice_business: $('#invBiz').checked }; $$('[data-inv]').forEach(i => customer[i.dataset.inv] = i.value); return customer; };
 function saveInvoice() {
-  clearTimeout(invT); $('#invSave').textContent = '…';
+  clearTimeout(invT); $('#invSave').textContent = 'שומר…';
   invT = setTimeout(async () => {
-    const customer = { invoice_business: $('#invBiz').checked };
-    $$('[data-inv]').forEach(i => customer[i.dataset.inv] = i.value);
+    const customer = invData();
     try { await api({ op: 'invoice', customer }); Object.assign(D.customer, customer); $('#invSave').textContent = 'נשמר ✓'; }
-    catch { $('#invSave').textContent = 'לא נשמר. נסו שוב'; }
+    catch { $('#invSave').textContent = 'לא נשמר'; }
   }, 600);
 }
 function bind() {
@@ -294,43 +394,50 @@ function bind() {
   $$('[data-inv]').forEach(i => i.oninput = saveInvoice);
   $('#printBtn').onclick = () => window.print();
   $('#accName').oninput = () => $('#nameF').classList.remove('bad');
+  $('#terms').onchange = () => $('#termsL').classList.remove('bad');
+  $('#payBtn2').onclick = pay;
 }
 let clicked = false;
-$('#payBtn').onclick = async () => {
+async function pay() {
   if (!clicked && !PREVIEW) { clicked = true; api({ op: 'pay_click' }).catch(() => {}); }
   const err = m => { $('#accErr').textContent = m; $('#acceptBox').scrollIntoView({ behavior: 'smooth', block: 'center' }); };
   const name = $('#accName').value.trim();
-  if (!$('#terms').checked) return err('כדי להמשיך מסמנים שקראת את התנאים');
+  if (!$('#terms').checked) { $('#termsL').classList.add('bad'); return err('כדי להמשיך מסמנים שקראת את התנאים'); }
   if (name.split(/\s+/).filter(Boolean).length < 2) { $('#nameF').classList.add('bad'); return err('כותבים שם מלא: שם פרטי ומשפחה'); }
   if ($('#invBiz').checked && !($('[data-inv=business_name]').value.trim() && $('[data-inv=business_id]').value.trim())) return err('לחשבונית על שם עסק צריך שם עסק ומספר');
   if (PREVIEW) return err('בתצוגה המקדימה לא עוברים לתשלום');
   $('#accErr').textContent = '';
-  const b = $('#payBtn'); b.disabled = true; b.textContent = 'פותח את דף התשלום…';
+  const btns = [$('#payBtn'), $('#payBtn2')], label = b => b.id === 'payBtn' ? 'אישור ותשלום' : `אישור ותשלום · <span class="num" id="payAmt2">${ils(D.quote.total)}</span>`;
+  btns.forEach(b => { b.disabled = true; b.textContent = 'פותח את דף התשלום…'; });
   try {
     clearTimeout(invT);
-    const customer = { invoice_business: $('#invBiz').checked }; $$('[data-inv]').forEach(i => customer[i.dataset.inv] = i.value);
-    await api({ op: 'invoice', customer });
+    await api({ op: 'invoice', customer: invData() });
     const r = await api({ op: 'accept', name, terms: true });
     location.href = r.url;
   } catch (e) {
     if (e.status === 409 && e.data?.track_url) return location.replace(e.data.track_url);
     err(e.message || 'משהו נכשל. נסו שוב');
-    b.disabled = false; b.textContent = 'אישור ותשלום';
+    btns.forEach(b => { b.disabled = false; b.innerHTML = label(b); });
   }
-};
+}
+$('#payBtn').onclick = pay;
 function renderPaid() {
   $('#bar').classList.add('hidden');
   $('#hdrSub').textContent = 'הזמנה ' + D.order_id;
-  $('#main').innerHTML = `<div class="done"><div class="big">✓</div><h1>ההזמנה שולמה. תודה${D.customer.first_name ? ', ' + esc(D.customer.first_name) : ''}!</h1>
-    <p style="margin:0">נחזור אליך לתאם את איסוף החומרים. בדף המעקב רואים בכל רגע איפה ההזמנה.</p>
-    ${D.track_url ? `<a class="btn btn-primary" href="${esc(D.track_url)}">לדף המעקב</a>` : ''}
-    <div style="display:grid;gap:24px;text-align:start">${quoteHtml().replace(/<div class="hold">[\s\S]*?<\/div>/, '')}</div>
-    ${D.accepted_name ? `<p class="small muted" style="margin:0">אושר על ידי ${esc(D.accepted_name)}</p>` : ''}
-    <button class="link no-print" onclick="window.print()">שמירה כ-PDF / הדפסה</button></div>`;
+  $('#main').innerHTML = `<div class="done"><section class="hero"><div class="tick">${SV.tick}</div>
+      <h1>ההזמנה שולמה. תודה${D.customer.first_name ? ', ' + esc(D.customer.first_name) : ''}!</h1>
+      <p>חשבונית נשלחה למייל. נחזור אליך בקרוב לתאם את איסוף החומרים.</p>
+      ${D.track_url ? `<a class="btn btn-primary" href="${esc(D.track_url)}">לדף המעקב של ההזמנה</a>` : ''}</section>
+    <div class="wrap">
+      <section class="box"><h2 class="box-head">מה עכשיו</h2><div class="box-body"><ol class="steps"><li class="now">התשלום התקבל</li><li>מתאמים איתך יום לאיסוף החומרים</li><li>החומרים מגיעים למעבדה ומקבלים ברקוד</li><li>ממירים ושולחים לך את הקבצים</li></ol></div></section>
+      ${linesHtml().replace('<span class="n">1</span>', '')}
+      ${D.accepted_name ? `<p class="small muted" style="margin:0;text-align:center">ההזמנה אושרה על ידי ${esc(D.accepted_name)}</p>` : ''}
+      <div class="foot no-print"><button class="link" onclick="window.print()">שמירה כ-PDF / הדפסה</button></div>
+    </div></div>`;
 }
 // photo viewer
 document.addEventListener('click', e => {
-  const a = e.target.closest('.gallery a'); if (!a) return;
+  const a = e.target.closest('.thumbs a'); if (!a) return;
   e.preventDefault(); $('#lbImg').src = a.getAttribute('href'); $('#lightbox').showModal();
 });
 $('#lbX').onclick = () => $('#lightbox').close();
