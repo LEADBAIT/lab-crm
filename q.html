@@ -291,7 +291,7 @@ function render() {
         ${initialPhotos.length && mine.length ? '<p class="small muted" style="margin:0">מילאנו לפי התמונות ששלחתם. בדקו שזה נכון.</p>' : ''}
         <div class="mlist">${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">סמנו מה יש לכם ובאיזו כמות:</p>'}</div>
         ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>+ יש לי עוד סוגי חומרה</button><div id="restTypes" class="mlist ${mine.length ? 'hidden' : ''}">${rest.map(mrow).join('')}</div>` : ''}
-        <div class="subpanel">
+        <div class="subpanel ${!mine.length || !rest.length || o.q_unsure_type || D.photos.some(p => p.source === 'customer') ? '' : 'hidden'}" id="unsurePanel">
           <label class="toggle-line small"><input type="checkbox" data-part="order" data-k="q_unsure_type" ${o.q_unsure_type ? 'checked' : ''}> אני לא בטוח איזו חומרה יש לי</label>
           <div id="photoNeed"></div>
         </div>
@@ -402,7 +402,8 @@ function bind() {
     input.addEventListener('change', () => set(input.value));
   });
   $('#termsBtn') && ($('#termsBtn').onclick = e => { e.preventDefault(); $('#termsText').classList.toggle('hidden'); });
-  $('#moreTypes') && ($('#moreTypes').onclick = () => { $('#restTypes').classList.remove('hidden'); $('#moreTypes').classList.add('hidden'); });
+  // "+ יש לי עוד סוגי חומרה" opens the other types and, with them, the "not sure" + photos panel
+  $('#moreTypes') && ($('#moreTypes').onclick = () => { $('#restTypes').classList.remove('hidden'); $('#unsurePanel').classList.remove('hidden'); $('#moreTypes').classList.add('hidden'); });
   $('#submitBtn').onclick = submit;
 }
 const USB_PID = { 16: 22, 32: 11, 128: 12 }; // USB size GB → product id
