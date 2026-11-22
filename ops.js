@@ -170,5 +170,30 @@ VIEWS.track = async function vTrack(token) {
     <ol class="steps">${steps.map(([l, d], i) => `<li class="${i <= curIdx ? 'done' : ''} ${i === curIdx ? 'cur' : ''}"><span class="b">${i <= curIdx ? '✓' : i + 1}</span><span>${l}${d ? `<span class="small muted"> · ${fmtDate(d)}</span>` : ''}</span></li>`).join('')}</ol>
     ${data.items_count ? `<p>${data.items_converted} מתוך ${data.items_count} פריטים הומרו.</p>` : ''}
     ${data.delivery_link ? `<a class="btn primary lg" style="margin-top:12px" href="${esc(data.delivery_link)}" target="_blank" rel="noopener">להורדת הקבצים</a>` : ''}
+    <div id="trackAdd"></div>
     <p class="small muted" style="margin-top:16px">שאלות? פשוט עונים לנו בוואטסאפ.</p></div>`;
+  if (data.paid_at && !data.completed_at) trackAddons(token);
 };
+/** add-ons after payment (products.show_track): the customer picks, sees the extra amount, and pays it with a separate SUMIT link */
+async function trackAddons(token) {
+  const API = CRM_CONFIG.url + '/functions/v1/quote', box = $('#trackAdd');
+  const call = async body => { const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ track: token, ...body }) }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'error'); return d; };
+  let d; try { d = await (await fetch(`${API}?track=${encodeURIComponent(token)}`)).json(); } catch { return; }
+  if (!d?.offers?.length && !d?.open) return;
+  const pick = new Set();
+  const draw = (amount = null, busy = false, err = '') => {
+    box.innerHTML = `<div class="track-add"><h2>רוצים להוסיף משהו להזמנה?</h2>
+      ${d.open ? `<div class="note" style="margin-bottom:10px">יש תוספת שממתינה לתשלום (${money(d.open.amount)}). <a href="${esc(d.open.url)}">להמשך התשלום</a></div>` : ''}
+      ${d.offers.map(f => `<label class="track-offer ${pick.has(f.pid) ? 'on' : ''}">${f.image ? `<img src="${esc(f.image)}" alt="">` : ''}<input type="checkbox" data-tpick="${f.pid}" ${pick.has(f.pid) ? 'checked' : ''}>
+        <span class="grow"><b>${esc(f.name)}</b>${f.recommended ? ' <span class="chip orange">מומלץ</span>' : ''}${f.notes ? `<span class="small muted" style="display:block">${esc(f.notes)}</span>` : ''}</span><span class="num"><b>${money(f.price)}</b></span></label>`).join('')}
+      ${pick.size ? `<button class="btn primary lg block" id="tBuy" ${busy || amount == null ? 'disabled' : ''}>${amount == null ? 'מחשב…' : amount > 0 ? `הוספה ותשלום ${money(amount)}` : 'הוספה להזמנה (בלי תוספת תשלום)'}</button>` : ''}
+      ${err ? `<p class="small" style="color:var(--red);margin-top:6px">${esc(err)}</p>` : ''}
+      <p class="tiny muted" style="margin-top:6px">התשלום בדף מאובטח של SUMIT, וחשבונית נשלחת במייל. התוספת נכנסת להזמנה ברגע שהתשלום עובר.</p></div>`;
+    $$('[data-tpick]', box).forEach(el => el.onchange = async () => { const id = Number(el.dataset.tpick); el.checked ? pick.add(id) : pick.delete(id); draw(null);
+      if (!pick.size) return draw(); try { const r = await call({ op: 'track_price', pids: [...pick] }); draw(r.amount); } catch (e) { draw(null, false, e.message); } });
+    $('#tBuy', box)?.addEventListener('click', async () => { draw(amount, true);
+      try { const r = await call({ op: 'track_buy', pids: [...pick] }); if (r.url) location.href = r.url; else if (r.added) location.reload(); }
+      catch (e) { draw(amount, false, e.message); } });
+  };
+  draw();
+}

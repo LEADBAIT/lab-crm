@@ -109,6 +109,21 @@
   dialog .acts .btn { flex: 1; }
   .upl { display: grid; gap: 10px; }
   /* compact: short answers as pills, several fields per row */
+  .pkgs { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+  .pkg { position: relative; display: flex; flex-direction: column; gap: 4px; text-align: start; font: inherit; color: inherit; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); padding: 14px 12px 12px; cursor: pointer; }
+  .pkg.on { border-color: #D9940F; background: var(--sel); box-shadow: inset 0 0 0 1px #D9940F; }
+  .pkg-img { width: 100%; height: 90px; object-fit: cover; border-radius: var(--radius-sm); }
+  .pkg-name { font-size: 16px; }
+  .pkg-price { font-weight: 700; color: var(--stamp-text); }
+  .pkg-save { align-self: flex-start; font-size: 13px; font-weight: 700; color: var(--ok); }
+  .pkg-d { font-size: 14px; color: var(--ink-muted); }
+  .pkg-list { margin: 4px 0 0; padding-inline-start: 18px; font-size: 14px; line-height: 20px; }
+  .pkg-cta { margin-top: auto; padding-top: 8px; font-weight: 700; font-size: 14px; color: var(--stamp-text); }
+  .pkg-rec { position: absolute; top: -10px; inset-inline-start: 10px; background: var(--stamp); color: var(--on-stamp, #1A1408); border-radius: 99px; padding: 0 10px; font-size: 12px; font-weight: 700; line-height: 20px; }
+  .pkg-rec.inline { position: static; display: inline-block; margin-inline-start: 6px; vertical-align: 1px; }
+  .offer-q .x-img { width: 44px; height: 44px; object-fit: cover; border-radius: var(--radius-sm); flex: none; }
+  .qty.sm { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .qty.sm button { width: 30px; height: 30px; }
   .pills { display: flex; flex-wrap: wrap; gap: 6px; }
   .pill { cursor: pointer; position: relative; }
   .pill input { position: absolute; opacity: 0; pointer-events: none; }
@@ -238,23 +253,24 @@ async function start() {
 function fatal(t, p) { $('#main').innerHTML = `<div class="center"><h1 style="font-size:22px;margin:0 0 8px">${esc(t)}</h1><p class="muted">${esc(p)}</p>${waBtn()}</div>`; }
 
 // ---------- autosave: per-field debounce, merged into one request ----------
-let pend = { customer: {}, order: {}, lines: {} }, timer = null, inflight = Promise.resolve();
+let pend = { customer: {}, order: {}, lines: {}, extras: {} }, timer = null, inflight = Promise.resolve();
 function queue(part, key, val, now = false) {
   pend[part][key] = val; setSave('…');
   clearTimeout(timer); timer = setTimeout(flush, now ? 0 : 700);
 }
 function flush() {
-  const p = pend; pend = { customer: {}, order: {}, lines: {} };
-  if (!Object.keys(p.customer).length && !Object.keys(p.order).length && !Object.keys(p.lines).length) return inflight;
+  const p = pend; pend = { customer: {}, order: {}, lines: {}, extras: {} };
+  if (!Object.keys(p.customer).length && !Object.keys(p.order).length && !Object.keys(p.lines).length && !Object.keys(p.extras).length) return inflight;
   const body = { op: 'save' };
   if (Object.keys(p.customer).length) body.customer = p.customer;
   if (Object.keys(p.order).length) body.order = p.order;
   if (Object.keys(p.lines).length) body.lines = p.lines;
+  if (Object.keys(p.extras).length) body.extras = p.extras;
   inflight = inflight.then(() => api(body)).then(r => { D.progress = r.progress; D.missing = r.missing; D.order.q_qty_changed_at = r.qty_changed ? (D.order.q_qty_changed_at || new Date().toISOString()) : null; setSave('נשמר ✓'); paintProgress(); })
-    .catch(e => { if (e.status === 409) return location.reload(); setSave('לא נשמר'); Object.assign(pend.customer, p.customer, pend.customer); Object.assign(pend.order, p.order, pend.order); Object.assign(pend.lines, p.lines, pend.lines); clearTimeout(timer); timer = setTimeout(flush, 4000); });
+    .catch(e => { if (e.status === 409) return location.reload(); setSave('לא נשמר'); Object.assign(pend.customer, p.customer, pend.customer); Object.assign(pend.order, p.order, pend.order); Object.assign(pend.lines, p.lines, pend.lines); Object.assign(pend.extras, p.extras, pend.extras); clearTimeout(timer); timer = setTimeout(flush, 4000); });
   return inflight;
 }
-window.addEventListener('pagehide', () => { if (timer) { clearTimeout(timer); const p = pend; if (Object.keys(p.customer).length + Object.keys(p.order).length + Object.keys(p.lines).length) navigator.sendBeacon?.(API, new Blob([JSON.stringify({ t: TOKEN, op: 'save', ...p })], { type: 'text/plain' })); } });
+window.addEventListener('pagehide', () => { if (timer) { clearTimeout(timer); const p = pend; if (Object.keys(p.customer).length + Object.keys(p.order).length + Object.keys(p.lines).length + Object.keys(p.extras).length) navigator.sendBeacon?.(API, new Blob([JSON.stringify({ t: TOKEN, op: 'save', ...p })], { type: 'text/plain' })); } });
 function setSave(t) { const s = $('#save'); if (s) s.textContent = t; }
 
 // ---------- helpers ----------
@@ -335,9 +351,13 @@ function render() {
         <div class="sub-choice ${o.delivery_method === 'ענן אישי של הלקוח' ? '' : 'hidden'}" data-sub="ענן אישי של הלקוח"><select class="sel" data-part="order" data-k="cloud_type" aria-label="איזה ענן"><option value="">איזה ענן?</option>${['Google Drive', 'iCloud', 'Dropbox', 'OneDrive', 'אחר'].map(x => `<option ${o.cloud_type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
       </div>`)}
 
-    ${box(++n, 'express', 'צריך את זה מהר?', `
+    ${D.express_offered !== false ? box(++n, 'express', 'צריך את זה מהר?', `
       <p class="small muted" style="margin:0">רגיל: עד ${slaDays} ימים. לאירוע קרוב (יום הולדת, חג) יש אקספרס.</p>
-      <label class="choice"><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>אקספרס: עד ${expressDays} ימי עסקים</b></span><span class="price">+${price(14)}</span></label>`, false)}
+      <label class="choice"><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>אקספרס: עד ${expressDays} ימי עסקים</b></span><span class="price">+${price(14)}</span></label>`, false) : ''}
+
+    ${(D.packages || []).length ? box(++n, 'package', 'רוצה חבילה משתלמת?', '<div id="pkgBox"></div>', false) : ''}
+
+    ${(D.offers || []).length ? box(++n, 'extras', 'עוד משהו שתרצה להוסיף?', `<div class="choices">${D.offers.map(offerRow).join('')}</div>`, false) : ''}
 
     ${box(++n, 'return', 'מה תרצה שנעשה עם החומרה הישנה בסוף?', pills('return_method', o.return_method, [['לא מוחזר (בהסכמה)', 'לא צריך להחזיר'], ['החזרה במשלוח', 'להחזיר במשלוח', '+' + price(13)], ['איסוף עצמי', 'אאסוף בעצמי']])
       + `<div class="note warn ${o.return_method === 'איסוף עצמי' ? '' : 'hidden'}" id="pickupNote">אפשר לאסוף בלי עלות עד ${feeDays} ימים מסוף העבודה. אחרי זה חלים דמי אחסון, ואחרי ${destroyAfter} ימים החומרה מושמדת.</div>`)}
@@ -361,7 +381,53 @@ function render() {
     <div style="text-align:center">${waBtn()}</div>
   </div>`;
   $('#progress').classList.remove('hidden'); $('#bar').classList.remove('hidden');
-  bind(); paintProgress(); paintPhotoNeed(); paintDisk();
+  bind(); paintProgress(); paintPhotoNeed(); paintDisk(); paintPackages();
+}
+// ---------- packages and extra add-ons (from the CRM catalog) ----------
+const inPkg = pid => { const k = (D.packages || []).find(x => x.id === O().package_id); return k ? (k.items.find(i => i.product_id === pid)?.qty || 0) : 0; };
+/** the package's "recommended" rule, re-checked live: media items between min and max, delivery method */
+function pkgRecommended(k) {
+  if (k.tagged) return true;
+  if (k.rec_min_media == null && k.rec_max_media == null && !k.rec_delivery) return false;
+  const mq = media().filter(p => p.counts_for_tier).reduce((s, p) => s + qtyOf(p.id), 0);
+  return (k.rec_min_media == null || mq >= k.rec_min_media) && (k.rec_max_media == null || mq <= k.rec_max_media) && (!k.rec_delivery || O().delivery_method === k.rec_delivery);
+}
+function paintPackages() {
+  const box = $('#pkgBox'); if (!box) return;
+  const cur = O().package_id ?? null;
+  const card = k => `<button type="button" class="pkg ${cur === k.id ? 'on' : ''}" data-pkg="${k.id}" aria-pressed="${cur === k.id}">
+      ${pkgRecommended(k) ? '<span class="pkg-rec">מומלץ לך</span>' : ''}
+      ${k.image ? `<img src="${esc(k.image)}" alt="" class="pkg-img">` : ''}
+      <b class="pkg-name">${esc(k.name)}</b><span class="pkg-price">+${ils(k.price)}</span>
+      ${Number(k.saving) > 0 ? `<span class="pkg-save">חוסכים ${ils(k.saving)}</span>` : ''}
+      ${k.description ? `<span class="pkg-d">${esc(k.description)}</span>` : ''}
+      <ul class="pkg-list">${k.items.map(i => `<li>${i.qty > 1 ? i.qty + ' × ' : ''}${esc(i.name)}</li>`).join('')}${k.includes ? `<li>${esc(k.includes)}</li>` : ''}</ul>
+      <span class="pkg-cta">${cur === k.id ? '✓ נבחרה' : 'בחירה'}</span></button>`;
+  box.innerHTML = `<div class="pkgs">${D.packages.map(card).join('')}</div>
+    <label class="toggle-line small"><input type="radio" name="pkgNone" ${cur ? '' : 'checked'}> בלי חבילה</label>
+    <p class="small muted" style="margin:0">מה שכבר כלול בחבילה לא מחויב פעמיים.</p>`;
+  $$('[data-pkg]', box).forEach(b => b.onclick = () => { const id = Number(b.dataset.pkg); setPackage(O().package_id === id ? null : id); });
+  $('input[name=pkgNone]', box).onchange = () => setPackage(null);
+}
+function setPackage(id) { O().package_id = id; queue('order', 'package_id', id, true); paintPackages(); paintExtras(); }
+function offerRow(f) {
+  const q = qtyOf(f.id), inc = inPkg(f.id);
+  return `<label class="choice offer-q" data-x="${f.id}">${f.image ? `<img src="${esc(f.image)}" alt="" class="x-img">` : ''}
+    <input type="checkbox" ${q ? 'checked' : ''} aria-label="${esc(f.name)}"><span><b>${esc(f.name)}${f.recommended ? ' <span class="pkg-rec inline">מומלץ</span>' : ''}</b>${f.description ? `<span class="d">${esc(f.description)}</span>` : ''}
+    ${inc ? '<span class="d" style="color:var(--ok)">כלול בחבילה שבחרת</span>' : ''}
+    ${f.pricing === 'unit' && q ? `<span class="qty sm" data-xq><button type="button" data-xd="-1" aria-label="פחות">−</button><b class="num">${q}</b><button type="button" data-xd="1" aria-label="עוד">+</button></span>` : ''}</span>
+    <span class="price">${inc && q <= inc ? 'כלול' : '+' + ils(f.price) + (f.pricing === 'unit' ? ' ליחידה' : '')}</span></label>`;
+}
+function paintExtras() {
+  const box = $('[data-box="extras"] .choices'); if (!box) return;
+  box.innerHTML = D.offers.map(offerRow).join('');
+  $$('[data-x]', box).forEach(row => {
+    const id = Number(row.dataset.x), f = D.offers.find(x => x.id === id);
+    const set = v => { v = Math.max(0, Math.min(f.pricing === 'unit' ? 20 : 1, v)); const l = D.lines.find(x => x.product_id === id);
+      if (l) l.qty = v; else D.lines.push({ product_id: id, qty: v }); queue('extras', id, v, true); paintExtras(); };
+    $('input', row).onchange = e => set(e.target.checked ? 1 : 0);
+    $$('[data-xd]', row).forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); set(qtyOf(id) + Number(b.dataset.xd)); });
+  });
 }
 function mrow(p) {
   const q = qtyOf(p.id);
@@ -394,6 +460,7 @@ function bind() {
       if (v !== 'דיסק און קי') { O().usb_size = null; setUsbLine(0); $$('input[name=usb_size]').forEach(r => r.checked = false); }
       else if (!O().usb_size) { const rec = usbRecFor(estGb()); $(`input[name=usb_size][value="${rec}"]`).checked = true; O().usb_size = rec; setUsbLine(rec); queue('order', 'usb_size', rec); }
       if (v !== 'ענן אישי של הלקוח') { O().cloud_type = null; }
+      paintPackages();
     }
     queue('order', k, v, true);
   }));
@@ -412,7 +479,7 @@ function bind() {
       }
       input.value = v || '';
       const l = D.lines.find(x => x.product_id === id); if (l) l.qty = v; else D.lines.push({ product_id: id, qty: v });
-      row.classList.toggle('has', v > 0); queue('lines', id, v); paintDisk();
+      row.classList.toggle('has', v > 0); queue('lines', id, v); paintDisk(); paintPackages();
     };
     $$('[data-qd]', row).forEach(b => b.onclick = () => set(qtyOf(id) + Number(b.dataset.qd)));
     input.addEventListener('change', () => set(input.value));
@@ -421,6 +488,7 @@ function bind() {
   // "+ יש לי עוד סוגי חומרה" opens the other types and, with them, the "not sure" + photos panel
   $('#moreTypes') && ($('#moreTypes').onclick = () => { $('#restTypes').classList.remove('hidden'); $('#unsurePanel').classList.remove('hidden'); $('#moreTypes').classList.add('hidden'); });
   $('#submitBtn').onclick = submit;
+  paintExtras();
 }
 const USB_PID = { 16: 22, 32: 11, 128: 12 }; // USB size GB → product id
 /** smallest USB stick that fits the estimate (with 25% spare) */

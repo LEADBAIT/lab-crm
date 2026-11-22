@@ -97,6 +97,7 @@
   .offer .d { display: block; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
   .offer .price { font-weight: 700; color: var(--stamp-text); font-size: 15px; }
   .offer .added { color: var(--ok); font-size: 13px; font-weight: 700; }
+  .offer .rec { display: inline-block; margin-inline-start: 6px; padding: 0 8px; border-radius: 999px; background: var(--stamp); color: var(--on-stamp); font-size: 12px; line-height: 20px; vertical-align: 2px; }
   .sw { position: relative; width: 52px; height: 30px; flex: none; }
   .sw input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
   .sw span { position: absolute; inset: 0; background: var(--line); border-radius: 99px; transition: background .2s; }
@@ -223,7 +224,8 @@ const OFFER_IC = {
   13: '<path d="M2 7h12v9H2zM14 10h4l3 3v3h-7z" fill="#22324A"/><circle cx="6" cy="17.5" r="2" fill="#FFB21E" stroke="#1B1F27"/><circle cx="17" cy="17.5" r="2" fill="#FFB21E" stroke="#1B1F27"/>',
   usb: '<rect x="8" y="2" width="8" height="5" fill="#8C96A3"/><rect x="6" y="7" width="12" height="15" rx="2" fill="#22324A"/><rect x="10" y="3.5" width="1.5" height="1.5" fill="#fff"/><rect x="12.5" y="3.5" width="1.5" height="1.5" fill="#fff"/>',
 };
-const offerIcon = o => o.image ? `<img src="${esc(o.image)}" alt="">` : `<svg viewBox="0 0 24 24" aria-hidden="true">${OFFER_IC[o.pid] || OFFER_IC.usb}</svg>`;
+OFFER_IC.gift = '<rect x="3" y="9" width="18" height="12" rx="1.5" fill="#22324A"/><rect x="2" y="6" width="20" height="4" rx="1" fill="#D9940F"/><rect x="11" y="6" width="2" height="15" fill="#FFB21E"/><path d="M12 6c-2-4-6-3-5-1s5 1 5 1zm0 0c2-4 6-3 5-1s-5 1-5 1z" fill="none" stroke="#D9940F" stroke-width="1.4"/>';
+const offerIcon = o => o.image ? `<img src="${esc(o.image)}" alt="">` : `<svg viewBox="0 0 24 24" aria-hidden="true">${OFFER_IC[o.pid] || OFFER_IC.gift}</svg>`;
 const SV = {
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
@@ -280,7 +282,9 @@ function linesHtml() {
   const q = D.quote;
   return `<section class="box"><h2 class="box-head"><span class="n">1</span>מה אנחנו ממירים בשבילך<span class="aside">${itemsCount()} פריטים</span></h2><div class="box-body"><div class="lines">
       ${q.media.map(l => { const [a, b] = splitName(l.name); return `<div class="lrow">${icon(l.product_id)}<div class="nm">${esc(a)}<span class="sub">${b ? `<bdi>${esc(b)}</bdi> · ` : ''}<span class="num">${l.qty}</span> × <span class="num">${ils(l.unit_price)}</span></span></div><div class="sum num">${ils(l.sum)}</div></div>`; }).join('')}
-      ${q.extras.map(l => { const [a, b] = splitName(l.name); return `<div class="lrow extra"><div class="nm">${esc(a)}${b || l.qty > 1 ? `<span class="sub">${b ? `<bdi>${esc(b)}</bdi>` : ''}${b && l.qty > 1 ? ' · ' : ''}${l.qty > 1 ? `<span class="num">${l.qty}</span> × <span class="num">${ils(l.unit_price)}</span>` : ''}</span>` : ''}</div><div class="sum num">${ils(l.sum)}</div></div>`; }).join('')}
+      ${q.extras.map(l => { const [a, b] = splitName(l.name); const incl = l.included ? (l.included >= l.qty ? 'כלול בחבילה' : `${l.included} כלול בחבילה`) : '';
+        const sub = [b ? `<bdi>${esc(b)}</bdi>` : '', l.qty > 1 ? `<span class="num">${l.qty}</span> × <span class="num">${ils(l.unit_price)}</span>` : '', incl, l.contents ? 'כולל: ' + esc(l.contents) : ''].filter(Boolean).join(' · ');
+        return `<div class="lrow extra"><div class="nm">${esc(a)}${sub ? `<span class="sub">${sub}</span>` : ''}</div><div class="sum num">${!l.sum && l.included ? 'כלול' : ils(l.sum)}</div></div>`; }).join('')}
     </div>
     <div class="totals" id="totals">
       ${hasSaving() || q.min_order_fill > 0 ? `<div class="r"><span>סה"כ לפני הנחות</span><span class="num">${ils(q.subtotal)}</span></div>` : ''}
@@ -295,7 +299,7 @@ function offersHtml() {
   return `<section class="box no-print"><h2 class="box-head"><span class="n">2</span>רוצים להוסיף?<span class="aside">לא חובה</span></h2><div class="box-body"><div class="offers">${D.offers.map(o => {
     const usb = o.pid === 'usb', cur = usb ? (o.sizes.find(s => s.size === (o.size || 32)) || o.sizes[0]) : null, price = usb ? cur.price : o.price;
     const [name] = splitName(usb ? 'דיסק און קי עם כל הקבצים' : o.name);
-    return `<div class="offer ${o.on ? 'on' : ''}" data-offer="${esc(o.pid)}"><div class="ic">${offerIcon(o)}</div><div class="tx"><b>${esc(name)}</b>${o.notes ? `<span class="d">${esc(o.notes)}</span>` : ''}
+    return `<div class="offer ${o.on ? 'on' : ''}" data-offer="${esc(o.pid)}"><div class="ic">${offerIcon(o)}</div><div class="tx"><b>${esc(name)}${o.recommended ? ' <span class="rec">מומלץ</span>' : ''}</b>${o.notes ? `<span class="d">${esc(o.notes)}</span>` : ''}
         ${usb ? `<div class="pills" role="radiogroup" aria-label="גודל">${o.sizes.map(s => `<label class="pill"><input type="radio" name="usbSize" value="${s.size}" ${(o.size || 32) === s.size ? 'checked' : ''}><span><span class="num">${s.size}GB</span> · <span class="num">${ils(s.price)}</span></span></label>`).join('')}</div>`
           : o.on ? `<span class="added">✓ נוסף להזמנה · <span class="num">${ils(price)}</span></span>` : `<span class="price num">+${ils(price)}</span>`}</div>
       <label class="sw"><input type="checkbox" data-addon="${esc(o.pid)}" ${o.on ? 'checked' : ''} aria-label="הוספת ${esc(name)}"><span></span></label></div>`;
