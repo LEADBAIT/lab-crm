@@ -137,14 +137,17 @@ VIEWS.settings = async function vSettings(tab) {
   let body = '';
   if (tab === 'prices') body = `
     ${Object.entries(CAT).map(([cat, name]) => { const ps = S.products.filter(p => p.category === cat); return `<section class="card flush" style="margin-bottom:16px"><div class="card-head" style="padding:14px 16px 0"><h3>${name}</h3></div><div class="table-wrap"><table>
-      <thead><tr><th>שם (כפי שהלקוח רואה)</th><th class="num">מחיר כולל מע"מ</th><th class="num">ממוצע מתחרים</th>${cat === 'media' ? '<th>מקבל ברקוד ונספר להנחה</th>' : ''}${cat === 'package' ? '<th>מה כלול</th>' : ''}<th>פעיל</th></tr></thead><tbody>
-      ${ps.map(p => `<tr><td><label class="field"><input data-save="products:${p.id}:name" value="${esc(p.name)}" style="min-width:240px"></label></td>
-        <td class="num"><label class="field"><input type="number" step="0.01" data-save="products:${p.id}:unit_price" data-num value="${p.unit_price}" style="width:100px;text-align:center"></label></td>
-        <td class="num muted">${p.market_avg ? money(p.market_avg) : ''}</td>
-        ${cat === 'media' ? `<td><label class="toggle"><input type="checkbox" data-save="products:${p.id}:counts_for_tier" ${p.counts_for_tier ? 'checked' : ''}></label></td>` : ''}
-        ${cat === 'package' ? `<td><label class="field"><input data-save="products:${p.id}:includes" value="${esc(p.includes || '')}" style="min-width:220px"></label></td>` : ''}
-        <td><label class="toggle"><input type="checkbox" data-save="products:${p.id}:active" ${p.active ? 'checked' : ''}></label></td></tr>`).join('') || `<tr class="empty-row"><td colspan="6">אין</td></tr>`}</tbody></table></div>
-      <div style="padding:0 16px 14px"><button class="btn sm" data-addprod="${cat}">+ הוספה ל${name}</button></div></section>`; }).join('')}
+      <thead><tr><th></th><th>שם (כפי שהלקוח רואה)</th><th class="num">מחיר כולל מע"מ</th>${cat === 'media' ? '<th class="num">ממוצע מתחרים</th><th>מקבל ברקוד ונספר להנחה</th>' : '<th class="num">רווח</th>'}${cat === 'package' ? '<th>מה כלול</th>' : ''}${cat === 'media' ? '' : '<th>מוצג ללקוח</th>'}<th>פעיל</th><th></th></tr></thead><tbody>
+      ${ps.map(p => { const pr = cat === 'media' ? null : prodProfit(p), ro = isAdmin() ? '' : 'disabled'; return `<tr><td style="width:44px">${p.image_path ? `<img src="${esc(prodImg(p))}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:6px;display:block">` : ''}</td>
+        <td><label class="field"><input data-save="products:${p.id}:name" value="${esc(p.name)}" style="min-width:220px" ${ro}></label>${p.description ? `<span class="tiny muted" style="display:block;max-width:320px">${esc(p.description)}</span>` : ''}</td>
+        <td class="num"><label class="field"><input type="number" step="0.01" data-save="products:${p.id}:unit_price" data-num value="${p.unit_price}" style="width:100px;text-align:center" ${ro}></label>${p.pricing === 'order' && cat !== 'package' ? '<span class="tiny muted" style="display:block">להזמנה</span>' : ''}</td>
+        ${cat === 'media' ? `<td class="num muted">${p.market_avg ? money(p.market_avg) : ''}</td><td><label class="toggle"><input type="checkbox" data-save="products:${p.id}:counts_for_tier" ${p.counts_for_tier ? 'checked' : ''} ${ro}></label></td>`
+          : `<td class="num">${pr == null ? '<span class="tiny muted">חסרה עלות</span>' : `<span style="color:var(${pr < 0 ? '--red' : '--green'})">${money(pr)}</span>`}</td>`}
+        ${cat === 'package' ? `<td style="min-width:220px">${pkgSummary(p)}</td>` : ''}
+        ${cat === 'media' ? '' : `<td>${prodBadges(p) || '<span class="tiny muted">לא מוצג</span>'}</td>`}
+        <td><label class="toggle"><input type="checkbox" data-save="products:${p.id}:active" ${p.active ? 'checked' : ''} ${ro}></label></td>
+        <td>${isAdmin() ? `<button class="btn sm" data-editprod="${p.id}">עריכה</button>` : ''}</td></tr>`; }).join('') || `<tr class="empty-row"><td colspan="8">אין</td></tr>`}</tbody></table></div>
+      ${isAdmin() ? `<div style="padding:0 16px 14px"><button class="btn sm" data-addprod="${cat}">+ הוספה ל${name}</button></div>` : '<p class="tiny muted" style="padding:0 16px 14px">רק מנהל עורך את המחירון.</p>'}</section>`; }).join('')}
     <p class="tiny muted" style="margin:-6px 0 16px">שינוי מחיר משפיע מיד גם על הצעות פתוחות. מוצר שלא מוכרים יותר: מכבים "פעיל" (לא מוחקים, כדי שהזמנות ישנות יישארו תקינות).</p>
     <div class="grid cols-2">
       <section class="card"><h3 style="margin-bottom:6px">הנחת כמות</h3><p class="small muted" style="margin-bottom:8px">לפי סך הקלטות, הדיסקים והסלילים בהזמנה. חלה רק על החומרה, לא על תוספות.</p>
@@ -220,7 +223,10 @@ function bindSettings(tab) {
     loadRef();
   });
   const add = async (table, row) => { const { error } = await sb.from(table).insert(row); fail(error); re(); };
-  $$('[data-addprod]').forEach(b => b.onclick = async () => { const cat = b.dataset.addprod; const f = await formModal('הוספה ל' + CAT[cat], `<label class="field">שם<input name="name" required></label><label class="field">מחיר כולל מע"מ (₪)<input name="unit_price" type="number" step="0.01" value="0"></label>`); if (f) add('products', { name: f.name, category: cat, unit_price: Number(f.unit_price || 0), counts_for_tier: cat === 'media', sort: 99 }); });
+  $$('[data-addprod]').forEach(b => b.onclick = async () => { const cat = b.dataset.addprod; const f = await formModal('הוספה ל' + CAT[cat], `<label class="field">שם<input name="name" required></label><label class="field">מחיר כולל מע"מ (₪)<input name="unit_price" type="number" step="0.01" value="0"></label>`); if (!f) return;
+    const { data, error } = await sb.from('products').insert({ name: f.name, category: cat, unit_price: Number(f.unit_price || 0), counts_for_tier: cat === 'media', pricing: cat === 'package' ? 'order' : 'unit', sort: 99 }).select('id').single(); fail(error);
+    await loadRef(); if (cat !== 'media') await editProduct(data.id); re(); });
+  $$('[data-editprod]').forEach(b => b.onclick = async () => { if (await editProduct(Number(b.dataset.editprod))) { await loadRef(); re(); } });
   $('#addTier')?.addEventListener('click', () => add('discount_tiers', { min_items: Math.max(0, ...S.tiers.map(t => t.min_items)) + 10, percent: 0 }));
   $$('[data-deltier]').forEach(b => b.onclick = async () => {
     const t = S.tiers.find(x => String(x.id) === b.dataset.deltier); let id = t.id;

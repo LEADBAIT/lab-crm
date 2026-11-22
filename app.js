@@ -107,9 +107,10 @@ const trackUrl = o => ((S.settings.public_url?.text_value || '').trim() || (loca
 async function loadRef() {
   const q = [sb.from('settings').select('*').order('sort'), sb.from('options').select('*').order('sort'), sb.from('products').select('*').order('sort'),
     sb.from('labs').select('*').order('name'), sb.from('discount_tiers').select('*').order('min_items'), sb.from('coupons').select('*').order('code'),
-    sb.from('message_templates').select('*').order('sort')];
+    sb.from('message_templates').select('*').order('sort'), sb.from('package_items').select('*')];
   const r = await Promise.all(q); r.forEach(x => fail(x.error));
-  const [st, op, pr, lb, tr, cp, tp] = r.map(x => x.data);
+  const [st, op, pr, lb, tr, cp, tp, pi] = r.map(x => x.data);
+  S.pkgItems = pi;
   S.settings = Object.fromEntries(st.map(x => [x.key, x]));
   S.opts = {}; op.forEach(o => (S.opts[o.list] ||= []).push(o));
   S.products = pr; S.labs = lb; S.tiers = tr; S.coupons = cp; S.templates = tp;
