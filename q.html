@@ -136,7 +136,9 @@
   .mold-row .pills { flex-wrap: nowrap; gap: 5px; }
   .mold-row .pill span { padding: 6px 10px; font-size: 14px; white-space: nowrap; }
   .mold-pic { width: 88px; height: 88px; flex: none; border: 1px solid var(--line); padding: 2px; background: var(--surface); display: block; cursor: zoom-in; }
+  .mold-pic { position: relative; overflow: hidden; text-decoration: none; }
   .mold-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mold-cap { position: absolute; inset-inline: 2px; bottom: 2px; background: rgba(20,22,28,.78); color: #fff; font-size: 10px; line-height: 12px; font-weight: 700; text-align: center; padding: 3px 2px; }
   .note.good { border-inline-start-width: 4px; background: #E9F5F0; color: #14503F; font-size: 15px; line-height: 22px; }
   .more { font-weight: 700; }
   .upl .need { font-weight: 700; color: var(--stamp-text); font-size: 14px; line-height: 20px; }
@@ -267,7 +269,7 @@ function render() {
       <div class="q2"><span>איפה החומרה הייתה שמורה במהלך השנים?</span>${pills('storage_place', o.storage_place, [['בפנים', 'במקום סגור'], ['בחוץ', 'במקום בחוץ'], ['לא ידוע', 'לא יודע']])}</div>
       <div class="q2"><span>יש עובש על החומרה?</span>
         <div class="mold-row">${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודע']])}
-          <a href="mold-example.jpg" target="_blank" rel="noopener" class="mold-pic"><img src="mold-example.jpg" alt="דוגמה: קלטת וידאו, ובחלון שלה כתמי עובש לבנים על הסרט" width="88" height="88"></a></div></div>
+          <a href="mold-example.jpg" target="_blank" rel="noopener" class="mold-pic"><img src="mold-example.jpg" alt="דוגמה: קלטת וידאו, ובחלון שלה כתמי עובש לבנים על הסרט" width="88" height="88"><span class="mold-cap">*דוגמה לקלטת עם עובש</span></a></div></div>
       <div class="note good"><b>עובש לא נורא:</b> אנחנו מנקים אותו כחלק מהשירות ומצילים את החומרה.</div>`)}
 
     ${box(++n, 'delivery', 'איך תרצה לקבל את הקבצים הדיגיטליים בסיום?', `
