@@ -113,12 +113,13 @@ const printBar = (id, note = '') => `<div class="row no-print" style="margin-bot
 VIEWS.quote = async function vQuote(id) {
   const o = await getOrder(id);
   const [{ data: c }, { data: lines }] = await Promise.all([sb.from('customers').select('*').eq('id', o.customer_id).single(), sb.from('order_lines').select('*').eq('order_id', id)]);
-  const rows = lines.filter(l => l.qty).map(l => { const p = S.products.find(x => x.id === l.product_id); const pr = l.unit_price ?? p.unit_price; return `<tr><td class="wrap">${esc(p.name)}</td><td class="num">${l.qty}</td><td class="num">${money(pr)}</td><td class="num">${money(pr * l.qty)}</td></tr>`; }).join('');
+  const rows = lines.filter(l => l.qty).map(l => { const p = S.products.find(x => x.id === l.product_id); const pr = l.unit_price ?? p.unit_price, ch = chargedQty(o, p.id, l.qty);
+    return `<tr><td class="wrap">${esc(p.name)}${esc(inclNote(o, p.id, l.qty))}</td><td class="num">${l.qty}</td><td class="num">${money(pr)}</td><td class="num">${ch ? money(pr * ch) : 'כלול'}</td></tr>`; }).join('');
   view().innerHTML = printBar(id) + `<div class="card paper">
     <div class="row spread" style="margin-bottom:16px"><h1>הצעת מחיר</h1><div class="muted">הזמנה ${o.id} · ${fmtDate(new Date())}</div></div>
     <p><b>המעבדה להמרת קלטות ודיסקים</b></p><p style="margin-bottom:16px">לכבוד: ${esc(c.full_name || '')} · ${esc(fmtPhone(c.phone))}${c.city ? ' · ' + esc(c.city) : ''}</p>
     <table><thead><tr><th>פריט</th><th class="num">כמות</th><th class="num">מחיר</th><th class="num">סה"כ</th></tr></thead><tbody>${rows}
-    ${o.package_name ? `<tr><td>${esc(o.package_name)}</td><td class="num">1</td><td></td><td class="num">${money(S.products.find(p => p.id === o.package_id)?.unit_price)}</td></tr>` : ''}</tbody></table>
+    ${o.package_name ? `<tr><td class="wrap">${esc(o.package_name)}${pkgContents(o) ? `<div class="tiny muted">כולל: ${esc(pkgContents(o))}</div>` : ''}</td><td class="num">1</td><td></td><td class="num">${money(S.products.find(p => p.id === o.package_id)?.unit_price)}</td></tr>` : ''}</tbody></table>
     <div class="totals" style="margin-top:16px;max-width:340px;margin-inline-start:auto">
       ${o.tier_percent > 0 ? `<span>הנחת כמות ${Number(o.tier_percent)}%</span><span>-${money(o.tier_discount)}</span>` : ''}
       ${o.coupon_code ? `<span>קופון ${esc(o.coupon_code)}</span><span>${o.coupon_percent > 0 ? '-' + Number(o.coupon_percent) + '%' : '-' + money(o.coupon_amount)}</span>` : ''}

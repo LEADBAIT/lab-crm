@@ -269,8 +269,9 @@ async function bulkPatch(rows, patch, msg) {
 // ---------- messages ----------
 function quoteText(o, c, lines) {
   const L = [`שלום ${firstName(c.full_name)}, הנה הצעת המחיר מהמעבדה להמרת קלטות ודיסקים (הזמנה ${o.id}):`, ''];
-  lines.forEach(l => { const p = S.products.find(x => x.id === l.product_id); if (!p || !l.qty) return; L.push(`• ${l.qty} × ${p.name}: ${money(l.qty * (l.unit_price ?? p.unit_price))}`); });
-  if (o.package_name) L.push(`• ${o.package_name}: ${money(S.products.find(p => p.id === o.package_id)?.unit_price)}`);
+  lines.forEach(l => { const p = S.products.find(x => x.id === l.product_id); if (!p || !l.qty) return; const ch = chargedQty(o, p.id, l.qty);
+    L.push(`• ${l.qty} × ${p.name}${inclNote(o, p.id, l.qty)}${ch ? ': ' + money(ch * (l.unit_price ?? p.unit_price)) : ''}`); });
+  if (o.package_name) L.push(`• ${o.package_name}: ${money(S.products.find(p => p.id === o.package_id)?.unit_price)}${pkgContents(o) ? ` (כולל: ${pkgContents(o)})` : ''}`);
   if (o.tier_percent > 0) L.push(`הנחת כמות ${Number(o.tier_percent)}%: -${money(o.tier_discount)}`);
   if (o.coupon_percent > 0) L.push(`קופון ${o.coupon_code}: -${Number(o.coupon_percent)}%`);
   if (o.coupon_amount > 0) L.push(`קופון ${o.coupon_code}: -${money(o.coupon_amount)}`);

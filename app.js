@@ -125,7 +125,7 @@ const getOrder = async id => { const [{ data, error }, qa] = await Promise.all([
 // ---------- onboarding questionnaire (q.html#<q_token>, spec crm/אפיון-שאלון-אונבורדינג.md) ----------
 // its columns are not in v_orders, so every order read merges them in from orders
 const Q_COLS = 'id,q_token,q_opened_at,q_saved_at,q_submitted_at,q_progress,q_initial_lines,q_qty_changed_at,q_unsure_type,storage_place,mold,delivery_method,cloud_type,terms_accepted_at,quote_sent_at,q_sent_at,'
-  + 'quote_token,quote_version,quote_valid_until,quote_expired_at,quote_views,quote_first_view_at,quote_last_view_at,quote_pay_clicked_at,quote_accepted_at,quote_accepted_name,quote_addons';
+  + 'quote_token,quote_version,quote_valid_until,quote_expired_at,quote_views,quote_first_view_at,quote_last_view_at,quote_pay_clicked_at,quote_accepted_at,quote_accepted_name,quote_addons,actions_done';
 const pageUrl = (file, token) => ((S.settings.public_url?.text_value || '').trim() || (location.origin + location.pathname)).replace(/#.*$/, '').replace(/[^/]*$/, '') + file + '#' + token;
 const qUrl = o => pageUrl('q.html', o.q_token);
 // ---------- quote link (p.html#<quote_token>, spec crm/אפיון-הצעת-מחיר.md) ----------

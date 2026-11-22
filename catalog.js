@@ -33,6 +33,31 @@ function pkgSummary(p) {
     <span class="tiny muted" style="display:block">שווי ${money(m.value)}${m.saving ? ` · חוסך ${money(m.saving)}` : ''}${m.zero.length ? ` · <span style="color:var(--orange)">בלי מחיר: ${esc(m.zero.join(', '))}</span>` : ''}</span>`;
 }
 
+// ---------- in an order (deal page, quote text, print) ----------
+/** how many of a product the order's package already includes; the customer pays only for the rest (same rule as v_orders) */
+const includedQty = (o, pid) => o?.package_id ? (pkgItems(o.package_id).find(x => x.product_id === pid)?.qty || 0) : 0;
+const chargedQty = (o, pid, qty) => Math.max(0, (qty || 0) - includedQty(o, pid));
+const inclNote = (o, pid, qty) => { const n = Math.min(includedQty(o, pid), qty || 0); return n ? ` (${n === qty ? '' : n + ' '}כלול בחבילה)` : ''; };
+const pkgContents = o => o?.package_id ? pkgItems(o.package_id).map(x => `${x.qty > 1 ? x.qty + '× ' : ''}${prodById(x.product_id)?.name || ''}`).filter(Boolean).join(', ') : '';
+/** upsell work to do for an order: products with a checklist action, from its lines and from what its package includes */
+function orderActions(o, lines = []) {
+  const m = new Map(lines.filter(l => l.qty > 0).map(l => [l.product_id, l.qty]));
+  if (o.package_id) pkgItems(o.package_id).forEach(x => m.set(x.product_id, Math.max(m.get(x.product_id) || 0, x.qty)));
+  return [...m].map(([pid, qty]) => ({ p: prodById(pid), qty })).filter(x => x.p?.action_text);
+}
+function actionsHtml(ctx) {
+  const acts = orderActions(ctx.o, ctx.lines); if (!acts.length) return '';
+  const done = ctx.o.actions_done || {}, left = acts.filter(a => !done[a.p.id]).length;
+  return `<div class="subhead" style="margin-top:4px">תוספות לביצוע ${left ? `<span class="chip orange">${left} פתוחות</span>` : '<span class="chip green">הכל בוצע</span>'}</div>
+    <ul class="checklist" id="actList">${acts.map(({ p, qty }) => { const at = done[p.id]; return `<li class="${at ? 'ok' : ''}"><span class="box">${at ? '✓' : ''}</span>
+      <span class="t grow">${esc(p.action_text)}${qty > 1 ? ` <span class="chip">×${qty}</span>` : ''}${includedQty(ctx.o, p.id) ? ' <span class="chip blue">מהחבילה</span>' : ''}${at ? ` <span class="when">· ${esc(fmtDT(at))}</span>` : ''}</span>
+      ${at ? `<button class="link-btn" data-actundo="${p.id}">ביטול סימון</button>` : `<button class="btn sm" data-actdone="${p.id}">בוצע ✓</button>`}</li>`; }).join('')}</ul>`;
+}
+async function setActionDone(o, pid, on) {
+  const cur = { ...(o.actions_done || {}) }; if (on) cur[pid] = new Date().toISOString(); else delete cur[pid];
+  const { error } = await sb.from('orders').update({ actions_done: cur }).eq('id', o.id); fail(error); o.actions_done = cur;
+}
+
 async function uploadProdImage(file, productId) {
   if (!file?.type.startsWith('image/')) { toast('צריך לבחור תמונה'); return null; }
   toast('מעלה תמונה…', { ms: 60000 });

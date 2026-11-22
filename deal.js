@@ -155,6 +155,7 @@ function nextCardHtml(ctx) {
     <p class="todo">${esc(typeof s.todo === 'function' ? s.todo(o, ctx) : s.todo)}</p>
     ${FU_STAGES.includes(o.stage) ? `<div class="fu-line fu-${fuState(o)}"><span>פולו-אפ הבא: <b>${o.next_followup ? fuCh(o) + ' ' + (FU_CH[o.followup_channel] ? FU_CH[o.followup_channel][1] + ' ' : '') + esc(fuLabel(o)) + ' (' + fmtShort(o.next_followup) + ')' : 'אין צעד הבא'}</b>${o.followup_note ? ' · ' + esc(o.followup_note) : ''}${o.stage === 'בשיחה' ? ` · ניסיון ${o.followup_attempts || 1}`: ''}</span><button class="btn sm" id="fuEdit">${o.next_followup ? 'שינוי' : 'קביעת פולו-אפ'}</button></div>` : ''}
     ${checks.length ? `<ul class="checklist">${checks.map((k, j) => checkHtml(ctx, k, j)).join('')}</ul>` : ''}
+    ${phaseOf(o.stage) === 'ops' ? actionsHtml(ctx) : ''}
     ${s.fields ? `<div class="fields" style="margin-bottom:12px">${s.fields.map(k => fld(ctx, k)).join('')}</div>` : ''}
     ${s.pay ? `<div class="note" style="margin-bottom:12px">תשלום בקישור SUMIT: ההזמנה עוברת לבד לתיאום איסוף (בדרך כלל מיד, לכל המאוחר תוך שעה). תשלום בדרך אחרת: לוחצים "${esc(s.btn)}" ורושמים את התשלום.</div>` : ''}
     ${miss.length && nxt ? `<div class="warn" style="margin-bottom:4px">כדי להמשיך חסר: ${esc(miss.join(', '))}</div>` : ''}
@@ -370,13 +371,15 @@ async function sumitAction(ctx, act) {
 }
 
 // ---------- quote builder ----------
+/** line total after what the package includes; "כלול" when all of it is in the package */
+const lineTotal = (o, p, q) => !q ? '' : chargedQty(o, p.id, q) ? money(chargedQty(o, p.id, q) * p.unit_price) : '<span class="muted small">כלול</span>';
 function quoteHtml(ctx) {
   const { o, lines } = ctx;
   const qtyOf = pid => lines.find(l => l.product_id === pid)?.qty || 0;
-  const row = p => { const q = qtyOf(p.id); return `<div class="qrow ${q ? 'has' : ''}"><div class="nm">${esc(p.name)}${p.notes ? `<span class="sub">${esc(p.notes)}</span>` : ''}</div>
+  const row = p => { const q = qtyOf(p.id), inc = includedQty(o, p.id); return `<div class="qrow ${q ? 'has' : ''}"><div class="nm">${esc(p.name)}${inc ? `<span class="sub" style="color:var(--blue)">${inc > 1 ? inc + ' ' : ''}כלול בחבילה, משלם רק על מה שמעבר</span>` : p.notes ? `<span class="sub">${esc(p.notes)}</span>` : ''}</div>
     <div class="pr muted">${money(p.unit_price)}</div>
     <div class="stepperq"><button type="button" data-qd="${p.id}" data-d="1" aria-label="עוד אחד">+</button><input type="number" min="0" inputmode="numeric" data-line="${p.id}" value="${q || ''}" placeholder="0" aria-label="כמות ${esc(p.name)}"><button type="button" data-qd="${p.id}" data-d="-1" aria-label="אחד פחות">−</button></div>
-    <div class="lt" data-lt="${p.id}">${q ? money(q * p.unit_price) : ''}</div></div>`; };
+    <div class="lt" data-lt="${p.id}">${lineTotal(o, p, q)}</div></div>`; };
   const media = S.products.filter(p => p.category === 'media' && (p.active || qtyOf(p.id)));
   const extras = S.products.filter(p => (p.category === 'addon' || p.category === 'repair') && (p.active || qtyOf(p.id)));
   const pk = S.products.filter(p => p.category === 'package' && (p.active || p.id === o.package_id));
@@ -387,6 +390,7 @@ function quoteHtml(ctx) {
       <label class="field"><span>חבילה</span><select data-save="orders:${o.id}:package_id" data-num><option value="">בלי חבילה</option>${pk.map(p => `<option value="${p.id}" ${o.package_id === p.id ? 'selected' : ''}>${esc(p.name)} (${money(p.unit_price)})</option>`).join('')}</select></label>
       <label class="field"><span>קופון</span><select data-save="orders:${o.id}:coupon_code"><option value="">בלי קופון</option>${S.coupons.filter(x => x.active || x.code === o.coupon_code).map(x => `<option ${x.code === o.coupon_code ? 'selected' : ''}>${esc(x.code)}</option>`).join('')}</select></label>
       ${fld(ctx, 'manual_discount')}</div>
+    ${o.package_id && prodById(o.package_id) ? `<div class="note" style="margin-top:8px">${esc(o.package_name || '')}: ${pkgSummary(prodById(o.package_id))}</div>` : ''}
     <div style="margin-top:12px">${tog(ctx, 'priority')}</div>
   </div>
   <div class="quote-total"><h3>סיכום ההצעה</h3><div id="totalsBox">${totalsHtml(o)}</div>
@@ -496,6 +500,7 @@ async function lightRefresh(ctx, savedKey) {
 function afterSave(ctx, table, k, v) {
   if (table === 'customers') ctx.c[k] = v; else ctx.o[k] = v;
   if (k === 'invoice_business') { SEC_OPEN[ctx.o.id].add('customer'); return reloadDeal(ctx); } // shows / hides the business fields
+  if (k === 'package_id' || k === 'priority') return reloadDeal(ctx); // line totals follow the package; express toggle adds/removes the express line (DB trigger)
   // keep duplicate inputs (same field in next card and in a section) in sync
   const key = `${table}:${table === 'customers' ? ctx.c.id : ctx.o.id}:${k}`;
   $$(`[data-save="${key}"]`).forEach(el => { if (el !== document.activeElement) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; } });
@@ -543,6 +548,8 @@ function bindNext(ctx) {
   const s = stepOf(ctx.o.stage); if (!s) return;
   const checks = s.checks.filter(k => !k.show || k.show(ctx.o));
   $$('#nextBox [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, checks[b.dataset.chk]));
+  $$('#nextBox [data-actdone], #nextBox [data-actundo]').forEach(b => b.onclick = async () => { b.disabled = true;
+    await setActionDone(ctx.o, Number(b.dataset.actdone || b.dataset.actundo), !!b.dataset.actdone); lightRefresh(ctx); });
   $('#advance') && ($('#advance').onclick = async () => { const nx = STEPS[stepIdx(ctx.o.stage) + 1]; if (nx && await changeStage(ctx.o, nx.key, ctx.c)) {
     delete SEC_OPEN[ctx.o.id]; reloadDeal(ctx); } });
   $('#fuEdit') && ($('#fuEdit').onclick = async () => { if (await setFollowup(ctx.o)) reloadDeal(ctx); });
@@ -691,8 +698,9 @@ function bindDeal(ctx) {
     const r = qty > 0 ? await sb.from('order_lines').upsert({ order_id: o.id, product_id: pid, qty }, { onConflict: 'order_id,product_id' }) : await sb.from('order_lines').delete().eq('order_id', o.id).eq('product_id', pid);
     fail(r.error);
     const l = ctx.lines.find(x => x.product_id === pid); if (l) l.qty = qty; else if (qty) ctx.lines.push({ order_id: o.id, product_id: pid, qty });
-    const p = S.products.find(x => x.id === pid), lt = $(`[data-lt="${pid}"]`); if (lt) lt.textContent = qty ? money(qty * p.unit_price) : '';
+    const p = S.products.find(x => x.id === pid), lt = $(`[data-lt="${pid}"]`); if (lt) lt.innerHTML = lineTotal(ctx.o, p, qty);
     $(`[data-line="${pid}"]`)?.closest('.qrow').classList.toggle('has', qty > 0);
+    if (pid === 14) { await lightRefresh(ctx); return reloadDeal(ctx); } // express line moves the "אקספרס" toggle (DB trigger)
     lightRefresh(ctx);
   };
   $$('[data-line]').forEach(el => el.addEventListener('change', () => saveLine(Number(el.dataset.line), Math.max(0, Number(el.value || 0)))));
