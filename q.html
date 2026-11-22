@@ -109,6 +109,27 @@
   dialog .acts { display: flex; gap: 8px; }
   dialog .acts .btn { flex: 1; }
   .upl { display: grid; gap: 10px; }
+  /* compact: short answers as pills, several fields per row */
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { cursor: pointer; position: relative; }
+  .pill input { position: absolute; opacity: 0; pointer-events: none; }
+  .pill span { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); font-size: 15px; font-weight: 700; }
+  .pill em { font-style: normal; color: var(--stamp-text); direction: ltr; unicode-bidi: isolate; }
+  .pill input:checked + span { border-color: #D9940F; background: var(--sel); box-shadow: inset 0 0 0 1px #D9940F; }
+  .pill input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .q2 { display: grid; gap: 6px; }
+  .q2 > span { font-weight: 700; font-size: 15px; }
+  .row4 { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.2fr; gap: 8px; }
+  .row2 { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .row2.tight { margin-top: -6px; }
+  .field > span { font-size: 14px; }
+  .sel { font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); width: 100%; min-height: 44px; }
+  .terms-text { white-space: pre-wrap; font-size: 13px; line-height: 19px; max-height: 200px; overflow: auto; border: 1px solid var(--line); padding: 10px; background: var(--row-alt); }
+  .wrap { gap: 14px; }
+  .box-body { padding: 12px; gap: 12px; }
+  .choice { padding: 10px 12px; }
+  .mrow { padding: 6px 0; }
+  .gallery { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
   @media (max-width: 480px) { .wrap { padding: 12px; } .site { border: 0; } }
 </style>
 </head>
@@ -219,61 +240,54 @@ function render() {
   const price = id => prod(id) ? ils(prod(id).unit_price) : '';
   const expressDays = D.settings.express_biz_days || 7, linkDays = D.settings.drive_link_days || 60;
   let n = 0;
+  const pills = (name, cur, list) => `<div class="pills">${list.map(([v, t, pr]) => `<label class="pill"><input type="radio" name="${name}" value="${esc(v)}" ${String(cur ?? '') === v ? 'checked' : ''}><span>${t}${pr ? ` <em>${pr}</em>` : ''}</span></label>`).join('')}</div>`;
   $('#main').innerHTML = `<div class="wrap">
     <div class="intro"><h1>${fn ? `שלום ${esc(fn)},` : 'שלום,'}</h1>
-      <p>כמה שאלות קצרות (בערך 3 דקות), ואחרי זה נשלח לך הצעת מחיר מסודרת <b>תוך 24 שעות</b>. הכל נשמר תוך כדי, אפשר להפסיק ולחזור לקישור מתי שנוח.</p></div>
-    ${initialPhotos.length ? `<section class="box"><h2 class="box-head">התמונות ששלחת לנו</h2><div class="box-body"><div class="gallery">${initialPhotos.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה" loading="lazy"></a>`).join('')}</div>
-      <p class="small muted" style="margin:0">לפי התמונות האלה מילאנו מראש את הכמויות למטה. תבדקו שהן נכונות.</p></div></section>` : ''}
+      <p>3 דקות של שאלות, ותקבלו הצעת מחיר מסודרת <b>תוך 24 שעות</b>. כל תשובה נשמרת לבד.</p></div>
+    ${initialPhotos.length ? `<div class="gallery">${initialPhotos.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה" loading="lazy"></a>`).join('')}</div>` : ''}
 
-    ${box(++n, 'qty', 'מה יש לך ובאיזו כמות', `
-      <div>${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">עוד לא רשמנו כמויות. בחרו את הסוגים שיש לכם:</p>'}</div>
-      ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>יש עוד סוגים? להוסיף</button><div id="restTypes" ${mine.length ? 'class="hidden"' : ''}>${rest.map(mrow).join('')}</div>` : ''}
-      <label class="toggle-line small"><input type="checkbox" data-part="order" data-k="q_unsure_type" ${o.q_unsure_type ? 'checked' : ''}> לא בטוחים מה הסוג של חלק מהפריטים? סמנו, ונזהה לפי התמונות</label>
-      <div id="photoNeed"></div>`)}
+    ${box(++n, 'qty', 'מה יש לכם?', `
+      ${initialPhotos.length && mine.length ? '<p class="small muted" style="margin:0">מילאנו לפי התמונות ששלחתם. בדקו שזה נכון.</p>' : ''}
+      <div>${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">סמנו מה יש לכם ובאיזו כמות:</p>'}</div>
+      ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>+ יש עוד סוגים</button><div id="restTypes" ${mine.length ? 'class="hidden"' : ''}>${rest.map(mrow).join('')}</div>` : ''}
+      <label class="toggle-line small"><input type="checkbox" data-part="order" data-k="q_unsure_type" ${o.q_unsure_type ? 'checked' : ''}> לא בטוחים מה הסוג? סמנו, ונבדוק בתמונות</label>
+      <div id="photoNeed"></div>
+      <div class="q2"><span>איפה זה היה שמור?</span>${pills('storage_place', o.storage_place, [['בפנים', 'בבית'], ['בחוץ', 'מחסן / בוידעם'], ['לא ידוע', 'לא יודעים']])}</div>
+      <div class="q2"><span>יש עובש (נקודות לבנות)?</span>${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודעים']])}</div>
+      <p class="small muted" style="margin:0">עובש לא נורא: מנקים אותו כחלק מהשירות.</p>`)}
 
-    ${box(++n, 'cond', 'איפה החומרה נשמרה, ויש עליה עובש?', `
-      <div class="field"><span>איפה החומרה הייתה מאוחסנת?</span><div class="choices">${[['בחוץ', 'מקום בחוץ', 'מחסן, בוידעם, מרפסת, חניה'], ['בפנים', 'מקום מוסתר בפנים', 'ארון, מגירה, בתוך הבית'], ['לא ידוע', 'לא יודעים']].map(([v, t, d]) => radio('storage_place', v, o.storage_place, t, d)).join('')}</div></div>
-      <div class="field"><span>רואים עובש (נקודות לבנות או אפורות) על החומרה?</span><div class="choices">${[['על חלק', 'כן, על חלק מהפריטים'], ['אין', 'לא, בכלל'], ['לא ידוע', 'לא יודעים']].map(([v, t]) => radio('mold', v, o.mold, t)).join('')}</div></div>
-      <div class="note">אפשר לטפל בעובש ובפטריות ולהציל את החומרה. אנחנו עושים את זה כחלק מהשירות.</div>`, false)}
-
-    ${box(++n, 'delivery', 'איך לקבל את הקבצים', `
-      <div class="note">בכל מקרה מקבלים קישור להורדת כל הקבצים, שנשמר ${linkDays} יום. בנוסף, בחרו אחת:</div>
+    ${box(++n, 'delivery', 'איך לקבל את הקבצים?', `
+      <p class="small muted" style="margin:0">קישור להורדה כלול תמיד (שמור ${linkDays} יום). בחרו עוד אפשרות אחת:</p>
       <div class="choices">
-        ${radio('delivery_method', 'דיסק של הלקוח', o.delivery_method, 'אשלח דיסק און קי או דיסק קשיח משלי', 'שולחים אותו יחד עם החומרה, ונעתיק אליו את הקבצים.')}
-        <div class="sub-choice ${o.delivery_method === 'דיסק של הלקוח' ? '' : 'hidden'}" data-sub="דיסק של הלקוח"><div class="note warn">הדיסק חייב להיות ריק. איננו אחראים על תוכן שנמצא עליו אם יימחק.<br><span id="diskRec"></span></div></div>
-        ${radio('delivery_method', 'דיסק און קי', o.delivery_method, 'דיסק און קי חדש מאיתנו', 'מגיע אליכם עם הקבצים.')}
+        ${radio('delivery_method', 'דיסק של הלקוח', o.delivery_method, 'דיסק שלי', 'שולחים אותו יחד עם החומרה')}
+        <div class="sub-choice ${o.delivery_method === 'דיסק של הלקוח' ? '' : 'hidden'}" data-sub="דיסק של הלקוח"><div class="note warn">הדיסק חייב להיות ריק. קבצים שהיו עליו לא באחריותנו. <span id="diskRec"></span></div></div>
+        ${radio('delivery_method', 'דיסק און קי', o.delivery_method, 'דיסק און קי מאיתנו', 'מגיע אליכם עם הקבצים')}
         <div class="sub-choice ${o.delivery_method === 'דיסק און קי' ? '' : 'hidden'}" data-sub="דיסק און קי">
-          ${radio('usb_size', '32', String(o.usb_size || ''), 'דיסק און קי 32GB', '', '+' + price(11))}${radio('usb_size', '128', String(o.usb_size || ''), 'דיסק און קי 128GB', '', '+' + price(12))}<span class="small muted" id="usbRec"></span></div>
-        ${radio('delivery_method', 'ענן אישי של הלקוח', o.delivery_method, 'העלאה לענן שלי', 'למי שכבר יש חשבון ענן. את השיתוף נסדר איתכם אחר כך.')}
-        <div class="sub-choice ${o.delivery_method === 'ענן אישי של הלקוח' ? '' : 'hidden'}" data-sub="ענן אישי של הלקוח"><label class="field"><span>איזה ענן?</span><select data-part="order" data-k="cloud_type"><option value=""></option>${['Google Drive', 'iCloud', 'Dropbox', 'OneDrive', 'אחר'].map(x => `<option ${o.cloud_type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label></div>
+          ${pills('usb_size', o.usb_size, [['32', '32GB', '+' + price(11)], ['128', '128GB', '+' + price(12)]])}<span class="small muted" id="usbRec"></span></div>
+        ${radio('delivery_method', 'ענן אישי של הלקוח', o.delivery_method, 'הענן שלי', 'למי שכבר יש Google Drive, iCloud וכו׳')}
+        <div class="sub-choice ${o.delivery_method === 'ענן אישי של הלקוח' ? '' : 'hidden'}" data-sub="ענן אישי של הלקוח"><select class="sel" data-part="order" data-k="cloud_type" aria-label="איזה ענן"><option value="">איזה ענן?</option>${['Google Drive', 'iCloud', 'Dropbox', 'OneDrive', 'אחר'].map(x => `<option ${o.cloud_type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
       </div>`)}
 
-    ${box(++n, 'express', 'צריכים את זה לתאריך מסוים?', `
-      <p class="small" style="margin:0">רגיל: עד 14 ימי עסקים מרגע שהחומרה מגיעה למעבדה. אם זה לאירוע מיוחד, כמו יום הולדת, חג או אירוע משפחתי, ואתם צריכים את זה מהר בגלל לוח הזמנים, אפשר לבחור אקספרס. העבודה שלכם עוברת לראש התור, ולכן יש תוספת תשלום.</p>
-      <label class="choice"><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>שירות אקספרס: עד ${expressDays} ימי עסקים</b><span class="d">ממועד הגעת החומרה למעבדה</span></span><span class="price">+${price(14)}</span></label>`, false)}
+    ${box(++n, 'express', 'צריכים את זה מהר?', `
+      <p class="small muted" style="margin:0">רגיל: עד 14 ימי עסקים. לאירוע קרוב (יום הולדת, חג) יש אקספרס.</p>
+      <label class="choice"><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>אקספרס: עד ${expressDays} ימי עסקים</b></span><span class="price">+${price(14)}</span></label>`, false)}
 
-    ${box(++n, 'return', 'מה עושים עם החומרה המקורית בסוף?', `<div class="choices">
-      ${radio('return_method', 'החזרה במשלוח', o.return_method, 'משלוח חזרה אליי', 'שליח מחזיר את כל החומרה עד הבית.', '+' + price(13))}
-      ${radio('return_method', 'איסוף עצמי', o.return_method, 'אאסוף בעצמי', 'נתאם מקום ושעה.')}
-      ${radio('return_method', 'לא מוחזר (בהסכמה)', o.return_method, 'לא צריך להחזיר', 'אחרי שתקבלו את הקבצים ותבדקו אותם.')}</div>`)}
+    ${box(++n, 'return', 'מה לעשות עם החומרה בסוף?', pills('return_method', o.return_method, [['החזרה במשלוח', 'להחזיר במשלוח', '+' + price(13)], ['איסוף עצמי', 'אאסוף בעצמי'], ['לא מוחזר (בהסכמה)', 'לא צריך להחזיר']]))}
 
-    ${box(++n, 'address', 'כתובת לאיסוף', `
-      <p class="small muted" style="margin:0">שליח יאסוף את החומרה מהבית. את היום והשעה נתאם אחרי אישור ההצעה.</p>
+    ${box(++n, 'address', 'מאיפה לאסוף?', `
+      <p class="small muted" style="margin:0">שליח מגיע אליכם. את היום נתאם אחרי שתאשרו את ההצעה.</p>
       <div class="row2">${inp('customer', 'city', 'עיר', { req: true, auto: 'address-level2' })}${inp('customer', 'street', 'רחוב', { req: true, auto: 'address-line1' })}</div>
-      <div class="row2">${inp('customer', 'house_number', 'מספר בית', { req: true, mode: 'numeric' })}${inp('customer', 'floor', 'קומה', { mode: 'numeric' })}${inp('customer', 'apartment', 'דירה', { mode: 'numeric' })}</div>
-      ${inp('customer', 'entry_code', 'קוד כניסה לבניין', { ph: 'אם יש' })}
-      <div class="field"><span>איש קשר נוסף לאיסוף <i>*</i></span><span class="small muted" style="font-weight:400">למקרה שלא תהיו זמינים כשהשליח מגיע</span></div>
-      <div class="row2">${inp('customer', 'alt_contact_name', 'שם', { req: true })}${inp('customer', 'alt_contact_phone', 'טלפון', { req: true, type: 'tel', mode: 'tel' })}</div>`)}
+      <div class="row4">${inp('customer', 'house_number', 'מס׳ בית', { req: true, mode: 'numeric' })}${inp('customer', 'floor', 'קומה', { mode: 'numeric' })}${inp('customer', 'apartment', 'דירה', { mode: 'numeric' })}${inp('customer', 'entry_code', 'קוד', { ph: 'אם יש' })}</div>
+      <div class="field"><span>מי עוד יכול למסור לשליח? <i>*</i></span></div>
+      <div class="row2 tight">${inp('customer', 'alt_contact_name', 'שם', { req: true })}${inp('customer', 'alt_contact_phone', 'טלפון', { req: true, type: 'tel', mode: 'tel' })}</div>`)}
 
     ${box(++n, 'invoice', 'פרטים לחשבונית', `
-      ${inp('customer', 'email', 'מייל (לשם נשלח את החשבונית)', { req: true, type: 'email', mode: 'email', auto: 'email' })}
-      <label class="toggle-line"><input type="checkbox" data-part="customer" data-k="invoice_business" ${c.invoice_business ? 'checked' : ''}> חשבונית על שם עסק</label>
-      <div id="invPrivate" ${c.invoice_business ? 'class="hidden"' : ''}>${inp('customer', 'id_number', 'תעודת זהות', { req: true, mode: 'numeric' })}</div>
-      <div id="invBiz" class="row2 ${c.invoice_business ? '' : 'hidden'}">${inp('customer', 'business_name', 'שם העסק', { req: true })}${inp('customer', 'business_id', 'ח.פ / ע.מ', { req: true, mode: 'numeric' })}</div>`)}
-
-    ${box(++n, 'terms', 'תקנון', `
-      ${D.settings.terms ? `<details class="terms"><summary>לקריאת התקנון</summary><div>${esc(D.settings.terms)}</div></details>` : ''}
-      <label class="toggle-line"><input type="checkbox" data-part="order" data-k="terms_accepted_at" ${o.terms_accepted_at ? 'checked' : ''}> קראתי ואני מסכים/ה לתקנון</label>`)}
+      <div class="row2">${inp('customer', 'email', 'מייל', { req: true, type: 'email', mode: 'email', auto: 'email' })}
+        <div id="invPrivate" ${c.invoice_business ? 'class="hidden"' : ''}>${inp('customer', 'id_number', 'ת.ז', { req: true, mode: 'numeric' })}</div></div>
+      <div id="invBiz" class="row2 ${c.invoice_business ? '' : 'hidden'}">${inp('customer', 'business_name', 'שם העסק', { req: true })}${inp('customer', 'business_id', 'ח.פ / ע.מ', { req: true, mode: 'numeric' })}</div>
+      <label class="toggle-line small"><input type="checkbox" data-part="customer" data-k="invoice_business" ${c.invoice_business ? 'checked' : ''}> חשבונית על שם עסק</label>
+      <label class="toggle-line"><input type="checkbox" data-part="order" data-k="terms_accepted_at" ${o.terms_accepted_at ? 'checked' : ''}> <span>מאשר/ת את ${D.settings.terms ? '<button type="button" class="more" id="termsBtn">התקנון</button>' : 'התקנון'} <i style="color:var(--rec);font-style:normal">*</i></span></label>
+      ${D.settings.terms ? `<div class="terms-text hidden" id="termsText">${esc(D.settings.terms)}</div>` : ''}`)}
 
     <div id="missBox"></div>
     <div style="text-align:center">${waBtn()}</div>
@@ -333,6 +347,7 @@ function bind() {
     $$('[data-qd]', row).forEach(b => b.onclick = () => set(qtyOf(id) + Number(b.dataset.qd)));
     input.addEventListener('change', () => set(input.value));
   });
+  $('#termsBtn') && ($('#termsBtn').onclick = e => { e.preventDefault(); $('#termsText').classList.toggle('hidden'); });
   $('#moreTypes') && ($('#moreTypes').onclick = () => { $('#restTypes').classList.remove('hidden'); $('#moreTypes').classList.add('hidden'); });
   $('#submitBtn').onclick = submit;
 }
@@ -349,9 +364,9 @@ function paintPhotoNeed() {
   const box = $('#photoNeed'); if (!box) return;
   if (box.dataset.ready) return paintUploads();
   box.dataset.ready = '1';
-  box.innerHTML = `<div class="upl"><span class="small muted">רוצים לשלוח לנו עוד תמונה של החומרה? <b>לא חובה</b>.</span>
+  box.innerHTML = `<div class="upl">
     <div class="gallery" id="updGallery"></div>
-    <label class="btn btn-secondary" style="justify-self:start">הוספת תמונה (רשות)<input type="file" accept="image/*" multiple hidden id="updPhoto"></label><span class="small" id="updMsg"></span></div>`;
+    <label class="btn btn-secondary" style="justify-self:start;min-height:40px;font-size:15px">+ הוספת תמונה (לא חובה)<input type="file" accept="image/*" multiple hidden id="updPhoto"></label><span class="small" id="updMsg"></span></div>`;
   $('#updPhoto').onchange = e => uploadUpdate([...e.target.files]);
   paintUploads();
 }
@@ -392,7 +407,7 @@ function paintProgress() {
   $$('[data-box]').forEach(b => b.classList.remove('missing'));
   $('#barMiss').textContent = !miss.length ? 'הכל מוכן לשליחה ✓' : miss.length === 1 ? `נשאר רק: ${miss[0].label}` : `נשארו ${miss.length} שאלות חובה`;
 }
-const MISS_BOX = { qty: 'qty', address: 'address', alt: 'address', delivery: 'delivery', return: 'return', invoice: 'invoice', email: 'invoice', terms: 'terms' };
+const MISS_BOX = { qty: 'qty', address: 'address', alt: 'address', delivery: 'delivery', return: 'return', invoice: 'invoice', email: 'invoice', terms: 'invoice' };
 async function submit() {
   const b = $('#submitBtn'); b.disabled = true; b.textContent = 'שולח…';
   try { await flush(); await inflight; await api({ op: 'submit' }); sessionStorage.removeItem('q-edit'); D.order.q_submitted_at = new Date().toISOString(); renderDone(); window.scrollTo(0, 0); }
