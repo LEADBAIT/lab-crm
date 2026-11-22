@@ -131,6 +131,24 @@
   .mrow { padding: 6px 0; }
   .gallery { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
   /* mould: answers on the right, the example picture on the left of them */
+  /* the hardware box: three clearly separated sub-questions (א / ב / ג) */
+  [data-box="qty"] .box-body { gap: 0; padding-top: 4px; }
+  .qsec { display: grid; gap: 10px; padding: 14px 0; }
+  .qsec + .qsec { border-top: 1px solid var(--line); }
+  .qsec:last-child { padding-bottom: 4px; }
+  .qsec-h { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; line-height: 22px; }
+  .qsec-h .qn { width: 22px; height: 22px; flex: none; border-radius: 50%; background: var(--bar); color: var(--on-bar); font-size: 12px; line-height: 22px; text-align: center; }
+  .mlist .mrow:first-child { padding-top: 0; }
+  .subpanel { background: var(--row-alt); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; display: grid; gap: 10px; }
+  .subpanel .upl { gap: 8px; }
+  .subpanel .gallery { grid-template-columns: repeat(auto-fill, 56px); }
+  .subpanel .gallery a { width: 56px; height: 56px; }
+  #photoNeed:empty { display: none; }
+  .upl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .upl-row .gallery { display: flex; flex-wrap: wrap; gap: 6px; }
+  .upl-row .gallery.hidden { display: none !important; }
+  .upl-btn { min-height: 40px; font-size: 14px; padding: 8px 14px; }
+  #updMsg:empty { display: none; }
   .mold-row { display: flex; align-items: center; gap: 10px; }
   .mold-row .pills { flex: none; }
   .mold-row .pills { flex-wrap: nowrap; gap: 5px; }
@@ -261,16 +279,26 @@ function render() {
     ${initialPhotos.length ? `<div class="gallery">${initialPhotos.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה" loading="lazy"></a>`).join('')}</div>` : ''}
 
     ${box(++n, 'qty', 'איזו חומרה יש לכם?', `
-      ${initialPhotos.length && mine.length ? '<p class="small muted" style="margin:0">מילאנו לפי התמונות ששלחתם. בדקו שזה נכון.</p>' : ''}
-      <div>${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">סמנו מה יש לכם ובאיזו כמות:</p>'}</div>
-      ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>+ יש לי עוד סוגי חומרה</button><div id="restTypes" ${mine.length ? 'class="hidden"' : ''}>${rest.map(mrow).join('')}</div>` : ''}
-      <label class="toggle-line small"><input type="checkbox" data-part="order" data-k="q_unsure_type" ${o.q_unsure_type ? 'checked' : ''}> אני לא בטוח איזו חומרה יש לי</label>
-      <div id="photoNeed"></div>
-      <div class="q2"><span>איפה החומרה הייתה שמורה במהלך השנים?</span>${pills('storage_place', o.storage_place, [['בפנים', 'במקום סגור'], ['בחוץ', 'במקום בחוץ'], ['לא ידוע', 'לא יודע']])}</div>
-      <div class="q2"><span>יש עובש על החומרה?</span>
+      <div class="qsec">
+        <div class="qsec-h"><span class="qn">א</span>כמה יש מכל סוג?</div>
+        ${initialPhotos.length && mine.length ? '<p class="small muted" style="margin:0">מילאנו לפי התמונות ששלחתם. בדקו שזה נכון.</p>' : ''}
+        <div class="mlist">${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">סמנו מה יש לכם ובאיזו כמות:</p>'}</div>
+        ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>+ יש לי עוד סוגי חומרה</button><div id="restTypes" class="mlist ${mine.length ? 'hidden' : ''}">${rest.map(mrow).join('')}</div>` : ''}
+        <div class="subpanel">
+          <label class="toggle-line small"><input type="checkbox" data-part="order" data-k="q_unsure_type" ${o.q_unsure_type ? 'checked' : ''}> אני לא בטוח איזו חומרה יש לי</label>
+          <div id="photoNeed"></div>
+        </div>
+      </div>
+      <div class="qsec">
+        <div class="qsec-h"><span class="qn">ב</span>איפה החומרה הייתה שמורה במהלך השנים?</div>
+        ${pills('storage_place', o.storage_place, [['בפנים', 'במקום סגור'], ['בחוץ', 'במקום בחוץ'], ['לא ידוע', 'לא יודע']])}
+      </div>
+      <div class="qsec">
+        <div class="qsec-h"><span class="qn">ג</span>יש עובש על החומרה?</div>
         <div class="mold-row">${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודע']])}
-          <a href="mold-example.jpg" target="_blank" rel="noopener" class="mold-pic"><img src="mold-example.jpg" alt="דוגמה: קלטת וידאו, ובחלון שלה כתמי עובש לבנים על הסרט" width="88" height="88"><span class="mold-cap">*דוגמה לקלטת עם עובש</span></a></div></div>
-      <div class="note good"><b>עובש לא נורא:</b> אנחנו מנקים אותו כחלק מהשירות ומצילים את החומרה.</div>`)}
+          <a href="mold-example.jpg" target="_blank" rel="noopener" class="mold-pic"><img src="mold-example.jpg" alt="דוגמה: קלטת וידאו, ובחלון שלה כתמי עובש לבנים על הסרט" width="88" height="88"><span class="mold-cap">*דוגמה לקלטת עם עובש</span></a></div>
+        <div class="note good"><b>עובש לא נורא:</b> אנחנו מנקים אותו כחלק מהשירות ומצילים את החומרה.</div>
+      </div>`)}
 
     ${box(++n, 'delivery', 'איך תרצה לקבל את הקבצים הדיגיטליים בסיום?', `
       <p class="small muted" style="margin:0">בחר אפשרות אחת:</p>
@@ -386,8 +414,8 @@ function paintPhotoNeed() {
     box.dataset.ready = String(must);
     box.innerHTML = `<div class="upl ${must ? 'note warn' : ''}">
       ${must ? '<span class="need">העלה תמונות של כל החומרה, ואנחנו נבדוק בעצמנו (חשוב שהתמונות יהיו ברורות)</span>' : ''}
-      <div class="gallery" id="updGallery"></div>
-      <label class="btn ${must ? 'btn-primary' : 'btn-secondary'}" style="justify-self:start;min-height:40px;font-size:15px">${must ? 'העלאת תמונות' : '+ הוספת תמונה (לא חובה)'}<input type="file" accept="image/*" multiple hidden id="updPhoto"></label><span class="small" id="updMsg"></span></div>`;
+      <div class="upl-row"><div class="gallery" id="updGallery"></div>
+      <label class="btn ${must ? 'btn-primary' : 'btn-secondary'} upl-btn">${must ? 'העלאת תמונות' : '+ הוספת תמונה (לא חובה)'}<input type="file" accept="image/*" multiple hidden id="updPhoto"></label></div><span class="small" id="updMsg"></span></div>`;
     $('#updPhoto').onchange = e => uploadUpdate([...e.target.files]);
   }
   paintUploads();
