@@ -132,10 +132,10 @@
   .gallery { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
   /* mould: answers on the right, the example picture on the left of them */
   .mold-row { display: flex; align-items: center; gap: 10px; }
-  .mold-row .pills { flex: 1; min-width: 0; }
+  .mold-row .pills { flex: none; }
   .mold-row .pills { flex-wrap: nowrap; gap: 5px; }
   .mold-row .pill span { padding: 6px 10px; font-size: 14px; white-space: nowrap; }
-  .mold-pic { width: 64px; height: 64px; flex: none; border: 1px solid var(--line); padding: 2px; background: var(--surface); display: block; cursor: zoom-in; }
+  .mold-pic { width: 88px; height: 88px; flex: none; border: 1px solid var(--line); padding: 2px; background: var(--surface); display: block; cursor: zoom-in; }
   .mold-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .note.good { border-inline-start-width: 4px; background: #E9F5F0; color: #14503F; font-size: 15px; line-height: 22px; }
   .more { font-weight: 700; }
@@ -267,7 +267,7 @@ function render() {
       <div class="q2"><span>איפה החומרה הייתה שמורה במהלך השנים?</span>${pills('storage_place', o.storage_place, [['בפנים', 'במקום סגור'], ['בחוץ', 'במקום בחוץ'], ['לא ידוע', 'לא יודע']])}</div>
       <div class="q2"><span>יש עובש על החומרה?</span>
         <div class="mold-row">${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודע']])}
-          <a href="mold-example.jpg" target="_blank" rel="noopener" class="mold-pic"><img src="mold-example.jpg" alt="דוגמה: קלטת וידאו פתוחה, עם כתמי עובש לבנים על גלגל הסרט" width="64" height="64"></a></div></div>
+          <a href="mold-example.jpg" target="_blank" rel="noopener" class="mold-pic"><img src="mold-example.jpg" alt="דוגמה: קלטת וידאו פתוחה, עם כתמי עובש לבנים על גלגל הסרט" width="88" height="88"></a></div></div>
       <div class="note good"><b>עובש לא נורא:</b> אנחנו מנקים אותו כחלק מהשירות ומצילים את החומרה.</div>`)}
 
     ${box(++n, 'delivery', 'איך תרצה לקבל את הקבצים הדיגיטליים בסיום?', `
