@@ -44,11 +44,12 @@ const ro = (label, v) => `<div class="field ro"><span>${esc(label)}</span><div c
 const SEC_OPEN = {};
 VIEWS.order = async function vOrder(id) {
   id = Number(id);
-  const [o, rl, ri, re] = await Promise.all([getOrder(id), sb.from('order_lines').select('*').eq('order_id', id), sb.from('items').select('*').eq('order_id', id).order('seq'),
-    sb.from('order_events').select('*').eq('order_id', id).is('deleted_at', null).order('at', { ascending: false }).limit(150)]);
-  [rl, ri, re].forEach(r => fail(r.error));
+  const [o, rl, ri, re, rv] = await Promise.all([getOrder(id), sb.from('order_lines').select('*').eq('order_id', id), sb.from('items').select('*').eq('order_id', id).order('seq'),
+    sb.from('order_events').select('*').eq('order_id', id).is('deleted_at', null).order('at', { ascending: false }).limit(150),
+    sb.from('quote_versions').select('*').eq('order_id', id).order('n', { ascending: false })]);
+  [rl, ri, re, rv].forEach(r => fail(r.error));
   const { data: c, error } = await sb.from('customers').select('*').eq('id', o.customer_id).single(); fail(error);
-  const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data, photos: await loadPhotos(id) };
+  const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data, versions: rv.data, photos: await loadPhotos(id) };
   // photos live in order_photos, not in v_orders: give the step checks what they need
   o.photos_count = ctx.photos.length; o.photos_first_at = ctx.photos[0]?.created_at || null;
   // #order/<id>/<section> opens that section (the sales dashboard uses it, e.g. for missing invoice details)
@@ -417,7 +418,7 @@ function itemsHtml(ctx) {
 }
 
 // ---------- side panel ----------
-const EV_IC = { stage: ['←', 'stage'], payment: ['₪', 'payment'], contact: ['☎', 'contact'], note: ['✎', 'note'], followup: ['⏰', 'stage'], field: ['✎', 'field'] };
+const EV_IC = { stage: ['←', 'stage'], payment: ['₪', 'payment'], contact: ['☎', 'contact'], note: ['✎', 'note'], followup: ['⏰', 'stage'], field: ['✎', 'field'], quote: ['◎', 'contact'] };
 function evText(ev) {
   if (ev.kind === 'followup') return `פולו-אפ: <b>${esc(ev.new_value)}</b>`;
   if (ev.kind === 'stage') return `עבר ל<b>${esc(ev.new_value)}</b>`;
@@ -451,6 +452,7 @@ function sideHtml(ctx) {
   const { o } = ctx, sales = phaseOf(o.stage) === 'sales';
   return `<section class="card"><div class="card-head"><h3>סיכום</h3></div><div id="sumBox">${summaryHtml(ctx)}</div></section>
     ${questionnaireHtml(ctx)}
+    ${quoteLinkHtml(ctx)}
     <section class="card"><div class="card-head"><h3>איש קשר</h3><button class="link-btn" data-opensec="customer">עריכה</button></div><div id="contactBox">${contactHtml(ctx)}</div>
       ${sales ? `<div class="divider"></div><div class="row spread"><span class="small muted">${o.last_contact_at ? 'דיברנו ' + ago(o.last_contact_at) : 'עוד לא דיברנו'}</span><button class="btn sm" id="contacted">✓ דיברתי איתו עכשיו</button></div>` : ''}
     </section>
@@ -567,10 +569,60 @@ async function copyQLink(ctx) {
   if (phaseOf(ctx.o.stage) === 'sales' && await markQSent(ctx.o, 'הקישור הועתק וסומן שהשאלון נשלח. פולו-אפ בעוד יומיים')) return reloadDeal(ctx);
   toast('קישור השאלון הועתק. מדביקים אותו בוואטסאפ ללקוח');
 }
-/** the quote reached the customer: closes the "לשלוח הצעה" task and locks the questionnaire */
+/** the quote reached the customer: closes the "לשלוח הצעה" task and locks the questionnaire. The DB sets the 4-day validity */
 async function markQuoteSent(o) {
   if (o.quote_sent_at) return;
-  await patchOrder(o, { quote_sent_at: new Date().toISOString() }, 'נרשם שההצעה נשלחה ללקוח. השאלון ננעל. פולו-אפ מחר', { extra: Q_MARK_EXTRA });
+  await patchOrder(o, { quote_sent_at: new Date().toISOString() }, 'נרשם שההצעה נשלחה ללקוח. השאלון ננעל. פולו-אפ מחר', { extra: [...Q_MARK_EXTRA, 'quote_valid_until'] });
+}
+
+// ---------- quote link card (side): p.html#<quote_token> ----------
+/** a new version only when lines or total differ from the last one (sending the same quote twice is one version) */
+async function quoteSnapshot(ctx, note) {
+  const key = ls => ls.filter(l => l.qty > 0).map(l => l.product_id + ':' + l.qty).sort().join(',');
+  const last = ctx.versions?.[0];
+  if (last && Number(last.totals?.total) === Number(ctx.o.total) && key(last.lines || []) === key(ctx.lines)) return;
+  const { error } = await sb.rpc('quote_snapshot', { p_order: ctx.o.id, p_note: note }); fail(error);
+}
+/** the link goes out (copy / WhatsApp / SMS): mark the quote sent like the WhatsApp text does, then keep a version */
+async function quoteLinkOut(ctx, how) {
+  const { o, c } = ctx, u = pUrl(o);
+  if (!o.media_qty) return tell('ההצעה ריקה', 'קודם ממלאים כמויות בחלק "הצעת מחיר".');
+  if (!o.q_submitted_at && !await ask('הלקוח עוד לא מילא את השאלון', 'בדרך כלל שולחים הצעה רק אחרי השאלון. לשלוח בכל זאת?', { ok: 'לשלוח בכל זאת' })) return;
+  if (how === 'copy') { try { await navigator.clipboard.writeText(u); toast('קישור ההצעה הועתק'); } catch { tell('קישור ההצעה', u); } }
+  if (how === 'wa') window.open(waLink(c.phone, u), '_blank', 'noopener'); // the user writes the message around the link
+  if (how === 'sms' && !await smsModal(o, u, c.phone)) return;
+  if (['פנייה חדשה', 'בשיחה', 'בפולואפ'].includes(o.stage)) {
+    if (await ask('קישור ההצעה יצא ללקוח', 'להעביר את הליד ל"הצעה נשלחה"? (התוקף של 4 הימים מתחיל עכשיו)', { ok: 'כן, להעביר', cancel: 'לא עכשיו' })) await changeStage(o, 'הצעה נשלחה', c, { qOk: true });
+  } else if (!o.quote_sent_at && phaseOf(o.stage) === 'sales') await markQuoteSent(o);
+  ctx.o = await getOrder(o.id);
+  await quoteSnapshot(ctx, how === 'copy' ? 'הקישור הועתק' : how === 'wa' ? 'נשלחה בוואטסאפ' : 'נשלחה ב-SMS');
+  delete SEC_OPEN[o.id]; reloadDeal(ctx);
+}
+async function quoteRenew(ctx) {
+  const { data, error } = await sb.rpc('quote_deadline', { sent: new Date().toISOString() }); fail(error);
+  await patchOrder(ctx.o, { quote_valid_until: data }, `תוקף ההצעה חודש עד ${fmtDT(data)}. ההנחות חזרו`, { extra: ['quote_expired_at'] });
+  reloadDeal(ctx);
+}
+function quoteLinkHtml(ctx) {
+  const { o, versions = [] } = ctx, sales = phaseOf(o.stage) === 'sales', paid = o.payment_status === 'שולם';
+  if (!sales && !o.quote_first_view_at) return '';
+  const added = (o.quote_addons || []).map(a => productName(a.pid)).filter(Boolean);
+  const valid = o.quote_expired_at ? `<span class="chip orange">התוקף עבר ${esc(fmtShort(o.quote_expired_at))}</span> <span class="small muted">ההנחות ירדו, הלקוח רואה מחיר מלא</span>`
+    : o.quote_valid_until ? `<span class="small">בתוקף עד <b>${esc(fmtDT(o.quote_valid_until))}</b></span>` : '<span class="small muted">התוקף (4 ימים) מתחיל כשההצעה נשלחת</span>';
+  const views = o.quote_views ? `נפתחה <b>${o.quote_views}</b> ${o.quote_views === 1 ? 'פעם' : 'פעמים'} · ראשונה ${esc(fmtDT(o.quote_first_view_at))}${o.quote_views > 1 ? ` · אחרונה ${esc(ago(o.quote_last_view_at))}` : ''}`
+    : o.quote_sent_at ? 'עוד לא נפתחה' : 'עוד לא נשלחה';
+  return `<section class="card" id="pCard"><div class="card-head"><h3>הצעה בקישור</h3><button class="link-btn" id="pCopy">העתקת קישור</button></div>
+    <div class="small">${views}</div>
+    <div style="margin-top:6px">${valid}</div>
+    ${quoteAlmost(o) ? `<div class="warn" style="margin-top:8px"><b>הגיע לכפתור התשלום ולא שילם</b> · ${esc(ago(o.quote_pay_clicked_at))}${o.quote_accepted_name ? `<br>אישר את התנאים בשם ${esc(o.quote_accepted_name)}` : ''}</div>` : ''}
+    ${paid && o.quote_accepted_at ? `<div class="small" style="margin-top:6px"><span class="chip green">שולם מההצעה</span> אושר בשם ${esc(o.quote_accepted_name || '')} · ${esc(fmtDT(o.quote_accepted_at))}</div>` : ''}
+    ${added.length ? `<div class="small" style="margin-top:6px">הוסיף בדף ההצעה: <b>${added.map(esc).join(', ')}</b></div>` : ''}
+    ${sales && !paid ? `<div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><button class="btn sm wa" id="pWa">וואטסאפ עם הקישור</button><button class="btn sm" id="pSms">SMS</button>
+      <a class="btn sm ghost" href="${esc(pUrl(o).replace('#', '?preview=1#'))}" target="_blank" rel="noopener">תצוגה מקדימה</a>
+      ${o.quote_valid_until ? `<button class="btn sm ghost" id="pRenew" data-tip="תוקף חדש עד סוף היום הרביעי מהיום. אם התוקף עבר, ההנחות חוזרות">חידוש תוקף</button>` : ''}</div>` : ''}
+    ${versions.length ? `<details style="margin-top:10px"><summary class="small">גרסאות (${versions.length})</summary><ul class="small" style="margin:6px 0 0;padding-inline-start:18px">${versions.map(v =>
+      `<li>גרסה ${v.n} · ${esc(fmtDT(v.created_at))} · <b>${money(v.totals?.total || 0)}</b>${v.note ? ' · ' + esc(v.note) : ''}</li>`).join('')}</ul></details>` : ''}
+  </section>`;
 }
 
 // ---------- questionnaire card (side) ----------
@@ -622,6 +674,10 @@ function bindDeal(ctx) {
   $('#qCopy') && ($('#qCopy').onclick = () => copyQLink(ctx));
   $('#qSend') && ($('#qSend').onclick = () => sendQuote(ctx));
   $('#qSent') && ($('#qSent').onclick = async () => { await markQuoteSent(ctx.o); reloadDeal(ctx); });
+  $('#pCopy') && ($('#pCopy').onclick = () => quoteLinkOut(ctx, 'copy'));
+  $('#pWa') && ($('#pWa').onclick = () => quoteLinkOut(ctx, 'wa'));
+  $('#pSms') && ($('#pSms').onclick = () => quoteLinkOut(ctx, 'sms'));
+  $('#pRenew') && ($('#pRenew').onclick = () => quoteRenew(ctx));
   $('#trackBtn') && ($('#trackBtn').onclick = async () => { const u = trackUrl(ctx.o); await navigator.clipboard.writeText(u).catch(() => {}); toast('הקישור הועתק. מדביקים אותו בוואטסאפ ללקוח'); });
   $('#moreBtn').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, [
     { label: 'שליחת הצעת המחיר בוואטסאפ', run: () => sendQuote(ctx) },

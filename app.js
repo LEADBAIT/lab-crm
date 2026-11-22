@@ -123,8 +123,14 @@ async function getOrders(filter) {
 const getOrder = async id => { const [{ data, error }, qa] = await Promise.all([sb.from('v_orders').select('*').eq('id', id).single(), sb.from('orders').select(Q_COLS).eq('id', id).single()]); fail(error); fail(qa.error); return Object.assign(data, qa.data); };
 // ---------- onboarding questionnaire (q.html#<q_token>, spec crm/אפיון-שאלון-אונבורדינג.md) ----------
 // its columns are not in v_orders, so every order read merges them in from orders
-const Q_COLS = 'id,q_token,q_opened_at,q_saved_at,q_submitted_at,q_progress,q_initial_lines,q_qty_changed_at,q_unsure_type,storage_place,mold,delivery_method,cloud_type,terms_accepted_at,quote_sent_at,q_sent_at';
-const qUrl = o => ((S.settings.public_url?.text_value || '').trim() || (location.origin + location.pathname)).replace(/#.*$/, '').replace(/[^/]*$/, '') + 'q.html#' + o.q_token;
+const Q_COLS = 'id,q_token,q_opened_at,q_saved_at,q_submitted_at,q_progress,q_initial_lines,q_qty_changed_at,q_unsure_type,storage_place,mold,delivery_method,cloud_type,terms_accepted_at,quote_sent_at,q_sent_at,'
+  + 'quote_token,quote_version,quote_valid_until,quote_expired_at,quote_views,quote_first_view_at,quote_last_view_at,quote_pay_clicked_at,quote_accepted_at,quote_accepted_name,quote_addons';
+const pageUrl = (file, token) => ((S.settings.public_url?.text_value || '').trim() || (location.origin + location.pathname)).replace(/#.*$/, '').replace(/[^/]*$/, '') + file + '#' + token;
+const qUrl = o => pageUrl('q.html', o.q_token);
+// ---------- quote link (p.html#<quote_token>, spec crm/אפיון-הצעת-מחיר.md) ----------
+const pUrl = o => pageUrl('p.html', o.quote_token);
+/** the customer reached the pay button of the quote page and did not pay */
+const quoteAlmost = o => !!o.quote_pay_clicked_at && o.payment_status !== 'שולם' && phaseOf(o.stage) === 'sales';
 /** the customer sent the form and nobody has sent them the quote yet */
 const quotePending = o => !!o.q_submitted_at && !o.quote_sent_at && phaseOf(o.stage) === 'sales';
 /** columns the orders_aq_marks trigger may change with a mark (stage move + follow-up), so undo puts them back */
@@ -138,6 +144,9 @@ async function markQSent(o, msg = 'סומן: השאלון נשלח ללקוח. �
 const qState = o => o.q_submitted_at ? 'מילא את השאלון' : o.q_opened_at ? `התחיל למלא · ${o.q_progress || 0}%` : o.q_sent_at ? 'עוד לא נפתח' : '';
 function qChip(o) {
   if (quotePending(o)) return '<span class="chip orange" data-tip="הלקוח מילא את השאלון. בודקים את ההצעה ושולחים">לשלוח הצעה</span>';
+  if (quoteAlmost(o)) return `<span class="chip orange" data-tip="הלקוח הגיע לכפתור התשלום בדף ההצעה ולא שילם (${esc(fmtDT(o.quote_pay_clicked_at))})">כמעט סגר</span>`;
+  if (o.stage === 'הצעה נשלחה' && o.quote_expired_at) return '<span class="chip" data-tip="תוקף ההצעה עבר: ההנחות ירדו. אפשר לחדש תוקף בדף העסקה">תוקף ההצעה עבר</span>';
+  if (o.stage === 'הצעה נשלחה' && o.quote_views > 0) return `<span class="chip blue" data-tip="צפייה אחרונה ${esc(fmtDT(o.quote_last_view_at))}">צפה בהצעה ×${o.quote_views}</span>`;
   if (o.q_opened_at && !o.q_submitted_at && phaseOf(o.stage) === 'sales') return `<span class="chip" data-tip="הלקוח התחיל למלא את השאלון">שאלון ${o.q_progress || 0}%</span>`;
   if (o.stage === 'בפולואפ' && o.q_sent_at && !o.q_opened_at) return `<span class="chip blue" data-tip="השאלון נשלח ועוד לא נפתח">✓ שאלון ${fmtShort(o.q_sent_at)}</span>`;
   if (o.stage === 'הצעה נשלחה' && o.quote_sent_at) return `<span class="chip blue" data-tip="ההצעה נשלחה ללקוח">✓ הצעה ${fmtShort(o.quote_sent_at)}</span>`;
@@ -232,7 +241,20 @@ async function boot() {
   await loadRef();
   if (isLab() && !/^#(lab|scan)/.test(location.hash)) location.hash = 'lab';
   await route();
+  if (!isLab() && !EMBED) quoteAlerts();
   if (!isLab() && !EMBED && lsGet('tour.v3') !== 'done') setTimeout(startTour, 400);
+}
+/** live alert when a customer opens the quote page or reaches its pay button (order_events kind 'quote' via Realtime) */
+let quoteChan = null;
+function quoteAlerts() {
+  if (quoteChan || !sb.channel) return;
+  quoteChan = sb.channel('quote-alerts').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_events', filter: 'kind=eq.quote' }, async ({ new: ev }) => {
+    if (!/פתח|כפתור התשלום|אישר/.test(ev.new_value || '')) return;
+    const { data: o } = await sb.from('v_orders').select('id, full_name, phone').eq('id', ev.order_id).maybeSingle();
+    const who = o ? custName(o) : 'לקוח #' + ev.order_id;
+    toast(`${who}: ${ev.new_value.replace(/^הלקוח /, '')}`, { undo: () => go('order/' + ev.order_id), label: 'לעסקה', ms: 12000 });
+    if (location.hash === '#order/' + ev.order_id) route();
+  }).subscribe();
 }
 function showLogin(msg = '') { $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); $('#loginMsg').textContent = msg; }
 $('#loginForm').addEventListener('submit', async e => {
