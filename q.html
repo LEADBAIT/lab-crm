@@ -135,13 +135,12 @@
   .ph { position: relative; display: block; }
   .ph-del { position: absolute; top: -7px; inset-inline-start: -7px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--surface); background: var(--rec); color: #fff; font: 700 16px/18px var(--sans); cursor: pointer; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
   /* mould: answers on the right, the example picture on the left of them */
-  /* the hardware box: three clearly separated sub-questions (א / ב / ג) */
+  /* the hardware box: three clearly separated sub-questions */
   [data-box="qty"] .box-body { gap: 0; padding-top: 4px; }
   .qsec { display: grid; gap: 10px; padding: 14px 0; }
   .qsec + .qsec { border-top: 1px solid var(--line); }
   .qsec:last-child { padding-bottom: 4px; }
   .qsec-h { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; line-height: 22px; }
-  .qsec-h .qn { width: 22px; height: 22px; flex: none; border-radius: 50%; background: var(--bar); color: var(--on-bar); font-size: 12px; line-height: 22px; text-align: center; }
   .mlist .mrow:first-child { padding-top: 0; }
   .subpanel { background: var(--row-alt); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; display: grid; gap: 10px; }
   .subpanel .upl { gap: 8px; }
@@ -287,7 +286,7 @@ function render() {
 
     ${box(++n, 'qty', 'איזו חומרה יש לכם?', `
       <div class="qsec">
-        <div class="qsec-h"><span class="qn">א</span>כמה יש מכל סוג?</div>
+        <div class="qsec-h">כמה יש מכל סוג?</div>
         ${initialPhotos.length && mine.length ? '<p class="small muted" style="margin:0">מילאנו לפי התמונות ששלחתם. בדקו שזה נכון.</p>' : ''}
         <div class="mlist">${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">סמנו מה יש לכם ובאיזו כמות:</p>'}</div>
         ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>+ יש לי עוד סוגי חומרה</button><div id="restTypes" class="mlist ${mine.length ? 'hidden' : ''}">${rest.map(mrow).join('')}</div>` : ''}
@@ -297,11 +296,11 @@ function render() {
         </div>
       </div>
       <div class="qsec">
-        <div class="qsec-h"><span class="qn">ב</span>איפה החומרה הייתה שמורה במהלך השנים?</div>
+        <div class="qsec-h">איפה החומרה הייתה שמורה במהלך השנים?</div>
         ${pills('storage_place', o.storage_place, [['בפנים', 'במקום סגור'], ['בחוץ', 'במקום בחוץ'], ['לא ידוע', 'לא יודע']])}
       </div>
       <div class="qsec">
-        <div class="qsec-h"><span class="qn">ג</span>יש עובש על החומרה?</div>
+        <div class="qsec-h">יש עובש על החומרה?</div>
         <div class="mold-row">${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודע']])}
           <a href="mold-example.jpg" target="_blank" rel="noopener" class="mold-pic"><img src="mold-example.jpg" alt="דוגמה: קלטת וידאו, ובחלון שלה כתמי עובש לבנים על הסרט" width="88" height="88"><span class="mold-cap">*דוגמה לקלטת עם עובש</span></a></div>
         <div class="note good"><b>עובש לא נורא:</b> אנחנו מנקים אותו כחלק מהשירות ומצילים את החומרה.</div>
