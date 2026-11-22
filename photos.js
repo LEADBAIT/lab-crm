@@ -69,7 +69,7 @@ async function fillPhotoThumbs(ctx) {
 function bindPhotos(ctx) {
   const box = $('#photoDrop'); if (!box) return;
   fillPhotoThumbs(ctx);
-  const done = async files => { if (await uploadPhotos(ctx.o.id, files, $('#photoKind').value)) { SEC_OPEN[ctx.o.id].add('photos'); reloadDeal(ctx); } };
+  const done = async files => { if (await uploadPhotos(ctx.o.id, files, $('#photoKind').value)) { SEC_OPEN[ctx.o.id].add('photos'); if (['פנייה חדשה', 'בשיחה'].includes(ctx.o.stage)) toast('הליד עבר אוטומטית ל"בפולואפ"'); reloadDeal(ctx); } }; // order_photos_followup trigger
   $('#photoInput').onchange = e => done(e.target.files);
   box.addEventListener('dragover', e => { e.preventDefault(); box.classList.add('over'); });
   box.addEventListener('dragleave', () => box.classList.remove('over'));

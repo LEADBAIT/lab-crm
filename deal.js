@@ -476,7 +476,10 @@ function historyHtml(ctx) {
 
 // ---------- behavior ----------
 async function lightRefresh(ctx, savedKey) {
-  const o = await getOrder(ctx.o.id); ctx.o = o;
+  const prevStage = ctx.o.stage, o = await getOrder(ctx.o.id); ctx.o = o;
+  o.photos_count = ctx.photos?.length || 0; o.photos_first_at = ctx.photos?.[0]?.created_at || null; // not in v_orders (see vOrder)
+  // a database trigger moved the lead (e.g. quantities -> "בפולואפ"): redraw the whole page so the stage bar follows
+  if (o.stage !== prevStage) { toast(`הליד עבר אוטומטית ל"${o.stage}"`); return reloadDeal(ctx); }
   $('#dealMeta') && ($('#dealMeta').innerHTML = dealMeta(o));
   $('#sumBox') && ($('#sumBox').innerHTML = summaryHtml(ctx));
   $('#contactBox') && ($('#contactBox').innerHTML = contactHtml(ctx));
