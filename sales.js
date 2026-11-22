@@ -158,7 +158,7 @@ function nextAct(r) {
     case 'פנייה חדשה': return ['wa', 'פנייה בוואטסאפ', 'wa'];
     case 'בשיחה': return r.followup_channel === 'call' ? ['call', 'להתקשר', 'call'] : ['wa', 'לנסות שוב', 'wa'];
     case 'בפולואפ': return r.media_qty ? ['quote', 'שליחת הצעה', 'primary'] : ['fillquote', 'מילוי הצעה', ''];
-    case 'הצעה נשלחה': return ['pay', r.sumit_payment_url ? 'קישור תשלום ✓' : 'קישור תשלום', 'primary'];
+    case 'הצעה נשלחה': return ['pay', r.pay_link_sent_at ? 'קישור תשלום ✓' : 'קישור תשלום', 'primary'];
     default: return ['open', 'פתיחה', ''];
   }
 }
@@ -271,9 +271,11 @@ async function markPaid(o) {
   if (miss.length) { toast('חסר לחשבונית ולאיסוף: ' + miss.join(', '), { ms: 6000 }); return openPanel(o.id, miss.includes('כמויות בהצעת המחיר') && miss.length === 1 ? 'quote' : 'customer'); }
   SD.touch = o.id; if (await changeStage(o, 'לתאם איסוף', c)) route();
 }
-/** SUMIT payment link for this quote (created by the sumit-payment edge function). */
-async function paymentLink(o) {
-  if (!(o.total > 0)) { toast('קודם ממלאים כמויות בהצעת המחיר'); return openPanel(o.id, 'quote'); }
+/** SUMIT payment link for this quote (created by the sumit-payment edge function). Used by the sales list and the customer page.
+ *  Sending it stamps pay_link_sent_at (the "קישור תשלום נשלח" task). noQuote = what to open when the quote is empty; after = refresh. */
+async function paymentLink(o, { phone = o.phone, noQuote = () => openPanel(o.id, 'quote'), after = route } = {}) {
+  if (o.payment_status === 'שולם') return tell('ההזמנה כבר שולמה', 'אין צורך בקישור תשלום.');
+  if (!(o.total > 0)) { toast('קודם ממלאים כמויות בהצעת המחיר'); return noQuote(); }
   let url = o.sumit_payment_url;
   if (!url || Number(o.sumit_payment_amount) !== Number(o.total)) {
     toast('יוצר קישור תשלום ב-SUMIT…', { ms: 8000 });
@@ -282,8 +284,14 @@ async function paymentLink(o) {
     url = data.url; SD.touch = o.id;
   }
   const text = `היי ${firstName(o.full_name)}, הנה קישור לתשלום (${money(o.total)}):\n` + url;
-  const f = await formModal('קישור תשלום ל' + custName(o), `<label class="field">הקישור<input value="${esc(url)}" dir="ltr" readonly onclick="this.select()"></label>
-    <label class="field">ההודעה<textarea name="m" rows="5">${esc(text)}</textarea><span class="hint">כשהלקוח משלם, הליד עובר לבד ל"לתאם איסוף".</span></label>`, { ok: 'שליחה בוואטסאפ' });
-  if (f) { window.open(waLink(o.phone, f.m), '_blank', 'noopener'); await markContacted(o, 'קישור התשלום נשלח'); }
-  route();
+  const pending = formModal('קישור תשלום ל' + custName(o), `<label class="field">הקישור<input value="${esc(url)}" dir="ltr" readonly onclick="this.select()">
+      <button type="button" class="link-btn" id="payCopy" style="margin-top:4px">העתקה וסימון שנשלח (אם שולחים בדרך אחרת)</button></label>
+    <label class="field">ההודעה<textarea name="m" rows="5">${esc(text)}</textarea><span class="hint">כשהלקוח משלם, ההזמנה עוברת לבד ל"לתאם איסוף" ונרשמת חשבונית.</span></label>`, { ok: 'שליחה בוואטסאפ' });
+  let copied = false; // the modal is already in the page here (formModal builds it synchronously)
+  const cb = document.getElementById('payCopy');
+  if (cb) cb.onclick = async () => { try { await navigator.clipboard.writeText(url); } catch {} copied = true; cb.textContent = 'הועתק ✓ יירשם שנשלח'; };
+  const f = await pending;
+  if (f) window.open(waLink(phone, f.m), '_blank', 'noopener');
+  if (f || copied) { const now = new Date().toISOString(); await patchOrder(o, { pay_link_sent_at: now, last_contact_at: now }, 'נרשם שקישור התשלום נשלח'); }
+  after();
 }

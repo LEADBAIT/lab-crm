@@ -3,7 +3,9 @@
 'use strict';
 const LOST = 'לא רלוונטי';
 /** file check: every barcode that should have a file has one (file name = barcode). Defined before STEPS, which uses it. */
-const FILES_CHECK = { label: 'בדיקת קבצים: לכל ברקוד יש קובץ', done: o => !!o.files_checked_at && !o.files_missing, at: o => o.files_checked_at, act: 'files', show: o => o.items_count > 0 };
+/** payment-link task: warns when the quote changed after the link was made (the next send makes a new link) */
+const payLinkState = o => o.pay_link_sent_at && o.sumit_payment_url && Number(o.sumit_payment_amount) !== Number(o.total) ? 'הסכום השתנה, צריך לשלוח קישור חדש' : '';
+const FILES_CHECK ={ label: 'בדיקת קבצים: לכל ברקוד יש קובץ', done: o => !!o.files_checked_at && !o.files_missing, at: o => o.files_checked_at, act: 'files', show: o => o.items_count > 0 };
 const STEPS = [
   { key: 'פנייה חדשה', short: 'פנייה', phase: 'sales', date: o => o.created_at,
     title: 'ליצור קשר עם הלקוח', todo: 'להתקשר או לשלוח וואטסאפ, להבין מה יש לו (כמה קלטות/דיסקים, מאיזה סוג) ומה הוא צריך.',
@@ -24,13 +26,17 @@ const STEPS = [
     title: 'לסגור ולקבל תשלום', todo: 'לעשות פולואפ עד שהלקוח משלם. לפני התשלום משלימים פרטים לחשבונית ולאיסוף.',
     wa: true, btn: 'הלקוח שילם', pay: true, open: ['customer', 'quote'],
     checks: [{ label: 'ההצעה נשלחה ללקוח', done: o => !!o.quote_sent_at, at: o => o.quote_sent_at, act: 'quotesent' },
-      { label: 'פרטים לחשבונית ולאיסוף מלאים', done: (o, c) => !missingForPaid(o, c).length, act: 'open:customer' }] },
+      { label: 'פרטים לחשבונית ולאיסוף מלאים', done: (o, c) => !missingForPaid(o, c).length, act: 'open:customer' },
+      { label: 'קישור תשלום (SUMIT) נשלח ללקוח', done: o => !!o.pay_link_sent_at, at: o => o.pay_link_sent_at, act: 'paylink', state: payLinkState },
+      { label: 'הלקוח שילם', done: o => o.payment_status === 'שולם', at: o => o.paid_at, state: o => o.payment_status || 'עוד לא שולם',
+        note: 'תשלום בקישור מעביר לבד ל"לתאם איסוף". תשלום בביט, העברה או מזומן: לוחצים "הלקוח שילם" למטה.' }] },
   { key: 'לתאם איסוף', short: 'איסוף', phase: 'ops', date: o => o.paid_at,
     title: 'לתאם איסוף עם שליח', todo: 'לבחור מעבדה, להזמין שליח ולקבוע תאריך. אחר כך לשלוח ללקוח אישור איסוף ולהדפיס מדבקות ודף משלוח.',
     wa: true, btn: 'השליח אסף את החומרה', set: ['picked_up_at'], open: ['shipping', 'items'],
     fields: ['lab_id', 'courier', 'pickup_date', 'pickup_tracking'],
     need: o => [!o.lab_id && 'מעבדה', !o.pickup_date && 'תאריך איסוף'].filter(Boolean),
-    checks: [{ label: 'בחרנו מעבדה', done: o => !!o.lab_id },
+    checks: [{ label: 'התשלום התקבל', done: o => o.payment_status === 'שולם', at: o => o.paid_at, state: o => o.payment_method || o.payment_status || '' },
+      { label: 'בחרנו מעבדה', done: o => !!o.lab_id },
       { label: 'נקבע תאריך איסוף', done: o => !!o.pickup_date, at: o => o.pickup_date },
       { label: 'נוצרו ברקודים לפריטים', done: o => o.items_count > 0, act: 'items' },
       { label: 'המזומן הגיע אלינו מהשליח', done: o => !!o.cash_received_at, at: o => o.cash_received_at, act: 'cash', show: o => /מזומן/.test((o.payment_method || '') + o.payment_status) }] },

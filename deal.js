@@ -73,6 +73,7 @@ function renderDeal(ctx) {
         <button class="btn wa" id="waBtn" data-tip="פתיחת שיחה בוואטסאפ">וואטסאפ</button>
         ${ph !== 'sales' && !lost ? '<button class="btn" id="trackBtn">קישור מעקב</button>' : ''}
         <div class="dd"><button class="btn icon-btn" id="moreBtn" aria-label="עוד פעולות">⋯</button></div>
+        ${sales ? `<button class="btn" id="payLinkBtn" data-tip="יצירת קישור תשלום ב-SUMIT ושליחה בוואטסאפ">${o.pay_link_sent_at ? 'קישור תשלום ✓' : 'קישור תשלום'}</button>` : ''}
         ${sales ? '<span class="sep-v"></span><button class="btn won" id="wonBtn">שילם</button><button class="btn lost" id="lostBtn">לא רלוונטי</button>' : ''}
       </div>
     </div>
@@ -154,7 +155,7 @@ function nextCardHtml(ctx) {
     ${FU_STAGES.includes(o.stage) ? `<div class="fu-line fu-${fuState(o)}"><span>פולו-אפ הבא: <b>${o.next_followup ? fuCh(o) + ' ' + (FU_CH[o.followup_channel] ? FU_CH[o.followup_channel][1] + ' ' : '') + esc(fuLabel(o)) + ' (' + fmtShort(o.next_followup) + ')' : 'אין צעד הבא'}</b>${o.followup_note ? ' · ' + esc(o.followup_note) : ''}${o.stage === 'בשיחה' ? ` · ניסיון ${o.followup_attempts || 1} מתוך ${MAX_ATTEMPTS}` : ''}</span><button class="btn sm" id="fuEdit">${o.next_followup ? 'שינוי' : 'קביעת פולו-אפ'}</button></div>` : ''}
     ${checks.length ? `<ul class="checklist">${checks.map((k, j) => checkHtml(ctx, k, j)).join('')}</ul>` : ''}
     ${s.fields ? `<div class="fields" style="margin-bottom:12px">${s.fields.map(k => fld(ctx, k)).join('')}</div>` : ''}
-    ${s.pay ? `<div class="note" style="margin-bottom:12px">כשהלקוח משלם, לוחצים "${esc(s.btn)}". נפתח חלון קצר לרישום התשלום, וההזמנה עוברת לתיאום איסוף.</div>` : ''}
+    ${s.pay ? `<div class="note" style="margin-bottom:12px">תשלום בקישור SUMIT: ההזמנה עוברת לבד לתיאום איסוף (בדרך כלל מיד, לכל המאוחר תוך שעה). תשלום בדרך אחרת: לוחצים "${esc(s.btn)}" ורושמים את התשלום.</div>` : ''}
     ${miss.length && nxt ? `<div class="warn" style="margin-bottom:4px">כדי להמשיך חסר: ${esc(miss.join(', '))}</div>` : ''}
     <div class="next-actions">
       ${nxt && s.btn ? `<button class="btn primary lg" id="advance">${esc(s.btn)} ←</button>` : ''}
@@ -177,15 +178,17 @@ function checkHtml(ctx, k, j) {
     : k.act === 'files' ? `<button class="btn sm" data-chk="${j}">בדיקת קבצים</button>`
     : k.act === 'waive' ? `<button class="btn sm ghost" data-chk="${j}">הלקוח ויתר</button>`
     : k.act === 'quotesent' ? `<button class="btn sm primary" data-chk="${j}">ההצעה נשלחה ✓</button>`
+    : k.act === 'paylink' ? `<button class="btn sm primary" data-chk="${j}">שליחת קישור תשלום</button>`
     : k.act === 'qsent' ? `<button class="btn sm ghost" data-qcopy>העתקת קישור</button><button class="btn sm" data-chk="${j}">השאלון נשלח ✓</button>`
     : `<button class="btn sm" data-chk="${j}">סימון ✓</button>`;
   const missNote = k.act === 'files' && ctx.o.files_missing ? ` <span class="chip red">חסרים ${ctx.o.files_missing} קבצים</span>` : '';
-  return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${missNote}${k.state && ok && k.state(ctx.o) ? ` <span class="chip${k.act !== 'qsent' || ctx.o.q_submitted_at ? ' green' : ''}">${esc(k.state(ctx.o))}</span>` : ''}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
-    ${act}${ok && ms ? `<button class="link-btn" data-msedit="${ms}">שינוי תאריך</button>` : ''}${ok && k.act === 'files' ? `<button class="link-btn" data-chk="${j}">בדיקה שוב</button>` : ''}
+  const st = ok && k.state ? k.state(ctx.o) : '', warnSt = k.act === 'paylink' && st;
+  return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${missNote}${st ? ` <span class="chip${warnSt ? ' orange' : k.act !== 'qsent' || ctx.o.q_submitted_at ? ' green' : ''}">${esc(st)}</span>` : ''}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}${!ok && k.note ? `<div class="tiny muted">${esc(k.note)}</div>` : ''}</span>
+    ${act}${ok && ms ? `<button class="link-btn" data-msedit="${ms}">שינוי תאריך</button>` : ''}${ok && k.act === 'files' ? `<button class="link-btn" data-chk="${j}">בדיקה שוב</button>` : ''}${ok && k.act === 'paylink' ? `<button class="link-btn" data-chk="${j}">שליחה שוב</button>` : ''}
     ${ok && canUncheck(k) ? `<button class="link-btn" data-unchk="${j}">ביטול סימון</button>` : ''}</li>`;
 }
 // checks that are a stamp we set (not something derived, like "a lab was chosen") can be un-checked
-const canUncheck = k => !!k.act && (k.act.startsWith('ms:') || ['contact', 'intake', 'cash', 'qsent', 'quotesent'].includes(k.act));
+const canUncheck = k => !!k.act && (k.act.startsWith('ms:') || ['contact', 'intake', 'cash', 'qsent', 'quotesent', 'paylink'].includes(k.act));
 const FIELD_DATE = d => /^\d{4}-\d{2}-\d{2}$/.test(d) ? fmtDate(d) : fmtDT(d);
 
 // ---------- sections ----------
@@ -330,7 +333,8 @@ function sumitHtml(o) {
   const doc = o.sumit_doc_id ? `<a class="btn sm" href="${esc(o.sumit_doc_url || '#')}" target="_blank" rel="noopener">חשבונית ${esc(o.invoice_number || '')} (PDF)</a>` : '';
   const credit = o.sumit_credit_doc_number ? `<a class="btn sm" href="${esc(o.sumit_credit_doc_url || '#')}" target="_blank" rel="noopener">זיכוי ${esc(o.sumit_credit_doc_number)} (PDF)</a>` : '';
   return `<div class="subhead">SUMIT</div><div class="row">${doc}${credit}
-    ${!o.sumit_doc_id ? '<button class="btn sm primary" data-sumit="receipt">הפקת חשבונית מס-קבלה</button>' : ''}
+    ${o.payment_status !== 'שולם' && o.stage !== LOST ? `<button class="btn sm primary" data-paylink>${o.pay_link_sent_at ? 'שליחת קישור תשלום שוב' : 'שליחת קישור תשלום'}</button>` : ''}
+    ${!o.sumit_doc_id ? '<button class="btn sm" data-sumit="receipt">הפקת חשבונית מס-קבלה</button>' : ''}
     ${o.sumit_doc_id && !o.sumit_credit_doc_number ? '<button class="btn sm" data-sumit="cancel">ביטול החשבונית (זיכוי)</button>' : ''}
     <button class="btn sm ghost" data-sumit="customer_url">כרטיס הלקוח ב-SUMIT</button></div>
     <p class="tiny muted">${o.sumit_doc_id ? '' : 'תשלום בקישור SUMIT מפיק חשבונית לבד. הכפתור הוא לתשלום בביט, פייבוקס, העברה או מזומן.'}</p>`;
@@ -496,7 +500,7 @@ async function runUncheck(ctx, k) {
   const o = ctx.o;
   const patch = k.act === 'contact' ? { last_contact_at: null } : k.act === 'intake' ? { intake_done_at: null }
     : k.act === 'cash' ? { payment_status: 'מזומן אצל שליח', cash_received_at: null }
-    : k.act === 'qsent' ? { q_sent_at: null } : k.act === 'quotesent' ? { quote_sent_at: null } : { [k.act.slice(3)]: null };
+    : k.act === 'qsent' ? { q_sent_at: null } : k.act === 'quotesent' ? { quote_sent_at: null } : k.act === 'paylink' ? { pay_link_sent_at: null } : { [k.act.slice(3)]: null };
   await patchOrder(o, patch, `בוטל הסימון: ${k.label}`); reloadDeal(ctx);
 }
 async function runCheck(ctx, k) {
@@ -505,6 +509,7 @@ async function runCheck(ctx, k) {
   if (k.act.startsWith('open:')) { const s = k.act.slice(5), d = $(`[data-sec="${s}"]`); if (!d) return; d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   if (k.act === 'items') return genItems(ctx);
   if (k.act === 'quotesent') { await markQuoteSent(o); return reloadDeal(ctx); }
+  if (k.act === 'paylink') return dealPayLink(ctx);
   if (k.act === 'qsent') { await markQSent(o); return reloadDeal(ctx); }
   if (k.act === 'closing') { sessionStorage.setItem('scanStatus', 'נארז להחזרה'); return go('scan'); }
   if (k.act === 'files') { if (await filesCheck(ctx)) reloadDeal(ctx); return; }
@@ -518,6 +523,9 @@ async function runCheck(ctx, k) {
   }
   if (k.act.startsWith('ms:')) { await patchOrder(o, { [k.act.slice(3)]: new Date().toISOString() }, 'נרשם: ' + k.label); return reloadDeal(ctx); }
 }
+/** SUMIT payment link from the customer page: same flow as the sales list (paymentLink in sales.js) */
+const dealPayLink = ctx => paymentLink(ctx.o, { phone: ctx.c.phone, after: () => reloadDeal(ctx),
+  noQuote: () => { const d = $('[data-sec="quote"]'); if (d) { d.open = true; SEC_OPEN[ctx.o.id].add('quote'); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } });
 async function genItems(ctx) { const { data, error } = await sb.rpc('generate_items', { p_order: ctx.o.id }); fail(error); toast(data ? `נוצרו ${data} ברקודים` : 'אין ברקודים חדשים ליצירה'); SEC_OPEN[ctx.o.id].add('items'); reloadDeal(ctx); }
 /** WhatsApp chat with the customer, no prepared text. In sales, opening it counts as contacting the lead. */
 async function openWa(ctx) {
@@ -614,6 +622,7 @@ function bindDeal(ctx) {
   $('#trackBtn') && ($('#trackBtn').onclick = async () => { const u = trackUrl(ctx.o); await navigator.clipboard.writeText(u).catch(() => {}); toast('הקישור הועתק. מדביקים אותו בוואטסאפ ללקוח'); });
   $('#moreBtn').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, [
     { label: 'שליחת הצעת המחיר בוואטסאפ', run: () => sendQuote(ctx) },
+    ...(o.payment_status !== 'שולם' ? [{ label: 'קישור תשלום (SUMIT)', run: () => dealPayLink(ctx) }] : []),
     { label: 'SMS', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { if (await smsModal(ctx.o, '', c.phone)) reloadDeal(ctx); } }, 'sep',
     { label: 'הדפסת הצעת מחיר (PDF)', run: () => go('quote/' + o.id) }, { label: 'הדפסת מדבקות ברקוד', run: () => go('labels/' + o.id) }, { label: 'הדפסת דף משלוח', run: () => go('manifest/' + o.id) },
     'sep', ctx.o.stage === LOST ? { label: 'להחזיר לטיפול', run: () => $('#revive').click() } : { label: 'סימון כלא רלוונטי', run: async () => { if (await changeStage(ctx.o, LOST, c)) reloadDeal(ctx); } },
@@ -634,6 +643,7 @@ function bindDeal(ctx) {
   // items
   $$('[data-gen]').forEach(b => b.onclick = () => genItems(ctx));
   $$('[data-sumit]').forEach(b => b.onclick = () => sumitAction(ctx, b.dataset.sumit));
+  $$('[data-paylink], #payLinkBtn').forEach(b => b.onclick = () => dealPayLink(ctx));
   $$('[data-credit]').forEach(b => b.onclick = () => creditAction(ctx, b.dataset.credit));
   $$('[data-isave]').forEach(el => el.addEventListener('change', async () => {
     const [iid, col] = el.dataset.isave.split(':'); const v = el.type === 'checkbox' ? el.checked : (el.value || null);
