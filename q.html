@@ -124,7 +124,8 @@
   .field > span { font-size: 14px; }
   .sel { font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); width: 100%; min-height: 44px; }
   .terms-text { white-space: pre-wrap; font-size: 13px; line-height: 19px; max-height: 200px; overflow: auto; border: 1px solid var(--line); padding: 10px; background: var(--row-alt); }
-  .wrap { gap: 14px; }
+  .wrap { gap: 32px; } /* clear space between the numbered questions (1 | 2 | 3 …) */
+  .wrap > .intro, .wrap > .gallery { margin-bottom: -12px; } /* intro and sent photos stay close to the first question */
   .box-body { padding: 12px; gap: 12px; }
   .choice { padding: 10px 12px; }
   .mrow { padding: 6px 0; }
