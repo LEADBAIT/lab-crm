@@ -283,7 +283,8 @@ async function paymentLink(o, { phone = o.phone, noQuote = () => openPanel(o.id,
     if (error || !data?.url) return tell('לא נוצר קישור תשלום', (data?.error || error?.message || '') + '\n\nאם זו הפעם הראשונה: צריך להכניס את מפתח ה-API של SUMIT (ההוראות בקובץ crm/README.md).');
     url = data.url; SD.touch = o.id;
   }
-  const text = `היי ${firstName(o.full_name)}, הנה קישור לתשלום (${money(o.total)}):\n` + url;
+  const alt = (S.settings.pay_alt_text?.text_value || '').trim();
+  const text = `היי ${firstName(o.full_name)}, הנה קישור לתשלום (${money(o.total)}, אפשר עד 3 תשלומים באשראי):\n` + url + (alt ? '\n\n' + alt : '');
   const pending = formModal('קישור תשלום ל' + custName(o), `<label class="field">הקישור<input value="${esc(url)}" dir="ltr" readonly onclick="this.select()">
       <button type="button" class="link-btn" id="payCopy" style="margin-top:4px">העתקה וסימון שנשלח (אם שולחים בדרך אחרת)</button></label>
     <label class="field">ההודעה<textarea name="m" rows="5">${esc(text)}</textarea><span class="hint">כשהלקוח משלם, ההזמנה עוברת לבד ל"לתאם איסוף" ונרשמת חשבונית.</span></label>`, { ok: 'שליחה בוואטסאפ' });
