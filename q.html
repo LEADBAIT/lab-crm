@@ -221,9 +221,9 @@ async function api(body) {
   return d;
 }
 async function start() {
-  if (!TOKEN) return fatal('הקישור לא שלם', 'בדקו שהעתקתם את כל הקישור מההודעה בוואטסאפ.');
+  if (!TOKEN) return fatal('הקישור לא שלם', 'בדוק שהעתקת את כל הקישור מההודעה בוואטסאפ.');
   try { D = await fetch(API + '?t=' + encodeURIComponent(TOKEN)).then(async r => { const d = await r.json(); if (!r.ok) throw Object.assign(new Error(d.error), { status: r.status }); return d; }); }
-  catch (e) { return fatal(e.status === 404 ? 'הקישור לא נמצא' : 'משהו לא נטען', e.status === 404 ? 'בדקו את הקישור או כתבו לנו בוואטסאפ.' : 'נסו לרענן את הדף בעוד רגע.'); }
+  catch (e) { return fatal(e.status === 404 ? 'הקישור לא נמצא' : 'משהו לא נטען', e.status === 404 ? 'בדוק את הקישור או כתוב לנו בוואטסאפ.' : 'נסה לרענן את הדף בעוד רגע.'); }
   if (D.locked) return renderLocked();
   if (D.order.q_submitted_at && !sessionStorage.getItem('q-edit')) return renderDone();
   render();
@@ -258,7 +258,7 @@ const initQty = id => (D.order.initial_lines || []).find(l => l.product_id === i
 const media = () => D.products.filter(p => p.category === 'media');
 const C = () => D.customer, O = () => D.order;
 function waNum() { return String(D?.settings?.business_whatsapp || '').replace(/\D/g, ''); }
-function waBtn(text = 'שלום, יש לי שאלה על השאלון') { const n = waNum(); return n ? `<a class="btn btn-secondary" href="https://wa.me/${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">כתבו לנו בוואטסאפ</a>` : ''; }
+function waBtn(text = 'שלום, יש לי שאלה על השאלון') { const n = waNum(); return n ? `<a class="btn btn-secondary" href="https://wa.me/${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">כתוב לנו בוואטסאפ</a>` : ''; }
 function ask(title, body, ok = 'כן', no = 'לא') {
   const d = $('#dlg'); $('#dlgT').textContent = title; $('#dlgB').textContent = body; $('#dlgOk').textContent = ok; $('#dlgNo').textContent = no;
   return new Promise(res => { $('#dlgOk').onclick = () => { d.close(); res(true); }; $('#dlgNo').onclick = () => { d.close(); res(false); }; d.oncancel = () => res(false); d.showModal(); });
@@ -288,14 +288,14 @@ function render() {
   const pills = (name, cur, list) => `<div class="pills">${list.map(([v, t, pr]) => `<label class="pill"><input type="radio" name="${name}" value="${esc(v)}" ${String(cur ?? '') === v ? 'checked' : ''}><span>${t}${pr ? ` <em>${pr}</em>` : ''}</span></label>`).join('')}</div>`;
   $('#main').innerHTML = `<div class="wrap">
     <div class="intro"><h1>${fn ? `שלום ${esc(fn)},` : 'שלום,'}</h1>
-      <p>3 דקות של שאלות, ותקבלו הצעת מחיר מסודרת <b>תוך 24 שעות</b>. כל תשובה נשמרת לבד.</p></div>
+      <p>3 דקות של שאלות, ותקבל הצעת מחיר מסודרת <b>תוך 24 שעות</b>. כל תשובה נשמרת לבד.</p></div>
     ${initialPhotos.length ? `<div class="gallery">${initialPhotos.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה" loading="lazy"></a>`).join('')}</div>` : ''}
 
-    ${box(++n, 'qty', 'איזו חומרה יש לכם?', `
+    ${box(++n, 'qty', 'איזו חומרה יש לך?', `
       <div class="qsec">
         <div class="qsec-h">כמה יש מכל סוג?</div>
-        ${initialPhotos.length && mine.length ? '<p class="small muted" style="margin:0">מילאנו לפי התמונות ששלחתם. בדקו שזה נכון.</p>' : ''}
-        <div class="mlist">${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">סמנו מה יש לכם ובאיזו כמות:</p>'}</div>
+        ${initialPhotos.length && mine.length ? '<p class="small muted" style="margin:0">מילאנו לפי התמונות ששלחת. בדוק שזה נכון.</p>' : ''}
+        <div class="mlist">${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">סמן מה יש לך ובאיזו כמות:</p>'}</div>
         ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>+ יש לי עוד סוגי חומרה</button><div id="restTypes" class="mlist ${mine.length ? 'hidden' : ''}">${rest.map(mrow).join('')}</div>` : ''}
         <div class="subpanel ${!mine.length || !rest.length || o.q_unsure_type || D.photos.some(p => p.source === 'customer') ? '' : 'hidden'}" id="unsurePanel">
           <label class="toggle-line small"><input type="checkbox" data-part="order" data-k="q_unsure_type" ${o.q_unsure_type ? 'checked' : ''}> אני לא בטוח איזו חומרה יש לי</label>
@@ -316,16 +316,16 @@ function render() {
     ${box(++n, 'delivery', 'איך תרצה לקבל את הקבצים הדיגיטליים בסיום?', `
       <p class="small muted" style="margin:0">בחר אפשרות אחת:</p>
       <div class="choices">
-        ${radio('delivery_method', 'דיסק של הלקוח', o.delivery_method, 'דיסק און קי משלי', 'שולחים אותו עם השליח, יחד עם החומרה')}
+        ${radio('delivery_method', 'דיסק של הלקוח', o.delivery_method, 'דיסק און קי משלי', 'תשלח אותו עם השליח, יחד עם החומרה')}
         <div class="sub-choice ${o.delivery_method === 'דיסק של הלקוח' ? '' : 'hidden'}" data-sub="דיסק של הלקוח"><div class="note warn">הדיסק חייב להיות ריק. קבצים שהיו עליו לא באחריותנו. <span id="diskRec"></span></div></div>
-        ${radio('delivery_method', 'דיסק און קי', o.delivery_method, 'דיסק און קי מאיתנו', 'מגיע חזרה אליכם עם הקבצים')}
+        ${radio('delivery_method', 'דיסק און קי', o.delivery_method, 'דיסק און קי מאיתנו', 'מגיע חזרה אליך עם הקבצים')}
         <div class="sub-choice ${o.delivery_method === 'דיסק און קי' ? '' : 'hidden'}" data-sub="דיסק און קי">
           ${pills('usb_size', o.usb_size, [['16', '16GB', '+' + price(22)], ['32', '32GB', '+' + price(11)], ['128', '128GB', '+' + price(12)]].filter(([s]) => prod(USB_PID[s])))}<span class="small muted" id="usbRec"></span></div>
         ${radio('delivery_method', 'ענן אישי של הלקוח', o.delivery_method, 'העלאה ישר לענן שלי', 'למי שכבר יש Google Drive, iCloud וכו׳')}
         <div class="sub-choice ${o.delivery_method === 'ענן אישי של הלקוח' ? '' : 'hidden'}" data-sub="ענן אישי של הלקוח"><select class="sel" data-part="order" data-k="cloud_type" aria-label="איזה ענן"><option value="">איזה ענן?</option>${['Google Drive', 'iCloud', 'Dropbox', 'OneDrive', 'אחר'].map(x => `<option ${o.cloud_type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
       </div>`)}
 
-    ${box(++n, 'express', 'צריכים את זה מהר?', `
+    ${box(++n, 'express', 'צריך את זה מהר?', `
       <p class="small muted" style="margin:0">רגיל: עד 14 ימי עסקים. לאירוע קרוב (יום הולדת, חג) יש אקספרס.</p>
       <label class="choice"><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>אקספרס: עד ${expressDays} ימי עסקים</b></span><span class="price">+${price(14)}</span></label>`, false)}
 
@@ -333,7 +333,7 @@ function render() {
       + `<div class="note warn ${o.return_method === 'איסוף עצמי' ? '' : 'hidden'}" id="pickupNote">אפשר לאסוף עד 14 ימים מסוף העבודה. אחרי זה ניאלץ להיפטר מהחומרה.</div>`)}
 
     ${box(++n, 'address', 'מאיפה לאסוף?', `
-      <p class="small muted" style="margin:0">שליח מגיע אליכם. את היום נתאם אחרי שתאשרו את ההצעה.</p>
+      <p class="small muted" style="margin:0">שליח מגיע אליך. את היום נתאם אחרי שתאשר את ההצעה.</p>
       <div class="row2">${inp('customer', 'city', 'עיר', { req: true, auto: 'address-level2' })}${inp('customer', 'street', 'רחוב', { req: true, auto: 'address-line1' })}</div>
       <div class="row4">${inp('customer', 'house_number', 'מס׳ בית', { req: true, mode: 'numeric' })}${inp('customer', 'floor', 'קומה', { mode: 'numeric' })}${inp('customer', 'apartment', 'דירה', { mode: 'numeric' })}${inp('customer', 'entry_code', 'קוד', { ph: 'אם יש' })}</div>
       <div class="field"><span>מי עוד יכול למסור לשליח? <i>*</i></span></div>
@@ -344,7 +344,7 @@ function render() {
         <div id="invPrivate" ${c.invoice_business ? 'class="hidden"' : ''}>${inp('customer', 'id_number', 'ת.ז', { req: true, mode: 'numeric' })}</div></div>
       <div id="invBiz" class="row2 ${c.invoice_business ? '' : 'hidden'}">${inp('customer', 'business_name', 'שם העסק', { req: true })}${inp('customer', 'business_id', 'ח.פ / ע.מ', { req: true, mode: 'numeric' })}</div>
       <label class="toggle-line small"><input type="checkbox" data-part="customer" data-k="invoice_business" ${c.invoice_business ? 'checked' : ''}> חשבונית על שם עסק</label>
-      <label class="toggle-line"><input type="checkbox" data-part="order" data-k="terms_accepted_at" ${o.terms_accepted_at ? 'checked' : ''}> <span>מאשר/ת את ${D.settings.terms ? '<button type="button" class="more" id="termsBtn">התקנון</button>' : 'התקנון'} <i style="color:var(--rec);font-style:normal">*</i></span></label>
+      <label class="toggle-line"><input type="checkbox" data-part="order" data-k="terms_accepted_at" ${o.terms_accepted_at ? 'checked' : ''}> <span>אני מאשר את ${D.settings.terms ? '<button type="button" class="more" id="termsBtn">התקנון</button>' : 'התקנון'} <i style="color:var(--rec);font-style:normal">*</i></span></label>
       ${D.settings.terms ? `<div class="terms-text hidden" id="termsText">${esc(D.settings.terms)}</div>` : ''}`)}
 
     <div id="missBox"></div>
@@ -396,7 +396,7 @@ function bind() {
       if (v === cur) { input.value = v || ''; return; }
       // any change except removing a type asks once per type ("בטוח?"); the change is flagged in the CRM
       if (v > 0 && !confirmedType.has(id) && (initQty(id) > 0 || D.order.initial_lines?.length)) {
-        const ok = await ask('לשנות את הכמות?', `רשמנו את הכמות של ${prod(id).name.split(' (')[0]} לפי התמונות ששלחתם. בטוחים שאתם רוצים לשנות אותה?`, 'כן, לשנות', 'לא, להשאיר');
+        const ok = await ask('לשנות את הכמות?', `רשמנו את הכמות של ${prod(id).name.split(' (')[0]} לפי התמונות ששלחת. בטוח שאתה רוצה לשנות אותה?`, 'כן, לשנות', 'לא, להשאיר');
         if (!ok) { input.value = cur || ''; return; }
         confirmedType.add(id);
       }
@@ -447,7 +447,7 @@ function paintUploads() {
     if (!await ask('להסיר את התמונה?', 'התמונה תוסר מהשאלון.', 'כן, להסיר', 'לא')) return;
     b.disabled = true;
     try { const r = await api({ op: 'photo_delete', id: Number(b.dataset.phdel) }); D.photos = D.photos.filter(p => p.id !== Number(b.dataset.phdel)); D.progress = r.progress; D.missing = r.missing; paintUploads(); paintProgress(); }
-    catch { b.disabled = false; const m = $('#updMsg'); if (m) m.textContent = 'ההסרה נכשלה. נסו שוב.'; }
+    catch { b.disabled = false; const m = $('#updMsg'); if (m) m.textContent = 'ההסרה נכשלה. נסה שוב.'; }
   });
 }
 async function shrink(file) {
@@ -465,7 +465,7 @@ async function uploadUpdate(files) {
     const { blob, type } = await shrink(files[i]);
     const data = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
     try { const r = await api({ op: 'photo', name: files[i].name, type, data }); D.photos.push(r.photo); D.progress = r.progress; D.missing = r.missing; }
-    catch { msg.textContent = 'ההעלאה נכשלה. נסו שוב.'; return; }
+    catch { msg.textContent = 'ההעלאה נכשלה. נסה שוב.'; return; }
   }
   paintUploads(); paintProgress(); msg.textContent = 'התמונה נשמרה ✓';
 }
@@ -476,7 +476,7 @@ function paintDisk() {
   // the recommended USB size gets a "מומלץ" tag (none until there are quantities)
   const rec = gb > 0 ? String(usbRecFor(gb)) : '';
   $$('input[name=usb_size]').forEach(r => { const sp = r.nextElementSibling; sp.querySelector('.rec-tag')?.remove(); if (r.value === rec) sp.insertAdjacentHTML('afterbegin', '<b class="rec-tag">מומלץ</b>'); });
-  $('#usbRec') && ($('#usbRec').textContent = gb > 0 ? (s > 128 ? 'לכמות כזו ייתכן שנצטרך יותר מדיסק אחד. נחזור אליכם עם המלצה.' : `לפי כמות החומרה שסימנת, ${rec}GB יספיק עבור כל החומרה.`) : '');
+  $('#usbRec') && ($('#usbRec').textContent = gb > 0 ? (s > 128 ? 'לכמות כזו ייתכן שנצטרך יותר מדיסק אחד. נחזור אליך עם המלצה.' : `לפי כמות החומרה שסימנת, ${rec}GB יספיק עבור כל החומרה.`) : '');
 }
 function paintProgress() {
   $('#pct').textContent = D.progress + '%'; $('#fill').style.width = D.progress + '%';
@@ -492,7 +492,7 @@ async function submit() {
     const miss = e.data?.missing || D.missing || [];
     $$('[data-box]').forEach(x => x.classList.remove('missing'));
     miss.forEach(m => $(`[data-box="${MISS_BOX[m.key]}"]`)?.classList.add('missing'));
-    $('#missBox').innerHTML = miss.length ? `<div class="note warn"><b>כדי לשלוח, חסר עוד:</b><ul class="missing-list">${miss.map(m => `<li>${esc(m.label)}</li>`).join('')}</ul></div>` : '<div class="note warn">השליחה נכשלה. נסו שוב בעוד רגע.</div>';
+    $('#missBox').innerHTML = miss.length ? `<div class="note warn"><b>כדי לשלוח, חסר עוד:</b><ul class="missing-list">${miss.map(m => `<li>${esc(m.label)}</li>`).join('')}</ul></div>` : '<div class="note warn">השליחה נכשלה. נסה שוב בעוד רגע.</div>';
     const first = miss[0] && $(`[data-box="${MISS_BOX[miss[0].key]}"]`); (first || $('#missBox')).scrollIntoView({ behavior: 'smooth', block: 'start' });
   } finally { b.disabled = false; b.textContent = 'שליחה'; }
 }
@@ -517,7 +517,7 @@ function renderDone() {
   $('#editAgain').onclick = () => { sessionStorage.setItem('q-edit', '1'); render(); window.scrollTo(0, 0); };
 }
 function renderLocked() {
-  $('#main').innerHTML = `<div class="done"><h1>ההצעה כבר נשלחה אליך</h1><p style="margin:0">לשינויים בפרטים, דברו איתנו ונעדכן.</p>${summaryHtml()}${waBtn('שלום, אני רוצה לשנות משהו בהזמנה')}</div>`;
+  $('#main').innerHTML = `<div class="done"><h1>ההצעה כבר נשלחה אליך</h1><p style="margin:0">לשינויים בפרטים, דבר איתנו ונעדכן.</p>${summaryHtml()}${waBtn('שלום, אני רוצה לשנות משהו בהזמנה')}</div>`;
 }
 start();
 </script>
