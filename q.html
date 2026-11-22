@@ -179,7 +179,7 @@ function flush() {
   if (Object.keys(p.customer).length) body.customer = p.customer;
   if (Object.keys(p.order).length) body.order = p.order;
   if (Object.keys(p.lines).length) body.lines = p.lines;
-  inflight = inflight.then(() => api(body)).then(r => { D.progress = r.progress; D.missing = r.missing; D.order.q_qty_changed_at = r.qty_changed ? (D.order.q_qty_changed_at || new Date().toISOString()) : null; setSave('נשמר ✓'); paintProgress(); paintPhotoNeed(); })
+  inflight = inflight.then(() => api(body)).then(r => { D.progress = r.progress; D.missing = r.missing; D.order.q_qty_changed_at = r.qty_changed ? (D.order.q_qty_changed_at || new Date().toISOString()) : null; setSave('נשמר ✓'); paintProgress(); })
     .catch(e => { if (e.status === 409) return location.reload(); setSave('לא נשמר'); Object.assign(pend.customer, p.customer, pend.customer); Object.assign(pend.order, p.order, pend.order); Object.assign(pend.lines, p.lines, pend.lines); clearTimeout(timer); timer = setTimeout(flush, 4000); });
   return inflight;
 }
@@ -320,15 +320,15 @@ function bind() {
       v = Math.max(0, Math.min(5000, Math.floor(Number(v) || 0)));
       const cur = qtyOf(id);
       if (v === cur) { input.value = v || ''; return; }
-      // any change except removing a type asks once per type (spec: "בטוח?" + a new photo of the hardware)
+      // any change except removing a type asks once per type ("בטוח?"); the change is flagged in the CRM
       if (v > 0 && !confirmedType.has(id) && (initQty(id) > 0 || D.order.initial_lines?.length)) {
-        const ok = await ask('לשנות את הכמות?', `שיניתם את הכמות של ${prod(id).name.split(' (')[0]}. אם תשנו, נבקש צילום חדש של כל החומרה, כדי שנראה בבירור כל פריט. לשנות?`, 'כן, לשנות', 'לא, להשאיר');
+        const ok = await ask('לשנות את הכמות?', `רשמנו את הכמות של ${prod(id).name.split(' (')[0]} לפי התמונות ששלחתם. בטוחים שאתם רוצים לשנות אותה?`, 'כן, לשנות', 'לא, להשאיר');
         if (!ok) { input.value = cur || ''; return; }
         confirmedType.add(id);
       }
       input.value = v || '';
       const l = D.lines.find(x => x.product_id === id); if (l) l.qty = v; else D.lines.push({ product_id: id, qty: v });
-      row.classList.toggle('has', v > 0); queue('lines', id, v); paintDisk(); paintPhotoNeed(true);
+      row.classList.toggle('has', v > 0); queue('lines', id, v); paintDisk();
     };
     $$('[data-qd]', row).forEach(b => b.onclick = () => set(qtyOf(id) + Number(b.dataset.qd)));
     input.addEventListener('change', () => set(input.value));
@@ -344,16 +344,22 @@ function qtyChangedLocal() {
   const ids = new Set([...(D.order.initial_lines || []).map(l => l.product_id), ...D.lines.map(l => l.product_id)]);
   return [...ids].filter(id => prod(id)?.category === 'media').some(id => initQty(id) !== qtyOf(id));
 }
-function paintPhotoNeed(local = false) {
+/** optional: the customer may add photos of the hardware (never required) */
+function paintPhotoNeed() {
   const box = $('#photoNeed'); if (!box) return;
-  const changed = local ? qtyChangedLocal() : !!D.order.q_qty_changed_at;
-  if (!changed) { box.innerHTML = ''; return; }
-  const since = D.order.q_qty_changed_at || '';
-  const ups = D.photos.filter(p => p.kind === 'update' && (!since || p.created_at >= since));
-  box.innerHTML = `<div class="note warn upl"><b>שיניתם כמויות: צריך צילום מעודכן</b><span>צלמו את כל החומרה ביחד, כך שרואים בבירור כל פריט שסימנתם. אפשר גם לצלם ביום אחר, הכל נשמר.</span>
-    ${ups.length ? `<div class="gallery">${ups.map(p => `<a href="${esc(p.url || '#')}" target="_blank" rel="noopener"><img src="${esc(p.url || '')}" alt="צילום מעודכן"></a>`).join('')}</div>` : ''}
-    <label class="btn btn-secondary">${ups.length ? 'הוספת צילום' : 'צילום / העלאת תמונה'}<input type="file" accept="image/*" capture="environment" multiple hidden id="updPhoto"></label><span class="small" id="updMsg"></span></div>`;
+  if (box.dataset.ready) return paintUploads();
+  box.dataset.ready = '1';
+  box.innerHTML = `<div class="upl"><span class="small muted">רוצים לשלוח לנו עוד תמונה של החומרה? <b>לא חובה</b>.</span>
+    <div class="gallery" id="updGallery"></div>
+    <label class="btn btn-secondary" style="justify-self:start">הוספת תמונה (רשות)<input type="file" accept="image/*" multiple hidden id="updPhoto"></label><span class="small" id="updMsg"></span></div>`;
   $('#updPhoto').onchange = e => uploadUpdate([...e.target.files]);
+  paintUploads();
+}
+function paintUploads() {
+  const g = $('#updGallery'); if (!g) return;
+  const ups = D.photos.filter(p => p.kind === 'update' && p.url);
+  g.innerHTML = ups.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה"></a>`).join('');
+  g.classList.toggle('hidden', !ups.length);
 }
 async function shrink(file) {
   try {
@@ -364,7 +370,6 @@ async function shrink(file) {
   } catch { return { blob: file, type: file.type || 'image/jpeg' }; }
 }
 async function uploadUpdate(files) {
-  await flush(); await inflight; // the quantity change must be saved first, so the photo counts as "after the change"
   const msg = $('#updMsg');
   for (let i = 0; i < files.length; i++) {
     msg.textContent = `מעלה ${i + 1} מתוך ${files.length}…`;
@@ -373,7 +378,7 @@ async function uploadUpdate(files) {
     try { const r = await api({ op: 'photo', name: files[i].name, type, data }); D.photos.push(r.photo); D.progress = r.progress; D.missing = r.missing; }
     catch { msg.textContent = 'ההעלאה נכשלה. נסו שוב.'; return; }
   }
-  paintPhotoNeed(); paintProgress(); $('#updMsg') && ($('#updMsg').textContent = 'הצילום נשמר ✓');
+  paintUploads(); paintProgress(); msg.textContent = 'התמונה נשמרה ✓';
 }
 function paintDisk() {
   const gb = estGb(), s = diskFor(gb);
@@ -387,7 +392,7 @@ function paintProgress() {
   $$('[data-box]').forEach(b => b.classList.remove('missing'));
   $('#barMiss').textContent = !miss.length ? 'הכל מוכן לשליחה ✓' : miss.length === 1 ? `נשאר רק: ${miss[0].label}` : `נשארו ${miss.length} שאלות חובה`;
 }
-const MISS_BOX = { qty: 'qty', photo: 'qty', address: 'address', alt: 'address', delivery: 'delivery', return: 'return', invoice: 'invoice', email: 'invoice', terms: 'terms' };
+const MISS_BOX = { qty: 'qty', address: 'address', alt: 'address', delivery: 'delivery', return: 'return', invoice: 'invoice', email: 'invoice', terms: 'terms' };
 async function submit() {
   const b = $('#submitBtn'); b.disabled = true; b.textContent = 'שולח…';
   try { await flush(); await inflight; await api({ op: 'submit' }); sessionStorage.removeItem('q-edit'); D.order.q_submitted_at = new Date().toISOString(); renderDone(); window.scrollTo(0, 0); }

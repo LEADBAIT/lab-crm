@@ -555,14 +555,15 @@ function questionnaireHtml(ctx) {
   // quantities the customer changed vs. what we entered from the WhatsApp photos
   const init = new Map((o.q_initial_lines || []).map(l => [l.product_id, l.qty]));
   const diff = o.q_qty_changed_at ? S.products.filter(p => p.category === 'media').map(p => [p, init.get(p.id) || 0, lines.find(l => l.product_id === p.id)?.qty || 0]).filter(([, a, b]) => a !== b) : [];
-  const ups = (ctx.photos || []).filter(p => p.kind === 'update' && (!o.q_qty_changed_at || p.created_at >= o.q_qty_changed_at)).length;
+  const ups = (ctx.photos || []).filter(p => p.source === 'customer').length; // optional photos the customer added in the form
   const kv = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : '';
   const ans = o.q_opened_at ? `<dl class="kv" style="margin-top:8px">${Object.entries(Q_LABEL).map(([k, l]) => kv(l, o[k])).join('')}${kv('אקספרס', o.priority ? 'כן' : '')}${kv('תקנון', o.terms_accepted_at ? 'אושר ' + fmtShort(o.terms_accepted_at) : '')}</dl>` : '';
   return `<section class="card" id="qCard"><div class="card-head"><h3>שאלון לפני הצעה</h3><button class="link-btn" id="qCopy">העתקת קישור</button></div>
     <div class="small">${status}</div>
     ${quotePending(o) ? `<div class="warn" style="margin-top:8px"><b>ההצעה עוד לא נשלחה.</b> בודקים את הצעת המחיר (השורות כבר מולאו מהשאלון) ושולחים.<div class="row" style="margin-top:8px"><button class="btn sm primary" id="qSend">שליחת ההצעה בוואטסאפ</button><button class="btn sm" id="qSent">כבר שלחתי ✓</button></div></div>` : ''}
     ${o.quote_sent_at && o.q_submitted_at ? `<div class="small muted" style="margin-top:6px">ההצעה נשלחה ${fmtDT(o.quote_sent_at)}. השאלון נעול לעריכה.</div>` : ''}
-    ${diff.length ? `<div class="note" style="margin-top:8px"><b>הלקוח שינה כמויות:</b><br>${diff.map(([p, a, b]) => `${esc(p.name.split(' (')[0])}: ${a} ← <b>${b}</b>`).join('<br>')}<br>${ups ? `<span class="chip green">${ups} צילומים מעודכנים</span>` : '<span class="chip red">עוד אין צילום מעודכן</span>'}</div>` : ''}
+    ${diff.length ? `<div class="note" style="margin-top:8px"><b>הלקוח שינה כמויות:</b><br>${diff.map(([p, a, b]) => `${esc(p.name.split(' (')[0])}: ${a} ← <b>${b}</b>`).join('<br>')}</div>` : ''}
+    ${ups ? `<div class="small" style="margin-top:6px"><span class="chip blue">הלקוח הוסיף ${ups} תמונות</span> <button class="link-btn" data-opensec="photos">לצפייה</button></div>` : ''}
     ${o.q_unsure_type ? '<div class="note" style="margin-top:8px">הלקוח לא בטוח מה הסוג של חלק מהפריטים. לזהות לפי התמונות.</div>' : ''}
     ${c.invoice_business ? `<div class="small" style="margin-top:6px">חשבונית על שם עסק: <b>${esc(c.business_name || '')}</b> ${esc(c.business_id || '')}</div>` : ''}
     ${ans}</section>`;
