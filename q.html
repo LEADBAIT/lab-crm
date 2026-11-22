@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>שאלון לפני הצעת מחיר | המעבדה להמרת קלטות ודיסקים</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@900&display=swap">
+<!-- Onboarding questionnaire (spec crm/אפיון-שאלון-אונבורדינג.md). Opened as q.html#<orders.q_token>.
+     Talks only to the edge function "questionnaire"; every answer autosaves. Look: the landing page's design language. -->
+<style>
+  :root {
+    color-scheme: light;
+    --backdrop: #DDE2E8; --surface: #FFFFFF; --box-head: #E8EDF3; --ink: #1B1F27; --ink-muted: #59616E;
+    --bar: #22324A; --on-bar: #FFFFFF; --link: #1A4FA0; --stamp: #FFB21E; --on-stamp: #1A1408; --stamp-text: #9A5B00;
+    --rec: #C42A2A; --ok: #1F6F5C; --line: #C9D1DB; --row-alt: #F6F8FA; --sel: #FFF6E0;
+    --sans: Arial, "Arial Hebrew", Tahoma, sans-serif;
+    --radius-sm: 3px; --shadow-button: inset 0 -3px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(20,26,36,0.18);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--backdrop); color: var(--ink); font: 16px/25px var(--sans); }
+  a { color: var(--link); }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .site { max-width: 720px; margin: 0 auto; background: var(--surface); min-height: 100vh; border-inline: 1px solid var(--line); padding-bottom: 96px; }
+  .header { background: var(--bar); color: var(--on-bar); display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+  .header svg { width: 56px; height: 56px; flex: none; }
+  .header .t { font-weight: 700; font-size: 17px; line-height: 22px; }
+  .header .s { font-size: 14px; opacity: .85; }
+  .progress { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); padding: 8px 16px; display: flex; align-items: center; gap: 12px; font-size: 14px; }
+  .progress .track { flex: 1; height: 8px; background: var(--box-head); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+  .progress .fill { height: 100%; width: 0; background: var(--ok); transition: width .3s; }
+  .progress .save { color: var(--ink-muted); min-width: 64px; text-align: left; }
+  .wrap { padding: 16px; display: grid; gap: 20px; }
+  .intro h1 { font-size: 24px; line-height: 30px; margin: 0 0 6px; }
+  .intro p { margin: 0; }
+  .muted { color: var(--ink-muted); }
+  .small { font-size: 14px; line-height: 20px; }
+  .box { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+  .box-head { background: var(--box-head); border-bottom: 1px solid var(--line); padding: 8px 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; }
+  .box-head .n { width: 24px; height: 24px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); color: var(--stamp-text); text-align: center; line-height: 22px; font-size: 14px; flex: none; }
+  .box-head .req { margin-inline-start: auto; font-size: 13px; font-weight: 400; color: var(--ink-muted); }
+  .box.missing .box-head .req { color: var(--rec); font-weight: 700; }
+  .box-body { padding: 16px; display: grid; gap: 14px; }
+  .note { background: var(--row-alt); border-inline-start: 3px solid var(--ok); padding: 8px 12px; font-size: 14px; line-height: 20px; }
+  .note.warn { border-color: var(--stamp); background: var(--sel); }
+  /* photos */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .gallery a { display: block; border: 1px solid var(--line); padding: 3px; background: var(--surface); aspect-ratio: 1; }
+  .gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* media rows */
+  .mrow { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .mrow:last-child { border-bottom: 0; }
+  .mrow.has .nm { font-weight: 700; }
+  .mrow svg { width: 44px; height: 32px; }
+  .mrow .sub { display: block; font-size: 13px; color: var(--ink-muted); line-height: 18px; }
+  .qty { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+  .qty button { width: 40px; height: 40px; border: 0; background: var(--box-head); font-size: 20px; font-weight: 700; cursor: pointer; }
+  .qty input { width: 52px; height: 40px; border: 0; border-inline: 1px solid var(--line); text-align: center; font-size: 17px; font-weight: 700; -moz-appearance: textfield; }
+  .qty input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .more { background: none; border: 0; color: var(--link); text-decoration: underline; cursor: pointer; padding: 0; justify-self: start; }
+  /* choices */
+  .choices { display: grid; gap: 8px; }
+  .choice { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; cursor: pointer; background: var(--surface); }
+  .choice input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: #D9940F; }
+  .choice:has(input:checked) { border-color: #D9940F; background: var(--sel); box-shadow: inset 0 0 0 1px #D9940F; }
+  .choice > span:not(.price) { flex: 1; min-width: 0; }
+  .choice b { display: block; }
+  .site { overflow-x: clip; }
+  .mrow .nm { min-width: 0; overflow-wrap: anywhere; }
+  .choice .price { margin-inline-start: auto; font-weight: 700; white-space: nowrap; color: var(--stamp-text); direction: ltr; unicode-bidi: isolate; }
+  .choice .d { display: block; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+  .sub-choice { margin-inline-start: 30px; display: grid; gap: 8px; }
+  .row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .field { display: grid; gap: 4px; }
+  .field > span { font-weight: 700; font-size: 15px; }
+  .field > span i { font-style: normal; color: var(--rec); }
+  .field input:not([type=radio]):not([type=checkbox]), .field select { font-size: 16px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); width: 100%; min-height: 44px; }
+  .field.bad input { border-color: var(--rec); }
+  .toggle-line { display: flex; gap: 10px; align-items: center; cursor: pointer; }
+  .toggle-line input { width: 20px; height: 20px; accent-color: #D9940F; }
+  details.terms summary { cursor: pointer; color: var(--link); text-decoration: underline; }
+  details.terms div { white-space: pre-wrap; font-size: 14px; line-height: 20px; max-height: 240px; overflow: auto; border: 1px solid var(--line); padding: 10px; margin-top: 8px; background: var(--row-alt); }
+  /* buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 20px; border-radius: var(--radius-sm); font: 700 17px/22px var(--sans); text-decoration: none; cursor: pointer; box-shadow: var(--shadow-button); border: 1px solid transparent; }
+  .btn:active { box-shadow: none; transform: translateY(2px); }
+  .btn-primary { background: var(--stamp); color: var(--on-stamp); border-color: #D9940F; }
+  .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
+  .btn[disabled] { opacity: .55; cursor: default; }
+  .submit-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 6; background: var(--bar); padding: 10px max(16px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .submit-bar .in { max-width: 688px; margin: 0 auto; display: flex; gap: 12px; align-items: center; }
+  .submit-bar .btn { flex: 1; }
+  .submit-bar .miss { color: #FFD27A; font-size: 13px; line-height: 18px; flex: 1.2; }
+  .missing-list { color: var(--rec); font-weight: 700; margin: 0; padding-inline-start: 20px; }
+  .done { text-align: center; padding: 24px 16px; display: grid; gap: 14px; }
+  .done .big { font-size: 44px; line-height: 1; color: var(--ok); }
+  .done h1 { margin: 0; font-size: 24px; line-height: 30px; }
+  .summary { text-align: start; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+  .summary dl { margin: 0; display: grid; grid-template-columns: auto 1fr; }
+  .summary dt, .summary dd { margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .summary dt { font-weight: 700; background: var(--box-head); }
+  .center { text-align: center; padding: 48px 16px; }
+  .hidden { display: none !important; }
+  dialog { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0; max-width: min(420px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(20,26,36,.5); }
+  dialog .box-body p { margin: 0; }
+  dialog .acts { display: flex; gap: 8px; }
+  dialog .acts .btn { flex: 1; }
+  .upl { display: grid; gap: 10px; }
+  @media (max-width: 480px) { .wrap { padding: 12px; } .site { border: 0; } }
+</style>
+</head>
+<body>
+<div class="site">
+  <header class="header">
+    <svg viewBox="0 0 240 240" aria-hidden="true"><rect width="240" height="240" rx="28" fill="#D9940F"/><rect width="240" height="228" rx="28" fill="#FFB21E"/><g transform="translate(17.6 22) scale(3.2)"><rect width="64" height="40" rx="3" fill="#1A1408"/><rect x="5" y="5" width="54" height="10" rx="1" fill="#EADFC2"/><circle cx="18" cy="26" r="7.5" fill="#FFB21E"/><circle cx="46" cy="26" r="7.5" fill="#FFB21E"/><circle cx="18" cy="26" r="3" fill="#1A1408"/><circle cx="46" cy="26" r="3" fill="#1A1408"/><rect x="27" y="23" width="10" height="6" rx="1" fill="#FFB21E"/><circle cx="57" cy="34" r="3" fill="#C42A2A"/></g><g fill="#1A1408" text-anchor="middle" font-family="Heebo, Arial, sans-serif" font-size="20" font-weight="900"><text x="120" y="178">המעבדה להמרת</text><text x="120" y="204">קלטות ודיסקים</text></g></svg>
+    <div><div class="t">המעבדה להמרת קלטות ודיסקים</div><div class="s">שאלון קצר לפני הצעת המחיר</div></div>
+  </header>
+  <div class="progress hidden" id="progress"><span id="pct">0%</span><div class="track"><div class="fill" id="fill"></div></div><span class="save" id="save"></span></div>
+  <main id="main"><div class="center muted">טוען…</div></main>
+</div>
+<div class="submit-bar hidden" id="bar"><div class="in"><span class="miss" id="barMiss"></span><button class="btn btn-primary" id="submitBtn">שליחה</button></div></div>
+<dialog id="dlg"><div class="box-head" id="dlgT"></div><div class="box-body"><p id="dlgB"></p><div class="acts"><button class="btn btn-primary" id="dlgOk">כן</button><button class="btn btn-secondary" id="dlgNo">לא</button></div></div></dialog>
+
+<script src="config.js"></script>
+<script>
+'use strict';
+const API = CRM_CONFIG.url + '/functions/v1/questionnaire';
+const TOKEN = location.hash.replace(/^#\/?/, '').trim();
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ils = n => Number(n).toLocaleString('he-IL', { maximumFractionDigits: 0 }) + ' ₪';
+let D = null;                 // server state
+const confirmedType = new Set(); // media types whose quantity change the customer already confirmed
+
+// ---------- icons per media product (help the customer recognise what they have) ----------
+const IC = {
+  1: '<rect x="2" y="6" width="40" height="22" rx="2" fill="#1B1F27"/><rect x="6" y="9" width="32" height="6" fill="#EADFC2"/><circle cx="14" cy="21" r="4" fill="#FFB21E"/><circle cx="30" cy="21" r="4" fill="#FFB21E"/>',
+  2: '<rect x="8" y="8" width="28" height="18" rx="2" fill="#1B1F27"/><rect x="11" y="10" width="22" height="5" fill="#EADFC2"/><circle cx="16" cy="20" r="3" fill="#FFB21E"/><circle cx="28" cy="20" r="3" fill="#FFB21E"/>',
+  3: '<rect x="4" y="7" width="36" height="21" rx="2" fill="#59616E"/><rect x="8" y="10" width="28" height="9" rx="1" fill="#EADFC2"/><circle cx="15" cy="15" r="3" fill="#1B1F27"/><circle cx="29" cy="15" r="3" fill="#1B1F27"/><path d="M12 28l3-5h14l3 5z" fill="#1B1F27"/>',
+  4: '<circle cx="22" cy="17" r="15" fill="#1B1F27"/><circle cx="22" cy="17" r="10" fill="none" stroke="#3A3F4A"/><circle cx="22" cy="17" r="5" fill="#C42A2A"/><circle cx="22" cy="17" r="1.2" fill="#fff"/>',
+  5: '<circle cx="22" cy="17" r="14" fill="#E4532F"/><circle cx="22" cy="17" r="9" fill="#1F1F25"/><circle cx="22" cy="17" r="3" fill="#E4532F"/><circle cx="22" cy="7" r="2" fill="#fff"/><circle cx="22" cy="27" r="2" fill="#fff"/><circle cx="12" cy="17" r="2" fill="#fff"/><circle cx="32" cy="17" r="2" fill="#fff"/>',
+  6: '<circle cx="22" cy="17" r="15" fill="#59616E"/><circle cx="22" cy="17" r="10" fill="#1F1F25"/><circle cx="22" cy="17" r="3.5" fill="#59616E"/>',
+  7: '<circle cx="22" cy="17" r="15" fill="#C9D1DB"/><circle cx="22" cy="17" r="15" fill="none" stroke="#8C96A3"/><circle cx="22" cy="17" r="4" fill="#fff" stroke="#8C96A3"/><path d="M12 9a13 13 0 0 1 8-3" stroke="#fff" stroke-width="2" fill="none"/>',
+  8: '<rect x="6" y="4" width="32" height="26" fill="#fff" stroke="#8C96A3"/><rect x="9" y="7" width="26" height="17" fill="#8AB4F8"/><path d="M9 24l8-8 6 6 4-3 8 5z" fill="#1F6F5C"/>',
+  9: '<rect x="10" y="3" width="24" height="28" rx="2" fill="#EADFC2" stroke="#8C96A3"/><rect x="14" y="8" width="16" height="13" fill="#59616E"/>',
+};
+const icon = id => `<svg viewBox="0 0 44 34" aria-hidden="true">${IC[id] || IC[1]}</svg>`;
+
+// ---------- server ----------
+async function api(body) {
+  const r = await fetch(API, { method: body ? 'POST' : 'GET', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify({ t: TOKEN, ...body }) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(d.error || 'error'); e.data = d; e.status = r.status; throw e; }
+  return d;
+}
+async function start() {
+  if (!TOKEN) return fatal('הקישור לא שלם', 'בדקו שהעתקתם את כל הקישור מההודעה בוואטסאפ.');
+  try { D = await fetch(API + '?t=' + encodeURIComponent(TOKEN)).then(async r => { const d = await r.json(); if (!r.ok) throw Object.assign(new Error(d.error), { status: r.status }); return d; }); }
+  catch (e) { return fatal(e.status === 404 ? 'הקישור לא נמצא' : 'משהו לא נטען', e.status === 404 ? 'בדקו את הקישור או כתבו לנו בוואטסאפ.' : 'נסו לרענן את הדף בעוד רגע.'); }
+  if (D.locked) return renderLocked();
+  if (D.order.q_submitted_at && !sessionStorage.getItem('q-edit')) return renderDone();
+  render();
+}
+function fatal(t, p) { $('#main').innerHTML = `<div class="center"><h1 style="font-size:22px;margin:0 0 8px">${esc(t)}</h1><p class="muted">${esc(p)}</p>${waBtn()}</div>`; }
+
+// ---------- autosave: per-field debounce, merged into one request ----------
+let pend = { customer: {}, order: {}, lines: {} }, timer = null, inflight = Promise.resolve();
+function queue(part, key, val, now = false) {
+  pend[part][key] = val; setSave('…');
+  clearTimeout(timer); timer = setTimeout(flush, now ? 0 : 700);
+}
+function flush() {
+  const p = pend; pend = { customer: {}, order: {}, lines: {} };
+  if (!Object.keys(p.customer).length && !Object.keys(p.order).length && !Object.keys(p.lines).length) return inflight;
+  const body = { op: 'save' };
+  if (Object.keys(p.customer).length) body.customer = p.customer;
+  if (Object.keys(p.order).length) body.order = p.order;
+  if (Object.keys(p.lines).length) body.lines = p.lines;
+  inflight = inflight.then(() => api(body)).then(r => { D.progress = r.progress; D.missing = r.missing; D.order.q_qty_changed_at = r.qty_changed ? (D.order.q_qty_changed_at || new Date().toISOString()) : null; setSave('נשמר ✓'); paintProgress(); paintPhotoNeed(); })
+    .catch(e => { if (e.status === 409) return location.reload(); setSave('לא נשמר'); Object.assign(pend.customer, p.customer, pend.customer); Object.assign(pend.order, p.order, pend.order); Object.assign(pend.lines, p.lines, pend.lines); clearTimeout(timer); timer = setTimeout(flush, 4000); });
+  return inflight;
+}
+window.addEventListener('pagehide', () => { if (timer) { clearTimeout(timer); const p = pend; if (Object.keys(p.customer).length + Object.keys(p.order).length + Object.keys(p.lines).length) navigator.sendBeacon?.(API, new Blob([JSON.stringify({ t: TOKEN, op: 'save', ...p })], { type: 'text/plain' })); } });
+function setSave(t) { const s = $('#save'); if (s) s.textContent = t; }
+
+// ---------- helpers ----------
+const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
+const prod = id => D.products.find(p => p.id === id);
+const qtyOf = id => D.lines.find(l => l.product_id === id)?.qty || 0;
+const initQty = id => (D.order.initial_lines || []).find(l => l.product_id === id)?.qty || 0;
+const media = () => D.products.filter(p => p.category === 'media');
+const C = () => D.customer, O = () => D.order;
+function waNum() { return String(D?.settings?.business_whatsapp || '').replace(/\D/g, ''); }
+function waBtn(text = 'שלום, יש לי שאלה על השאלון') { const n = waNum(); return n ? `<a class="btn btn-secondary" href="https://wa.me/${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">כתבו לנו בוואטסאפ</a>` : ''; }
+function ask(title, body, ok = 'כן', no = 'לא') {
+  const d = $('#dlg'); $('#dlgT').textContent = title; $('#dlgB').textContent = body; $('#dlgOk').textContent = ok; $('#dlgNo').textContent = no;
+  return new Promise(res => { $('#dlgOk').onclick = () => { d.close(); res(true); }; $('#dlgNo').onclick = () => { d.close(); res(false); }; d.oncancel = () => res(false); d.showModal(); });
+}
+/** rough size of the files, to recommend a disk: video tape ~3GB, film reel 0.5, audio 0.2, record 0.3, disc 4, photo/slide 5MB */
+function estGb() {
+  const per = { 1: 3, 2: 3, 3: 0.2, 4: 0.3, 5: 0.5, 6: 1, 7: 4, 8: 0.005, 9: 0.005 };
+  return media().reduce((s, p) => s + qtyOf(p.id) * (per[p.id] ?? 1), 0);
+}
+const diskFor = gb => [32, 64, 128, 256, 512, 1000, 2000].find(s => s >= gb * 1.25) || 2000;
+const diskLabel = s => s >= 1000 ? (s / 1000) + 'TB' : s + 'GB';
+
+// ---------- render ----------
+const box = (n, key, title, body, req = true) => `<section class="box" data-box="${key}"><h2 class="box-head"><span class="n">${n}</span>${title}${req ? '<span class="req">חובה</span>' : ''}</h2><div class="box-body">${body}</div></section>`;
+const radio = (name, val, cur, title, d = '', price = '') => `<label class="choice"><input type="radio" name="${name}" value="${esc(val)}" ${cur === val ? 'checked' : ''}><span><b>${title}</b>${d ? `<span class="d">${d}</span>` : ''}</span>${price ? `<span class="price">${price}</span>` : ''}</label>`;
+const inp = (part, k, label, { req = false, type = 'text', mode = '', ph = '', auto = '' } = {}) => `<label class="field" data-f="${k}"><span>${label}${req ? ' <i>*</i>' : ''}</span><input type="${type}" data-part="${part}" data-k="${k}" value="${esc(part === 'customer' ? C()[k] : O()[k])}" ${mode ? `inputmode="${mode}"` : ''} ${ph ? `placeholder="${esc(ph)}"` : ''} ${auto ? `autocomplete="${auto}"` : ''}></label>`;
+
+function render() {
+  const c = C(), o = O(), fn = firstName(c.full_name);
+  const mine = media().filter(p => initQty(p.id) > 0 || qtyOf(p.id) > 0), rest = media().filter(p => !mine.includes(p));
+  const initialPhotos = D.photos.filter(p => p.kind === 'initial' && p.url);
+  const price = id => prod(id) ? ils(prod(id).unit_price) : '';
+  const expressDays = D.settings.express_biz_days || 7, linkDays = D.settings.drive_link_days || 60;
+  let n = 0;
+  $('#main').innerHTML = `<div class="wrap">
+    <div class="intro"><h1>${fn ? `שלום ${esc(fn)},` : 'שלום,'}</h1>
+      <p>כמה שאלות קצרות (בערך 3 דקות), ואחרי זה נשלח לך הצעת מחיר מסודרת <b>תוך 24 שעות</b>. הכל נשמר תוך כדי, אפשר להפסיק ולחזור לקישור מתי שנוח.</p></div>
+    ${initialPhotos.length ? `<section class="box"><h2 class="box-head">התמונות ששלחת לנו</h2><div class="box-body"><div class="gallery">${initialPhotos.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה" loading="lazy"></a>`).join('')}</div>
+      <p class="small muted" style="margin:0">לפי התמונות האלה מילאנו מראש את הכמויות למטה. תבדקו שהן נכונות.</p></div></section>` : ''}
+
+    ${box(++n, 'qty', 'מה יש לך ובאיזו כמות', `
+      <div>${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">עוד לא רשמנו כמויות. בחרו את הסוגים שיש לכם:</p>'}</div>
+      ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>יש עוד סוגים? להוסיף</button><div id="restTypes" ${mine.length ? 'class="hidden"' : ''}>${rest.map(mrow).join('')}</div>` : ''}
+      <label class="toggle-line small"><input type="checkbox" data-part="order" data-k="q_unsure_type" ${o.q_unsure_type ? 'checked' : ''}> לא בטוחים מה הסוג של חלק מהפריטים? סמנו, ונזהה לפי התמונות</label>
+      <div id="photoNeed"></div>`)}
+
+    ${box(++n, 'cond', 'איפה החומרה נשמרה, ויש עליה עובש?', `
+      <div class="field"><span>איפה החומרה הייתה מאוחסנת?</span><div class="choices">${[['בחוץ', 'מקום בחוץ', 'מחסן, בוידעם, מרפסת, חניה'], ['בפנים', 'מקום מוסתר בפנים', 'ארון, מגירה, בתוך הבית'], ['לא ידוע', 'לא יודעים']].map(([v, t, d]) => radio('storage_place', v, o.storage_place, t, d)).join('')}</div></div>
+      <div class="field"><span>רואים עובש (נקודות לבנות או אפורות) על החומרה?</span><div class="choices">${[['על חלק', 'כן, על חלק מהפריטים'], ['אין', 'לא, בכלל'], ['לא ידוע', 'לא יודעים']].map(([v, t]) => radio('mold', v, o.mold, t)).join('')}</div></div>
+      <div class="note">אפשר לטפל בעובש ובפטריות ולהציל את החומרה. אנחנו עושים את זה כחלק מהשירות.</div>`, false)}
+
+    ${box(++n, 'delivery', 'איך לקבל את הקבצים', `
+      <div class="note">בכל מקרה מקבלים קישור להורדת כל הקבצים, שנשמר ${linkDays} יום. בנוסף, בחרו אחת:</div>
+      <div class="choices">
+        ${radio('delivery_method', 'דיסק של הלקוח', o.delivery_method, 'אשלח דיסק און קי או דיסק קשיח משלי', 'שולחים אותו יחד עם החומרה, ונעתיק אליו את הקבצים.')}
+        <div class="sub-choice ${o.delivery_method === 'דיסק של הלקוח' ? '' : 'hidden'}" data-sub="דיסק של הלקוח"><div class="note warn">הדיסק חייב להיות ריק. איננו אחראים על תוכן שנמצא עליו אם יימחק.<br><span id="diskRec"></span></div></div>
+        ${radio('delivery_method', 'דיסק און קי', o.delivery_method, 'דיסק און קי חדש מאיתנו', 'מגיע אליכם עם הקבצים.')}
+        <div class="sub-choice ${o.delivery_method === 'דיסק און קי' ? '' : 'hidden'}" data-sub="דיסק און קי">
+          ${radio('usb_size', '32', String(o.usb_size || ''), 'דיסק און קי 32GB', '', '+' + price(11))}${radio('usb_size', '128', String(o.usb_size || ''), 'דיסק און קי 128GB', '', '+' + price(12))}<span class="small muted" id="usbRec"></span></div>
+        ${radio('delivery_method', 'ענן אישי של הלקוח', o.delivery_method, 'העלאה לענן שלי', 'למי שכבר יש חשבון ענן. את השיתוף נסדר איתכם אחר כך.')}
+        <div class="sub-choice ${o.delivery_method === 'ענן אישי של הלקוח' ? '' : 'hidden'}" data-sub="ענן אישי של הלקוח"><label class="field"><span>איזה ענן?</span><select data-part="order" data-k="cloud_type"><option value=""></option>${['Google Drive', 'iCloud', 'Dropbox', 'OneDrive', 'אחר'].map(x => `<option ${o.cloud_type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label></div>
+      </div>`)}
+
+    ${box(++n, 'express', 'צריכים את זה לתאריך מסוים?', `
+      <p class="small" style="margin:0">רגיל: עד 14 ימי עסקים מרגע שהחומרה מגיעה למעבדה. אם זה לאירוע מיוחד, כמו יום הולדת, חג או אירוע משפחתי, ואתם צריכים את זה מהר בגלל לוח הזמנים, אפשר לבחור אקספרס. העבודה שלכם עוברת לראש התור, ולכן יש תוספת תשלום.</p>
+      <label class="choice"><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>שירות אקספרס: עד ${expressDays} ימי עסקים</b><span class="d">ממועד הגעת החומרה למעבדה</span></span><span class="price">+${price(14)}</span></label>`, false)}
+
+    ${box(++n, 'return', 'מה עושים עם החומרה המקורית בסוף?', `<div class="choices">
+      ${radio('return_method', 'החזרה במשלוח', o.return_method, 'משלוח חזרה אליי', 'שליח מחזיר את כל החומרה עד הבית.', '+' + price(13))}
+      ${radio('return_method', 'איסוף עצמי', o.return_method, 'אאסוף בעצמי', 'נתאם מקום ושעה.')}
+      ${radio('return_method', 'לא מוחזר (בהסכמה)', o.return_method, 'לא צריך להחזיר', 'אחרי שתקבלו את הקבצים ותבדקו אותם.')}</div>`)}
+
+    ${box(++n, 'address', 'כתובת לאיסוף', `
+      <p class="small muted" style="margin:0">שליח יאסוף את החומרה מהבית. את היום והשעה נתאם אחרי אישור ההצעה.</p>
+      <div class="row2">${inp('customer', 'city', 'עיר', { req: true, auto: 'address-level2' })}${inp('customer', 'street', 'רחוב', { req: true, auto: 'address-line1' })}</div>
+      <div class="row2">${inp('customer', 'house_number', 'מספר בית', { req: true, mode: 'numeric' })}${inp('customer', 'floor', 'קומה', { mode: 'numeric' })}${inp('customer', 'apartment', 'דירה', { mode: 'numeric' })}</div>
+      ${inp('customer', 'entry_code', 'קוד כניסה לבניין', { ph: 'אם יש' })}
+      <div class="field"><span>איש קשר נוסף לאיסוף <i>*</i></span><span class="small muted" style="font-weight:400">למקרה שלא תהיו זמינים כשהשליח מגיע</span></div>
+      <div class="row2">${inp('customer', 'alt_contact_name', 'שם', { req: true })}${inp('customer', 'alt_contact_phone', 'טלפון', { req: true, type: 'tel', mode: 'tel' })}</div>`)}
+
+    ${box(++n, 'invoice', 'פרטים לחשבונית', `
+      ${inp('customer', 'email', 'מייל (לשם נשלח את החשבונית)', { req: true, type: 'email', mode: 'email', auto: 'email' })}
+      <label class="toggle-line"><input type="checkbox" data-part="customer" data-k="invoice_business" ${c.invoice_business ? 'checked' : ''}> חשבונית על שם עסק</label>
+      <div id="invPrivate" ${c.invoice_business ? 'class="hidden"' : ''}>${inp('customer', 'id_number', 'תעודת זהות', { req: true, mode: 'numeric' })}</div>
+      <div id="invBiz" class="row2 ${c.invoice_business ? '' : 'hidden'}">${inp('customer', 'business_name', 'שם העסק', { req: true })}${inp('customer', 'business_id', 'ח.פ / ע.מ', { req: true, mode: 'numeric' })}</div>`)}
+
+    ${box(++n, 'terms', 'תקנון', `
+      ${D.settings.terms ? `<details class="terms"><summary>לקריאת התקנון</summary><div>${esc(D.settings.terms)}</div></details>` : ''}
+      <label class="toggle-line"><input type="checkbox" data-part="order" data-k="terms_accepted_at" ${o.terms_accepted_at ? 'checked' : ''}> קראתי ואני מסכים/ה לתקנון</label>`)}
+
+    <div id="missBox"></div>
+    <div style="text-align:center">${waBtn()}</div>
+  </div>`;
+  $('#progress').classList.remove('hidden'); $('#bar').classList.remove('hidden');
+  bind(); paintProgress(); paintPhotoNeed(); paintDisk();
+}
+function mrow(p) {
+  const q = qtyOf(p.id);
+  // "קלטת וידאו (VHS / VHS-C)" → Hebrew name, and the formats on their own line (left-to-right, so the slashes stay in order)
+  const [nm, fmt] = [p.name.split(' (')[0], (p.name.match(/\(([^)]+)\)/) || [])[1]];
+  return `<div class="mrow ${q ? 'has' : ''}" data-m="${p.id}">${icon(p.id)}<div class="nm">${esc(nm)}${fmt ? `<span class="sub"><bdi dir="ltr">${esc(fmt)}</bdi></span>` : ''}${p.notes ? `<span class="sub">${esc(p.notes)}</span>` : ''}</div>
+    <div class="qty"><button type="button" data-qd="-1" aria-label="פחות">−</button><input type="number" min="0" inputmode="numeric" value="${q || ''}" placeholder="0" aria-label="כמות ${esc(p.name)}"><button type="button" data-qd="1" aria-label="עוד">+</button></div></div>`;
+}
+
+// ---------- behaviour ----------
+function bind() {
+  // text fields
+  $$('input[data-part]:not([type=checkbox]), select[data-part]').forEach(el => el.addEventListener('input', () => { if (el.dataset.part === 'customer') C()[el.dataset.k] = el.value; else O()[el.dataset.k] = el.value; queue(el.dataset.part, el.dataset.k, el.value); }));
+  $$('select[data-part]').forEach(el => el.addEventListener('change', () => queue(el.dataset.part, el.dataset.k, el.value, true)));
+  // checkboxes
+  $$('input[type=checkbox][data-part]').forEach(el => el.addEventListener('change', () => {
+    const v = el.checked; if (el.dataset.part === 'customer') C()[el.dataset.k] = v; else O()[el.dataset.k] = v;
+    if (el.dataset.k === 'invoice_business') { $('#invPrivate').classList.toggle('hidden', v); $('#invBiz').classList.toggle('hidden', !v); }
+    queue(el.dataset.part, el.dataset.k, v, true);
+  }));
+  // radios
+  $$('input[type=radio]').forEach(el => el.addEventListener('change', () => {
+    const k = el.name, v = el.value;
+    if (k === 'usb_size') { O().usb_size = Number(v); setUsbLine(Number(v)); return queue('order', 'usb_size', Number(v), true); }
+    O()[k] = v;
+    if (k === 'delivery_method') {
+      $$('[data-sub]').forEach(s => s.classList.toggle('hidden', s.dataset.sub !== v));
+      if (v !== 'דיסק און קי') { O().usb_size = null; setUsbLine(0); $$('input[name=usb_size]').forEach(r => r.checked = false); }
+      else if (!O().usb_size) { const rec = diskFor(estGb()) > 32 ? 128 : 32; $(`input[name=usb_size][value="${rec}"]`).checked = true; O().usb_size = rec; setUsbLine(rec); queue('order', 'usb_size', rec); }
+      if (v !== 'ענן אישי של הלקוח') { O().cloud_type = null; }
+    }
+    queue('order', k, v, true);
+  }));
+  // quantities
+  $$('[data-m]').forEach(row => {
+    const id = Number(row.dataset.m), input = $('input', row);
+    const set = async v => {
+      v = Math.max(0, Math.min(5000, Math.floor(Number(v) || 0)));
+      const cur = qtyOf(id);
+      if (v === cur) { input.value = v || ''; return; }
+      // any change except removing a type asks once per type (spec: "בטוח?" + a new photo of the hardware)
+      if (v > 0 && !confirmedType.has(id) && (initQty(id) > 0 || D.order.initial_lines?.length)) {
+        const ok = await ask('לשנות את הכמות?', `שיניתם את הכמות של ${prod(id).name.split(' (')[0]}. אם תשנו, נבקש צילום חדש של כל החומרה, כדי שנראה בבירור כל פריט. לשנות?`, 'כן, לשנות', 'לא, להשאיר');
+        if (!ok) { input.value = cur || ''; return; }
+        confirmedType.add(id);
+      }
+      input.value = v || '';
+      const l = D.lines.find(x => x.product_id === id); if (l) l.qty = v; else D.lines.push({ product_id: id, qty: v });
+      row.classList.toggle('has', v > 0); queue('lines', id, v); paintDisk(); paintPhotoNeed(true);
+    };
+    $$('[data-qd]', row).forEach(b => b.onclick = () => set(qtyOf(id) + Number(b.dataset.qd)));
+    input.addEventListener('change', () => set(input.value));
+  });
+  $('#moreTypes') && ($('#moreTypes').onclick = () => { $('#restTypes').classList.remove('hidden'); $('#moreTypes').classList.add('hidden'); });
+  $('#submitBtn').onclick = submit;
+}
+function setUsbLine(size) {
+  D.lines = D.lines.filter(l => l.product_id !== 11 && l.product_id !== 12);
+  if (size === 32) D.lines.push({ product_id: 11, qty: 1 }); if (size === 128) D.lines.push({ product_id: 12, qty: 1 });
+}
+function qtyChangedLocal() {
+  const ids = new Set([...(D.order.initial_lines || []).map(l => l.product_id), ...D.lines.map(l => l.product_id)]);
+  return [...ids].filter(id => prod(id)?.category === 'media').some(id => initQty(id) !== qtyOf(id));
+}
+function paintPhotoNeed(local = false) {
+  const box = $('#photoNeed'); if (!box) return;
+  const changed = local ? qtyChangedLocal() : !!D.order.q_qty_changed_at;
+  if (!changed) { box.innerHTML = ''; return; }
+  const since = D.order.q_qty_changed_at || '';
+  const ups = D.photos.filter(p => p.kind === 'update' && (!since || p.created_at >= since));
+  box.innerHTML = `<div class="note warn upl"><b>שיניתם כמויות: צריך צילום מעודכן</b><span>צלמו את כל החומרה ביחד, כך שרואים בבירור כל פריט שסימנתם. אפשר גם לצלם ביום אחר, הכל נשמר.</span>
+    ${ups.length ? `<div class="gallery">${ups.map(p => `<a href="${esc(p.url || '#')}" target="_blank" rel="noopener"><img src="${esc(p.url || '')}" alt="צילום מעודכן"></a>`).join('')}</div>` : ''}
+    <label class="btn btn-secondary">${ups.length ? 'הוספת צילום' : 'צילום / העלאת תמונה'}<input type="file" accept="image/*" capture="environment" multiple hidden id="updPhoto"></label><span class="small" id="updMsg"></span></div>`;
+  $('#updPhoto').onchange = e => uploadUpdate([...e.target.files]);
+}
+async function shrink(file) {
+  try {
+    const bmp = await createImageBitmap(file); const k = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+    const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+    cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+    const b = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.85)); return b ? { blob: b, type: 'image/jpeg' } : { blob: file, type: file.type };
+  } catch { return { blob: file, type: file.type || 'image/jpeg' }; }
+}
+async function uploadUpdate(files) {
+  await flush(); await inflight; // the quantity change must be saved first, so the photo counts as "after the change"
+  const msg = $('#updMsg');
+  for (let i = 0; i < files.length; i++) {
+    msg.textContent = `מעלה ${i + 1} מתוך ${files.length}…`;
+    const { blob, type } = await shrink(files[i]);
+    const data = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+    try { const r = await api({ op: 'photo', name: files[i].name, type, data }); D.photos.push(r.photo); D.progress = r.progress; D.missing = r.missing; }
+    catch { msg.textContent = 'ההעלאה נכשלה. נסו שוב.'; return; }
+  }
+  paintPhotoNeed(); paintProgress(); $('#updMsg') && ($('#updMsg').textContent = 'הצילום נשמר ✓');
+}
+function paintDisk() {
+  const gb = estGb(), s = diskFor(gb);
+  const t = gb > 0 ? `לפי הכמויות, מומלץ דיסק של ${diskLabel(s)} לפחות.` : '';
+  $('#diskRec') && ($('#diskRec').textContent = t);
+  $('#usbRec') && ($('#usbRec').textContent = gb > 0 ? (s > 128 ? `לכמות כזו ייתכן שנצטרך יותר מדיסק אחד. נחזור אליכם עם המלצה.` : `לפי הכמויות מומלץ ${s > 32 ? '128GB' : '32GB'}.`) : '');
+}
+function paintProgress() {
+  $('#pct').textContent = D.progress + '%'; $('#fill').style.width = D.progress + '%';
+  const miss = D.missing || [];
+  $$('[data-box]').forEach(b => b.classList.remove('missing'));
+  $('#barMiss').textContent = !miss.length ? 'הכל מוכן לשליחה ✓' : miss.length === 1 ? `נשאר רק: ${miss[0].label}` : `נשארו ${miss.length} שאלות חובה`;
+}
+const MISS_BOX = { qty: 'qty', photo: 'qty', address: 'address', alt: 'address', delivery: 'delivery', return: 'return', invoice: 'invoice', email: 'invoice', terms: 'terms' };
+async function submit() {
+  const b = $('#submitBtn'); b.disabled = true; b.textContent = 'שולח…';
+  try { await flush(); await inflight; await api({ op: 'submit' }); sessionStorage.removeItem('q-edit'); D.order.q_submitted_at = new Date().toISOString(); renderDone(); window.scrollTo(0, 0); }
+  catch (e) {
+    const miss = e.data?.missing || D.missing || [];
+    $$('[data-box]').forEach(x => x.classList.remove('missing'));
+    miss.forEach(m => $(`[data-box="${MISS_BOX[m.key]}"]`)?.classList.add('missing'));
+    $('#missBox').innerHTML = miss.length ? `<div class="note warn"><b>כדי לשלוח, חסר עוד:</b><ul class="missing-list">${miss.map(m => `<li>${esc(m.label)}</li>`).join('')}</ul></div>` : '<div class="note warn">השליחה נכשלה. נסו שוב בעוד רגע.</div>';
+    const first = miss[0] && $(`[data-box="${MISS_BOX[miss[0].key]}"]`); (first || $('#missBox')).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } finally { b.disabled = false; b.textContent = 'שליחה'; }
+}
+
+// ---------- after sending ----------
+function summaryHtml() {
+  const c = C(), o = O();
+  const items = media().filter(p => qtyOf(p.id) > 0).map(p => `${qtyOf(p.id)} × ${p.name.split(' (')[0]}`).join('<br>') || '—';
+  const del = o.delivery_method === 'דיסק און קי' ? `דיסק און קי ${o.usb_size || ''}GB מאיתנו` : o.delivery_method === 'ענן אישי של הלקוח' ? `העלאה ל-${o.cloud_type || 'ענן'}` : o.delivery_method === 'דיסק של הלקוח' ? 'דיסק שלי, נשלח עם החומרה' : '—';
+  const addr = [c.street, c.house_number].filter(Boolean).join(' ') + (c.city ? ', ' + c.city : '');
+  const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+  return `<div class="summary"><dl>${row('החומרה', items)}${row('קבצים', esc(del) + '<br><span class="small muted">+ קישור להורדה</span>')}${row('אקספרס', o.priority ? 'כן' : 'לא')}${row('החומרה בסוף', esc(o.return_method || '—'))}${row('איסוף מ-', esc(addr))}${row('חשבונית', esc(c.invoice_business ? c.business_name : c.email))}</dl></div>`;
+}
+function renderDone() {
+  $('#progress').classList.add('hidden'); $('#bar').classList.add('hidden');
+  const fn = firstName(C().full_name);
+  $('#main').innerHTML = `<div class="done"><div class="big">✓</div><h1>תודה${fn ? ' ' + esc(fn) : ''}, קיבלנו הכל</h1>
+    <p style="margin:0">נבדוק את הפרטים ונשלח לך הצעת מחיר מסודרת <b>תוך 24 שעות</b>, בוואטסאפ.</p>
+    ${summaryHtml()}
+    <p class="small muted" style="margin:0">משהו לא נכון? אפשר לעדכן עד שנשלח את ההצעה.</p>
+    <div style="display:grid;gap:8px"><button class="btn btn-secondary" id="editAgain">עדכון התשובות</button>${waBtn('שלום, מילאתי את השאלון')}</div></div>`;
+  $('#editAgain').onclick = () => { sessionStorage.setItem('q-edit', '1'); render(); window.scrollTo(0, 0); };
+}
+function renderLocked() {
+  $('#main').innerHTML = `<div class="done"><h1>ההצעה כבר נשלחה אליך</h1><p style="margin:0">לשינויים בפרטים, דברו איתנו ונעדכן.</p>${summaryHtml()}${waBtn('שלום, אני רוצה לשנות משהו בהזמנה')}</div>`;
+}
+start();
+</script>
+</body>
+</html>

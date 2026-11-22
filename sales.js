@@ -106,9 +106,10 @@ function drawSales(tab) {
   else {
     const rank = { late: 0, none: 1, today: 2 };
     groups = [
-      ['due', vis.filter(r => rank[fuState(r)] != null).sort((a, b) => rank[fuState(a)] - rank[fuState(b)] || fuKey(a).localeCompare(fuKey(b)))],
-      ['new', vis.filter(r => r.stage === 'פנייה חדשה').sort((a, b) => a.created_at.localeCompare(b.created_at))],
-      ['later', vis.filter(r => r.stage !== 'פנייה חדשה' && rank[fuState(r)] == null).sort((a, b) => fuKey(a).localeCompare(fuKey(b)))],
+      // a filled questionnaire waiting for its quote always counts as "now", first in the group
+      ['due', vis.filter(r => rank[fuState(r)] != null || quotePending(r)).sort((a, b) => (quotePending(b) - quotePending(a)) || (rank[fuState(a)] ?? 3) - (rank[fuState(b)] ?? 3) || fuKey(a).localeCompare(fuKey(b)))],
+      ['new', vis.filter(r => r.stage === 'פנייה חדשה' && !quotePending(r)).sort((a, b) => a.created_at.localeCompare(b.created_at))],
+      ['later', vis.filter(r => r.stage !== 'פנייה חדשה' && rank[fuState(r)] == null && !quotePending(r)).sort((a, b) => fuKey(a).localeCompare(fuKey(b)))],
     ];
   }
   const cols = tab === 'pickup' ? ['לקוח', 'מה המצב', 'שולם', 'הערה אחרונה', 'חום', ''] : ['לקוח', 'שלב', 'פולו-אפ הבא', 'הערה אחרונה', 'הצעה', 'חום', 'הצעד הבא'];
@@ -125,7 +126,7 @@ function drawSales(tab) {
 function nameCell(r) {
   const src = srcShort(r), tip = r.meta_campaign ? 'קמפיין: ' + r.meta_campaign : '';
   const age = r.stage === 'פנייה חדשה' ? `<span class="age ${isNewUrgent(r) ? 'urgent' : ''}">${isNewUrgent(r) ? 'מחכה ' + esc(waited(r.created_at)) : 'נכנס ' + esc(ago(r.created_at))}</span>` : '';
-  return `<td class="who"><div class="nm">${esc(custName(r))}${r.is_repeat ? ' <span class="chip blue">חוזר</span>' : ''}</div>
+  return `<td class="who"><div class="nm">${esc(custName(r))}${r.is_repeat ? ' <span class="chip blue">חוזר</span>' : ''} ${qChip(r)}</div>
     <div class="meta"><button class="phone" data-copy="${esc(r.phone || '')}" data-tip="לחיצה מעתיקה את המספר"><bdi dir="ltr">${esc(fmtPhone(r.phone))}</bdi></button>${src ? `<span class="src" ${tip ? `data-tip="${esc(tip)}"` : ''}>${esc(src)}</span>` : ''}${age}</div></td>`;
 }
 function stageCell(r) {

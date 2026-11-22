@@ -22,7 +22,8 @@ const STEPS = [
   { key: 'הצעה נשלחה', short: 'הצעה', phase: 'sales',
     title: 'לסגור ולקבל תשלום', todo: 'לעשות פולואפ עד שהלקוח משלם. לפני התשלום משלימים פרטים לחשבונית ולאיסוף.',
     wa: true, btn: 'הלקוח שילם', pay: true, open: ['customer', 'quote'],
-    checks: [{ label: 'פרטים לחשבונית ולאיסוף מלאים', done: (o, c) => !missingForPaid(o, c).length, act: 'open:customer' }] },
+    checks: [{ label: 'ההצעה נשלחה ללקוח (אחרי השאלון)', done: o => !quotePending(o), at: o => o.quote_sent_at, act: 'quotesent', show: o => !!o.q_submitted_at },
+      { label: 'פרטים לחשבונית ולאיסוף מלאים', done: (o, c) => !missingForPaid(o, c).length, act: 'open:customer' }] },
   { key: 'לתאם איסוף', short: 'איסוף', phase: 'ops', date: o => o.paid_at,
     title: 'לתאם איסוף עם שליח', todo: 'לבחור מעבדה, להזמין שליח ולקבוע תאריך. אחר כך לשלוח ללקוח אישור איסוף ולהדפיס מדבקות ודף משלוח.',
     wa: true, btn: 'השליח אסף את החומרה', set: ['picked_up_at'], open: ['shipping', 'items'],
@@ -96,7 +97,8 @@ function subStatus(o) {
 
 // ---------- required details before payment ----------
 const REQUIRED_BEFORE_PAID = [['full_name', 'שם מלא'], ['email', 'מייל'], ['id_number', 'ת.ז לחשבונית'], ['city', 'עיר'], ['street', 'רחוב'], ['house_number', 'מספר בית'], ['alt_contact_name', 'איש קשר נוסף'], ['alt_contact_phone', 'טלפון איש קשר נוסף']];
-const missingForPaid = (o, c) => REQUIRED_BEFORE_PAID.filter(([k]) => !String(c?.[k] || '').trim()).map(x => x[1]).concat(o.media_qty ? [] : ['כמויות בהצעת המחיר']);
+// a business invoice needs the business name + number instead of the ID number
+const missingForPaid = (o, c) => REQUIRED_BEFORE_PAID.filter(([k]) => !(k === 'id_number' && c?.invoice_business && String(c.business_name || '').trim() && String(c.business_id || '').trim()) && !String(c?.[k] || '').trim()).map(x => x[1]).concat(o.media_qty ? [] : ['כמויות בהצעת המחיר']);
 const showRequired = o => stepIdx(o.stage) >= stepIdx('הצעה נשלחה') || phaseOf(o.stage) !== 'sales';
 
 // ---------- follow-ups (manual: a date is set only by us) ----------

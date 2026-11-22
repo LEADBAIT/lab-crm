@@ -117,9 +117,21 @@ async function loadRef() {
 async function getOrders(filter) {
   let q = sb.from('v_orders').select('*').order('id', { ascending: false });
   if (filter) q = filter(q);
-  const { data, error } = await q; fail(error); return data;
+  const [{ data, error }, qa] = await Promise.all([q, sb.from('orders').select(Q_COLS)]); fail(error); fail(qa.error);
+  const m = new Map(qa.data.map(x => [x.id, x])); data.forEach(o => Object.assign(o, m.get(o.id))); return data;
 }
-const getOrder = async id => { const { data, error } = await sb.from('v_orders').select('*').eq('id', id).single(); fail(error); return data; };
+const getOrder = async id => { const [{ data, error }, qa] = await Promise.all([sb.from('v_orders').select('*').eq('id', id).single(), sb.from('orders').select(Q_COLS).eq('id', id).single()]); fail(error); fail(qa.error); return Object.assign(data, qa.data); };
+// ---------- onboarding questionnaire (q.html#<q_token>, spec crm/אפיון-שאלון-אונבורדינג.md) ----------
+// its columns are not in v_orders, so every order read merges them in from orders
+const Q_COLS = 'id,q_token,q_opened_at,q_saved_at,q_submitted_at,q_progress,q_initial_lines,q_qty_changed_at,q_unsure_type,storage_place,mold,delivery_method,cloud_type,terms_accepted_at,quote_sent_at';
+const qUrl = o => ((S.settings.public_url?.text_value || '').trim() || (location.origin + location.pathname)).replace(/#.*$/, '').replace(/[^/]*$/, '') + 'q.html#' + o.q_token;
+/** the customer sent the form and nobody has sent them the quote yet */
+const quotePending = o => !!o.q_submitted_at && !o.quote_sent_at && phaseOf(o.stage) === 'sales';
+function qChip(o) {
+  if (quotePending(o)) return '<span class="chip orange" data-tip="הלקוח מילא את השאלון. בודקים את ההצעה ושולחים">לשלוח הצעה</span>';
+  if (o.q_opened_at && !o.q_submitted_at && phaseOf(o.stage) === 'sales') return `<span class="chip" data-tip="הלקוח התחיל למלא את השאלון">שאלון ${o.q_progress || 0}%</span>`;
+  return '';
+}
 /** Undo + redo for any action: runs apply(), then the toast offers "ביטול" (revert) and after that "החזרה" (apply again), back and forth. */
 async function reversible(msg, apply, revert, refresh = route) {
   await apply();

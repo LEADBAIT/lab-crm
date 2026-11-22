@@ -19,9 +19,10 @@ const FIELD = {
   return_method: { t: 'o', l: 'איך החומרה חוזרת', list: 'return_method' }, return_tracking: { t: 'o', l: 'מספר משלוח (החזרה)' },
   gift_sent: { t: 'o', l: 'מתנה שנשלחה' }, manual_discount: { t: 'o', l: 'הנחה ידנית (₪)', type: 'number', zero: true },
   next_followup: { t: 'o', l: 'לחזור ללקוח ב-', type: 'date' },
+  business_name: { t: 'c', l: 'שם העסק (לחשבונית)' }, business_id: { t: 'c', l: 'ח.פ / ע.מ' },
   credit_method: { t: 'o', l: 'איך מזכים', list: 'credit_method' }, credit_amount: { t: 'o', l: 'סכום הזיכוי (₪)', type: 'number' }, credit_note: { t: 'o', l: 'מה ניתן / אסמכתא' },
 };
-const TOGGLE = { mailing_list: ['c', 'מקבל עדכונים ומבצעים'], priority: ['o', 'אקספרס: עד 7 ימי עסקים מהקליטה'], cloud_affiliate: ['o', 'קנה מנוי ענן דרכנו'], story_posted: ['o', 'פרסם סטורי ותייג אותנו'] };
+const TOGGLE = { mailing_list: ['c', 'מקבל עדכונים ומבצעים'], invoice_business: ['c', 'חשבונית על שם עסק'], priority: ['o', 'אקספרס: עד 7 ימי עסקים מהקליטה'], cloud_affiliate: ['o', 'קנה מנוי ענן דרכנו'], story_posted: ['o', 'פרסם סטורי ותייג אותנו'] };
 
 function fld(ctx, k, { wide = false, label } = {}) {
   const d = FIELD[k], row = d.t === 'c' ? ctx.c : ctx.o, val = row[k];
@@ -173,6 +174,7 @@ function checkHtml(ctx, k, j) {
     : k.act === 'closing' ? `<button class="btn sm" data-chk="${j}">לסריקה</button>`
     : k.act === 'files' ? `<button class="btn sm" data-chk="${j}">בדיקת קבצים</button>`
     : k.act === 'waive' ? `<button class="btn sm ghost" data-chk="${j}">הלקוח ויתר</button>`
+    : k.act === 'quotesent' ? `<button class="btn sm primary" data-chk="${j}">ההצעה נשלחה ✓</button>`
     : `<button class="btn sm" data-chk="${j}">סימון ✓</button>`;
   const missNote = k.act === 'files' && ctx.o.files_missing ? ` <span class="chip red">חסרים ${ctx.o.files_missing} קבצים</span>` : '';
   return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${missNote}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
@@ -204,6 +206,7 @@ function sectionsHtml(ctx) {
 }
 const SEC_BODY = {
   customer: ctx => `<div class="fields">${['full_name', 'phone', 'email', 'id_number', 'alt_contact_name', 'alt_contact_phone'].map(k => fld(ctx, k)).join('')}</div>
+    <div style="margin-top:12px">${tog(ctx, 'invoice_business')}</div>${ctx.c.invoice_business ? `<div class="fields" style="margin-top:8px">${fld(ctx, 'business_name')}${fld(ctx, 'business_id')}</div>` : ''}
     <div class="subhead">כתובת לאיסוף</div><div class="fields">${['city', 'street', 'house_number', 'floor', 'apartment', 'entry_code'].map(k => fld(ctx, k)).join('')}</div>
     <div style="margin-top:12px">${tog(ctx, 'mailing_list')}</div>`,
   photos: ctx => photosHtml(ctx),
@@ -440,6 +443,7 @@ function contactHtml(ctx) {
 function sideHtml(ctx) {
   const { o } = ctx, sales = phaseOf(o.stage) === 'sales';
   return `<section class="card"><div class="card-head"><h3>סיכום</h3></div><div id="sumBox">${summaryHtml(ctx)}</div></section>
+    ${questionnaireHtml(ctx)}
     <section class="card"><div class="card-head"><h3>איש קשר</h3><button class="link-btn" data-opensec="customer">עריכה</button></div><div id="contactBox">${contactHtml(ctx)}</div>
       ${sales ? `<div class="divider"></div><div class="row spread"><span class="small muted">${o.last_contact_at ? 'דיברנו ' + ago(o.last_contact_at) : 'עוד לא דיברנו'}</span><button class="btn sm" id="contacted">✓ דיברתי איתו עכשיו</button></div>` : ''}
     </section>
@@ -479,6 +483,7 @@ async function lightRefresh(ctx, savedKey) {
 }
 function afterSave(ctx, table, k, v) {
   if (table === 'customers') ctx.c[k] = v; else ctx.o[k] = v;
+  if (k === 'invoice_business') { SEC_OPEN[ctx.o.id].add('customer'); return reloadDeal(ctx); } // shows / hides the business fields
   // keep duplicate inputs (same field in next card and in a section) in sync
   const key = `${table}:${table === 'customers' ? ctx.c.id : ctx.o.id}:${k}`;
   $$(`[data-save="${key}"]`).forEach(el => { if (el !== document.activeElement) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; } });
@@ -495,6 +500,7 @@ async function runCheck(ctx, k) {
   if (k.act === 'contact') { await markContacted(o); return reloadDeal(ctx); }
   if (k.act.startsWith('open:')) { const s = k.act.slice(5), d = $(`[data-sec="${s}"]`); d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   if (k.act === 'items') return genItems(ctx);
+  if (k.act === 'quotesent') { await markQuoteSent(o); return reloadDeal(ctx); }
   if (k.act === 'closing') { sessionStorage.setItem('scanStatus', 'נארז להחזרה'); return go('scan'); }
   if (k.act === 'files') { if (await filesCheck(ctx)) reloadDeal(ctx); return; }
   if (k.act === 'waive') { if (await waiveHardware(ctx)) reloadDeal(ctx); return; }
@@ -519,7 +525,9 @@ function bindNext(ctx) {
   const s = stepOf(ctx.o.stage); if (!s) return;
   const checks = s.checks.filter(k => !k.show || k.show(ctx.o));
   $$('#nextBox [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, checks[b.dataset.chk]));
-  $('#advance') && ($('#advance').onclick = async () => { const nx = STEPS[stepIdx(ctx.o.stage) + 1]; if (nx && await changeStage(ctx.o, nx.key, ctx.c)) { delete SEC_OPEN[ctx.o.id]; reloadDeal(ctx); } });
+  $('#advance') && ($('#advance').onclick = async () => { const nx = STEPS[stepIdx(ctx.o.stage) + 1]; if (nx && await changeStage(ctx.o, nx.key, ctx.c)) {
+    if (nx.key === 'הצעה נשלחה') await markQuoteSent(ctx.o); // "שלחתי הצעת מחיר" by hand
+    delete SEC_OPEN[ctx.o.id]; reloadDeal(ctx); } });
   $('#fuEdit') && ($('#fuEdit').onclick = async () => { if (await setFollowup(ctx.o)) reloadDeal(ctx); });
   $('#toLost') && ($('#toLost').onclick = async () => { if (await changeStage(ctx.o, LOST, ctx.c)) reloadDeal(ctx); });
   $('#waOpen') && ($('#waOpen').onclick = () => openWa(ctx));
@@ -527,9 +535,37 @@ function bindNext(ctx) {
   $$('#nextBox [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
   $$('#nextBox [data-unchk]').forEach(b => b.onclick = () => runUncheck(ctx, checks[b.dataset.unchk]));
 }
-function sendQuote(ctx) {
+async function sendQuote(ctx) {
   if (!ctx.o.media_qty) return tell('ההצעה ריקה', 'קודם ממלאים כמויות בחלק "הצעת מחיר".');
   window.open(waLink(ctx.c.phone, quoteText(ctx.o, ctx.c, ctx.lines)), '_blank', 'noopener');
+  if (quotePending(ctx.o)) { await markQuoteSent(ctx.o); reloadDeal(ctx); }
+}
+/** the quote reached the customer: closes the "לשלוח הצעה" task and locks the questionnaire */
+async function markQuoteSent(o) {
+  if (o.quote_sent_at) return;
+  await patchOrder(o, { quote_sent_at: new Date().toISOString() }, 'נרשם שההצעה נשלחה ללקוח. השאלון ננעל לעריכה');
+}
+
+// ---------- questionnaire card (side) ----------
+const Q_LABEL = { storage_place: 'איפה נשמרה', mold: 'עובש', delivery_method: 'קבלת הקבצים', cloud_type: 'ענן', return_method: 'החומרה בסוף' };
+function questionnaireHtml(ctx) {
+  const { o, c, lines } = ctx;
+  if (phaseOf(o.stage) !== 'sales' && !o.q_opened_at) return '';
+  const status = o.q_submitted_at ? `<b>נשלח</b> ${fmtDT(o.q_submitted_at)}` : o.q_opened_at ? `התחיל למלא · <b>${o.q_progress || 0}%</b>${o.q_saved_at ? ` · עדכון אחרון ${esc(ago(o.q_saved_at))}` : ''}` : '<span class="muted">עוד לא נפתח</span>';
+  // quantities the customer changed vs. what we entered from the WhatsApp photos
+  const init = new Map((o.q_initial_lines || []).map(l => [l.product_id, l.qty]));
+  const diff = o.q_qty_changed_at ? S.products.filter(p => p.category === 'media').map(p => [p, init.get(p.id) || 0, lines.find(l => l.product_id === p.id)?.qty || 0]).filter(([, a, b]) => a !== b) : [];
+  const ups = (ctx.photos || []).filter(p => p.kind === 'update' && (!o.q_qty_changed_at || p.created_at >= o.q_qty_changed_at)).length;
+  const kv = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : '';
+  const ans = o.q_opened_at ? `<dl class="kv" style="margin-top:8px">${Object.entries(Q_LABEL).map(([k, l]) => kv(l, o[k])).join('')}${kv('אקספרס', o.priority ? 'כן' : '')}${kv('תקנון', o.terms_accepted_at ? 'אושר ' + fmtShort(o.terms_accepted_at) : '')}</dl>` : '';
+  return `<section class="card" id="qCard"><div class="card-head"><h3>שאלון לפני הצעה</h3><button class="link-btn" id="qCopy">העתקת קישור</button></div>
+    <div class="small">${status}</div>
+    ${quotePending(o) ? `<div class="warn" style="margin-top:8px"><b>ההצעה עוד לא נשלחה.</b> בודקים את הצעת המחיר (השורות כבר מולאו מהשאלון) ושולחים.<div class="row" style="margin-top:8px"><button class="btn sm primary" id="qSend">שליחת ההצעה בוואטסאפ</button><button class="btn sm" id="qSent">כבר שלחתי ✓</button></div></div>` : ''}
+    ${o.quote_sent_at && o.q_submitted_at ? `<div class="small muted" style="margin-top:6px">ההצעה נשלחה ${fmtDT(o.quote_sent_at)}. השאלון נעול לעריכה.</div>` : ''}
+    ${diff.length ? `<div class="note" style="margin-top:8px"><b>הלקוח שינה כמויות:</b><br>${diff.map(([p, a, b]) => `${esc(p.name.split(' (')[0])}: ${a} ← <b>${b}</b>`).join('<br>')}<br>${ups ? `<span class="chip green">${ups} צילומים מעודכנים</span>` : '<span class="chip red">עוד אין צילום מעודכן</span>'}</div>` : ''}
+    ${o.q_unsure_type ? '<div class="note" style="margin-top:8px">הלקוח לא בטוח מה הסוג של חלק מהפריטים. לזהות לפי התמונות.</div>' : ''}
+    ${c.invoice_business ? `<div class="small" style="margin-top:6px">חשבונית על שם עסק: <b>${esc(c.business_name || '')}</b> ${esc(c.business_id || '')}</div>` : ''}
+    ${ans}</section>`;
 }
 async function editDate(ctx, k) {
   const f = await formModal('תיקון תאריך', `<label class="field">תאריך ושעה<input type="datetime-local" name="v" value="${toLocalInput(ctx.o[k])}"><span class="hint">משאירים ריק כדי למחוק את הסימון.</span></label>`);
@@ -555,6 +591,9 @@ function bindDeal(ctx) {
     $$('#tl li[data-kind]').forEach(li => li.classList.toggle('hidden', !!k && (k === 'stage' ? !['stage', 'followup'].includes(li.dataset.kind) : li.dataset.kind !== k))); });
   $('#revive') && ($('#revive').onclick = async () => { if (await changeStage(ctx.o, ctx.o.media_qty ? 'בפולואפ' : 'פנייה חדשה', c)) reloadDeal(ctx); });
   $('#waBtn').onclick = () => openWa(ctx);
+  $('#qCopy') && ($('#qCopy').onclick = async () => { const u = qUrl(ctx.o); try { await navigator.clipboard.writeText(u); toast('קישור השאלון הועתק. מדביקים אותו בוואטסאפ ללקוח'); } catch { tell('קישור השאלון', u); } });
+  $('#qSend') && ($('#qSend').onclick = () => sendQuote(ctx));
+  $('#qSent') && ($('#qSent').onclick = async () => { await markQuoteSent(ctx.o); reloadDeal(ctx); });
   $('#trackBtn') && ($('#trackBtn').onclick = async () => { const u = trackUrl(ctx.o); await navigator.clipboard.writeText(u).catch(() => {}); toast('הקישור הועתק. מדביקים אותו בוואטסאפ ללקוח'); });
   $('#moreBtn').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, [
     { label: 'שליחת הצעת המחיר בוואטסאפ', run: () => sendQuote(ctx) },
