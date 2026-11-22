@@ -407,7 +407,9 @@ body.dragging .dropbar { display: flex; }
 .checklist li:last-child { border-bottom: 0; }
 .checklist .box { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line-2); display: grid; place-items: center; flex: none; font-size: 11px; font-weight: 700; background: var(--surface); }
 .checklist li.ok .box { background: var(--won); border-color: var(--won); color: #fff; }
-.checklist li.ok .t { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
+/* open task = red text, done task = green text (user, 2026-11-22; replaces the strike-through) */
+.checklist li .t { color: var(--red); }
+.checklist li.ok .t { color: var(--green); }
 .checklist .when { font-size: 12px; color: var(--muted); text-decoration: none; display: inline-block; }
 .checklist .grow + .btn { margin-inline-start: auto; }
 .next-actions { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); }
