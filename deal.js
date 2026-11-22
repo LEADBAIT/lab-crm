@@ -49,6 +49,8 @@ VIEWS.order = async function vOrder(id) {
   [rl, ri, re].forEach(r => fail(r.error));
   const { data: c, error } = await sb.from('customers').select('*').eq('id', o.customer_id).single(); fail(error);
   const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data, photos: await loadPhotos(id) };
+  // photos live in order_photos, not in v_orders: give the step checks what they need
+  o.photos_count = ctx.photos.length; o.photos_first_at = ctx.photos[0]?.created_at || null;
   // #order/<id>/<section> opens that section (the sales dashboard uses it, e.g. for missing invoice details)
   const sec = location.hash.split('/')[2];
   if (sec && SECTIONS.some(s => s[0] === sec)) { SEC_OPEN[id] ||= new Set(); SEC_OPEN[id].add(sec); }
@@ -178,7 +180,7 @@ function checkHtml(ctx, k, j) {
     : k.act === 'qsent' ? `<button class="btn sm ghost" data-qcopy>העתקת קישור</button><button class="btn sm" data-chk="${j}">השאלון נשלח ✓</button>`
     : `<button class="btn sm" data-chk="${j}">סימון ✓</button>`;
   const missNote = k.act === 'files' && ctx.o.files_missing ? ` <span class="chip red">חסרים ${ctx.o.files_missing} קבצים</span>` : '';
-  return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${missNote}${k.state && ok && k.state(ctx.o) ? ` <span class="chip${ctx.o.q_submitted_at ? ' green' : ''}">${esc(k.state(ctx.o))}</span>` : ''}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
+  return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${missNote}${k.state && ok && k.state(ctx.o) ? ` <span class="chip${k.act !== 'qsent' || ctx.o.q_submitted_at ? ' green' : ''}">${esc(k.state(ctx.o))}</span>` : ''}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
     ${act}${ok && ms ? `<button class="link-btn" data-msedit="${ms}">שינוי תאריך</button>` : ''}${ok && k.act === 'files' ? `<button class="link-btn" data-chk="${j}">בדיקה שוב</button>` : ''}
     ${ok && canUncheck(k) ? `<button class="link-btn" data-unchk="${j}">ביטול סימון</button>` : ''}</li>`;
 }
@@ -500,7 +502,7 @@ async function runUncheck(ctx, k) {
 async function runCheck(ctx, k) {
   const o = ctx.o;
   if (k.act === 'contact') { await markContacted(o); return reloadDeal(ctx); }
-  if (k.act.startsWith('open:')) { const s = k.act.slice(5), d = $(`[data-sec="${s}"]`); d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  if (k.act.startsWith('open:')) { const s = k.act.slice(5), d = $(`[data-sec="${s}"]`); if (!d) return; d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   if (k.act === 'items') return genItems(ctx);
   if (k.act === 'quotesent') { await markQuoteSent(o); return reloadDeal(ctx); }
   if (k.act === 'qsent') { await markQSent(o); return reloadDeal(ctx); }
@@ -529,7 +531,6 @@ function bindNext(ctx) {
   const checks = s.checks.filter(k => !k.show || k.show(ctx.o));
   $$('#nextBox [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, checks[b.dataset.chk]));
   $('#advance') && ($('#advance').onclick = async () => { const nx = STEPS[stepIdx(ctx.o.stage) + 1]; if (nx && await changeStage(ctx.o, nx.key, ctx.c)) {
-    if (nx.key === 'הצעה נשלחה') await markQuoteSent(ctx.o); // "שלחתי הצעת מחיר" by hand
     delete SEC_OPEN[ctx.o.id]; reloadDeal(ctx); } });
   $('#fuEdit') && ($('#fuEdit').onclick = async () => { if (await setFollowup(ctx.o)) reloadDeal(ctx); });
   $('#toLost') && ($('#toLost').onclick = async () => { if (await changeStage(ctx.o, LOST, ctx.c)) reloadDeal(ctx); });
@@ -544,7 +545,9 @@ async function sendQuote(ctx) {
   // the process: a quote only after the questionnaire (user, 2026-11-22)
   if (!ctx.o.q_submitted_at && !await ask('הלקוח עוד לא מילא את השאלון', 'בדרך כלל שולחים הצעה רק אחרי השאלון. לשלוח בכל זאת?', { ok: 'לשלוח בכל זאת' })) return;
   window.open(waLink(ctx.c.phone, quoteText(ctx.o, ctx.c, ctx.lines)), '_blank', 'noopener');
-  if (!ctx.o.quote_sent_at && phaseOf(ctx.o.stage) === 'sales') { await markQuoteSent(ctx.o); reloadDeal(ctx); }
+  if (['פנייה חדשה', 'בשיחה', 'בפולואפ'].includes(ctx.o.stage)) {
+    if (await ask('ההצעה נפתחה בוואטסאפ', 'להעביר את הליד ל"הצעה נשלחה"?', { ok: 'כן, להעביר', cancel: 'לא עכשיו' }) && await changeStage(ctx.o, 'הצעה נשלחה', ctx.c, { qOk: true })) { delete SEC_OPEN[ctx.o.id]; reloadDeal(ctx); }
+  } else if (!ctx.o.quote_sent_at && phaseOf(ctx.o.stage) === 'sales') { await markQuoteSent(ctx.o); reloadDeal(ctx); }
 }
 /** copy the questionnaire link for WhatsApp on the phone. Copying counts as sending it (first time only) */
 async function copyQLink(ctx) {

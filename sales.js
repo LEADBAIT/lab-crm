@@ -259,10 +259,11 @@ async function sendWa(o) {
 }
 async function sendQuoteRow(o) {
   if (!o.media_qty) { toast('ההצעה ריקה: ממלאים כמויות בכרטיס'); return openPanel(o.id, 'quote'); }
+  if (!o.q_submitted_at && !await ask('הלקוח עוד לא מילא את השאלון', 'בדרך כלל שולחים הצעה רק אחרי השאלון. לשלוח בכל זאת?', { ok: 'לשלוח בכל זאת' })) return;
   const [{ data: lines, error }, c] = await Promise.all([sb.from('order_lines').select('*').eq('order_id', o.id), custOf(o)]); fail(error);
   window.open(waLink(o.phone, quoteText(o, c, lines)), '_blank', 'noopener');
   if (['פנייה חדשה', 'בשיחה', 'בפולואפ'].includes(o.stage) && await ask('ההצעה נפתחה בוואטסאפ', 'להעביר את הליד ל"הצעה נשלחה"?', { ok: 'כן, להעביר', cancel: 'לא עכשיו' })) {
-    SD.touch = o.id; if (await changeStage(o, 'הצעה נשלחה', c)) route();
+    SD.touch = o.id; if (await changeStage(o, 'הצעה נשלחה', c, { qOk: true })) route();
   }
 }
 async function markPaid(o) {

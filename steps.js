@@ -19,7 +19,7 @@ const STEPS = [
     need: o => o.media_qty ? [] : ['כמויות בהצעת המחיר'],
     checks: [{ label: 'השאלון לפני הצעה נשלח ללקוח', done: o => !!o.q_sent_at, at: o => o.q_sent_at, act: 'qsent', state: qState },
       { label: 'מילאנו כמויות בהצעת המחיר', done: o => o.media_qty > 0, act: 'open:quote' },
-      { label: 'קיבלנו תמונות של החומרה (לא חובה)', done: o => !!o.drive_folder_url, act: 'open:delivery' }] },
+      { label: 'קיבלנו תמונות של החומרה (לא חובה)', done: o => o.photos_count > 0 || !!o.drive_folder_url, at: o => o.photos_first_at, act: 'open:photos', state: o => o.photos_count ? o.photos_count + ' תמונות' : '' }] },
   { key: 'הצעה נשלחה', short: 'הצעה', phase: 'sales',
     title: 'לסגור ולקבל תשלום', todo: 'לעשות פולואפ עד שהלקוח משלם. לפני התשלום משלימים פרטים לחשבונית ולאיסוף.',
     wa: true, btn: 'הלקוח שילם', pay: true, open: ['customer', 'quote'],
@@ -126,7 +126,9 @@ function fuLabel(o) {
   return until(o.next_followup) + (o.next_followup_time ? ' ' + fuTime(o.next_followup_time) : '');
 }
 /** Dialog for the next follow-up: call or message, date (quick buttons), optional hour, and why. Returns the patch or null. */
-async function followupModal(o, { stage = o.stage, title } = {}) {
+/** YYYY-MM-DD n days from today (Israel time) */
+const dayPlus = n => new Date(Date.now() + n * 864e5).toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
+async function followupModal(o, { stage = o.stage, title, date, note } = {}) {
   // in "בשיחה" rescheduling counts as one more attempt; the 4th closes the lead (database trigger)
   const resched = stage === o.stage && o.stage === 'בשיחה' && o.next_followup;
   const next = resched ? (o.followup_attempts || 1) + 1 : 1;
@@ -135,9 +137,9 @@ async function followupModal(o, { stage = o.stage, title } = {}) {
   const p = modal(`<h2>${esc(title || 'מתי חוזרים ל' + custName(o) + '?')}</h2>${warn}<form id="fuF" class="grid">
     <div class="field">איך חוזרים <span class="req">*</span><div class="seg big" role="radiogroup" aria-label="איך חוזרים">${Object.entries(FU_CH).map(([k, [ic, l]]) => `<button type="button" role="radio" data-ch="${k}" class="${k === ch ? 'on' : ''}" aria-checked="${k === ch}">${ic} ${l}</button>`).join('')}</div><input type="hidden" name="ch" value="${ch}"></div>
     <div class="row">${[[1, 'מחר'], [3, 'בעוד 3 ימים'], [7, 'בעוד שבוע'], [daysTo(5), 'שישי הקרוב'], [daysTo(0), 'ראשון הקרוב']].map(([n, l]) => `<button type="button" class="btn sm" data-fq="${n}">${l}</button>`).join('')}</div>
-    <div class="row nowrap"><label class="field grow">תאריך <span class="req">*</span><input type="date" name="d" required value="${esc(o.next_followup && o.next_followup >= today() ? o.next_followup : '')}" min="${today()}"></label>
+    <div class="row nowrap"><label class="field grow">תאריך <span class="req">*</span><input type="date" name="d" required value="${esc(date || (o.next_followup && o.next_followup >= today() ? o.next_followup : ''))}" min="${today()}"></label>
       <label class="field">שעה (לא חובה)<input type="time" name="t" value="${esc(fuTime(o.next_followup_time))}"></label></div>
-    <label class="field">למה חוזרים<input name="n" value="${esc(o.followup_note || '')}" placeholder="למשל: שולח תמונות של הקלטות"></label>
+    <label class="field">למה חוזרים<input name="n" value="${esc(note ?? o.followup_note ?? '')}" placeholder="למשל: שולח תמונות של הקלטות"></label>
     <div class="actions"><button class="btn primary">שמירה</button><button type="button" class="btn" id="fuNo">ביטול</button></div></form>`);
   return new Promise(res => {
     $$('[data-ch]', p).forEach(b => b.onclick = () => { $$('[data-ch]', p).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
@@ -158,8 +160,10 @@ async function setFollowup(o, opts) {
 }
 
 /** Move an order to another step. Asks only for what that move needs. Returns true if it moved. */
-async function changeStage(o, to, c) {
+async function changeStage(o, to, c, { qOk = false } = {}) {
   if (to === o.stage) return false;
+  const toQuote = to === 'הצעה נשלחה' && phaseOf(o.stage) === 'sales' && stepIdx(o.stage) < stepIdx(to);
+  if (toQuote && !o.q_submitted_at && !qOk && !await ask('הלקוח עוד לא מילא את השאלון', 'בדרך כלל שולחים הצעה רק אחרי השאלון. להמשיך בכל זאת?', { ok: 'להמשיך בכל זאת' })) return false;
   const from = stepIdx(o.stage), dest = stepIdx(to);
   const patch = { stage: to };
   if (to === LOST) {
@@ -192,11 +196,12 @@ async function changeStage(o, to, c) {
   }
   // every follow-up stage needs a next step: ask for it as part of the move
   if (FU_STAGES.includes(to)) {
-    const fu = await followupModal(o, { stage: to, title: `עובר ל"${to}": מתי חוזרים ללקוח?` });
+    const fu = await followupModal(o, toQuote ? { stage: to, title: 'ההצעה נשלחה: מתי חוזרים ללקוח?', date: dayPlus(1), note: 'פולואפ על ההצעה' } : { stage: to, title: `עובר ל"${to}": מתי חוזרים ללקוח?` });
     if (!fu) return false;
     Object.assign(patch, fu);
   }
   if (to === LOST) Object.assign(patch, { next_followup: null, next_followup_time: null });
+  if (toQuote && !o.quote_sent_at) patch.quote_sent_at = new Date().toISOString();
   // database triggers may also stamp these; undo puts them back too
   await patchOrder(o, patch, to === LOST ? 'סומן כלא רלוונטי' : 'עבר לשלב: ' + to, { extra: ['completed_at', 'paid_at', 'cash_received_at', 'followup_attempts'].filter(k => !(k in patch)) });
   return true;
