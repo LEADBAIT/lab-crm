@@ -336,8 +336,8 @@ function render() {
       <p class="small muted" style="margin:0">שליח מגיע אליך. את היום נתאם אחרי שתאשר את ההצעה.</p>
       <div class="row2">${inp('customer', 'city', 'עיר', { req: true, auto: 'address-level2' })}${inp('customer', 'street', 'רחוב', { req: true, auto: 'address-line1' })}</div>
       <div class="row4">${inp('customer', 'house_number', 'מס׳ בית', { req: true, mode: 'numeric' })}${inp('customer', 'floor', 'קומה', { mode: 'numeric' })}${inp('customer', 'apartment', 'דירה', { mode: 'numeric' })}${inp('customer', 'entry_code', 'קוד', { ph: 'אם יש' })}</div>
-      <div class="field"><span>מי עוד יכול למסור לשליח? <i>*</i></span></div>
-      <div class="row2 tight">${inp('customer', 'alt_contact_name', 'שם', { req: true })}${inp('customer', 'alt_contact_phone', 'טלפון', { req: true, type: 'tel', mode: 'tel' })}</div>`)}
+      <div class="field"><span>איש קשר נוסף לשליח: <span class="muted" style="font-weight:400">(לא חובה)</span></span></div>
+      <div class="row2 tight">${inp('customer', 'alt_contact_name', 'שם')}${inp('customer', 'alt_contact_phone', 'טלפון', { type: 'tel', mode: 'tel' })}</div>`)}
 
     ${box(++n, 'invoice', 'פרטים לחשבונית', `
       <div class="row2">${inp('customer', 'email', 'מייל', { req: true, type: 'email', mode: 'email', auto: 'email' })}
