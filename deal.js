@@ -175,14 +175,15 @@ function checkHtml(ctx, k, j) {
     : k.act === 'files' ? `<button class="btn sm" data-chk="${j}">בדיקת קבצים</button>`
     : k.act === 'waive' ? `<button class="btn sm ghost" data-chk="${j}">הלקוח ויתר</button>`
     : k.act === 'quotesent' ? `<button class="btn sm primary" data-chk="${j}">ההצעה נשלחה ✓</button>`
+    : k.act === 'qsent' ? `<button class="btn sm ghost" data-qcopy>העתקת קישור</button><button class="btn sm" data-chk="${j}">השאלון נשלח ✓</button>`
     : `<button class="btn sm" data-chk="${j}">סימון ✓</button>`;
   const missNote = k.act === 'files' && ctx.o.files_missing ? ` <span class="chip red">חסרים ${ctx.o.files_missing} קבצים</span>` : '';
-  return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${missNote}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
+  return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(k.label)}${missNote}${k.state && ok && k.state(ctx.o) ? ` <span class="chip${ctx.o.q_submitted_at ? ' green' : ''}">${esc(k.state(ctx.o))}</span>` : ''}${at ? ` <span class="when">· ${esc(k.at && FIELD_DATE(at))}</span>` : ''}</span>
     ${act}${ok && ms ? `<button class="link-btn" data-msedit="${ms}">שינוי תאריך</button>` : ''}${ok && k.act === 'files' ? `<button class="link-btn" data-chk="${j}">בדיקה שוב</button>` : ''}
     ${ok && canUncheck(k) ? `<button class="link-btn" data-unchk="${j}">ביטול סימון</button>` : ''}</li>`;
 }
 // checks that are a stamp we set (not something derived, like "a lab was chosen") can be un-checked
-const canUncheck = k => !!k.act && (k.act.startsWith('ms:') || ['contact', 'intake', 'cash'].includes(k.act));
+const canUncheck = k => !!k.act && (k.act.startsWith('ms:') || ['contact', 'intake', 'cash', 'qsent', 'quotesent'].includes(k.act));
 const FIELD_DATE = d => /^\d{4}-\d{2}-\d{2}$/.test(d) ? fmtDate(d) : fmtDT(d);
 
 // ---------- sections ----------
@@ -492,7 +493,8 @@ function afterSave(ctx, table, k, v) {
 async function runUncheck(ctx, k) {
   const o = ctx.o;
   const patch = k.act === 'contact' ? { last_contact_at: null } : k.act === 'intake' ? { intake_done_at: null }
-    : k.act === 'cash' ? { payment_status: 'מזומן אצל שליח', cash_received_at: null } : { [k.act.slice(3)]: null };
+    : k.act === 'cash' ? { payment_status: 'מזומן אצל שליח', cash_received_at: null }
+    : k.act === 'qsent' ? { q_sent_at: null } : k.act === 'quotesent' ? { quote_sent_at: null } : { [k.act.slice(3)]: null };
   await patchOrder(o, patch, `בוטל הסימון: ${k.label}`); reloadDeal(ctx);
 }
 async function runCheck(ctx, k) {
@@ -501,6 +503,7 @@ async function runCheck(ctx, k) {
   if (k.act.startsWith('open:')) { const s = k.act.slice(5), d = $(`[data-sec="${s}"]`); d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   if (k.act === 'items') return genItems(ctx);
   if (k.act === 'quotesent') { await markQuoteSent(o); return reloadDeal(ctx); }
+  if (k.act === 'qsent') { await markQSent(o); return reloadDeal(ctx); }
   if (k.act === 'closing') { sessionStorage.setItem('scanStatus', 'נארז להחזרה'); return go('scan'); }
   if (k.act === 'files') { if (await filesCheck(ctx)) reloadDeal(ctx); return; }
   if (k.act === 'waive') { if (await waiveHardware(ctx)) reloadDeal(ctx); return; }
@@ -533,17 +536,27 @@ function bindNext(ctx) {
   $('#waOpen') && ($('#waOpen').onclick = () => openWa(ctx));
   $('#sendQuote') && ($('#sendQuote').onclick = () => sendQuote(ctx));
   $$('#nextBox [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
+  $$('#nextBox [data-qcopy]').forEach(b => b.onclick = () => copyQLink(ctx));
   $$('#nextBox [data-unchk]').forEach(b => b.onclick = () => runUncheck(ctx, checks[b.dataset.unchk]));
 }
 async function sendQuote(ctx) {
   if (!ctx.o.media_qty) return tell('ההצעה ריקה', 'קודם ממלאים כמויות בחלק "הצעת מחיר".');
+  // the process: a quote only after the questionnaire (user, 2026-11-22)
+  if (!ctx.o.q_submitted_at && !await ask('הלקוח עוד לא מילא את השאלון', 'בדרך כלל שולחים הצעה רק אחרי השאלון. לשלוח בכל זאת?', { ok: 'לשלוח בכל זאת' })) return;
   window.open(waLink(ctx.c.phone, quoteText(ctx.o, ctx.c, ctx.lines)), '_blank', 'noopener');
-  if (quotePending(ctx.o)) { await markQuoteSent(ctx.o); reloadDeal(ctx); }
+  if (!ctx.o.quote_sent_at && phaseOf(ctx.o.stage) === 'sales') { await markQuoteSent(ctx.o); reloadDeal(ctx); }
+}
+/** copy the questionnaire link for WhatsApp on the phone. Copying counts as sending it (first time only) */
+async function copyQLink(ctx) {
+  const u = qUrl(ctx.o);
+  try { await navigator.clipboard.writeText(u); } catch { tell('קישור השאלון', u); }
+  if (phaseOf(ctx.o.stage) === 'sales' && await markQSent(ctx.o, 'הקישור הועתק וסומן שהשאלון נשלח. פולו-אפ בעוד יומיים')) return reloadDeal(ctx);
+  toast('קישור השאלון הועתק. מדביקים אותו בוואטסאפ ללקוח');
 }
 /** the quote reached the customer: closes the "לשלוח הצעה" task and locks the questionnaire */
 async function markQuoteSent(o) {
   if (o.quote_sent_at) return;
-  await patchOrder(o, { quote_sent_at: new Date().toISOString() }, 'נרשם שההצעה נשלחה ללקוח. השאלון ננעל לעריכה');
+  await patchOrder(o, { quote_sent_at: new Date().toISOString() }, 'נרשם שההצעה נשלחה ללקוח. השאלון ננעל. פולו-אפ מחר', { extra: Q_MARK_EXTRA });
 }
 
 // ---------- questionnaire card (side) ----------
@@ -551,7 +564,7 @@ const Q_LABEL = { storage_place: 'איפה נשמרה', mold: 'עובש', delive
 function questionnaireHtml(ctx) {
   const { o, c, lines } = ctx;
   if (phaseOf(o.stage) !== 'sales' && !o.q_opened_at) return '';
-  const status = o.q_submitted_at ? `<b>נשלח</b> ${fmtDT(o.q_submitted_at)}` : o.q_opened_at ? `התחיל למלא · <b>${o.q_progress || 0}%</b>${o.q_saved_at ? ` · עדכון אחרון ${esc(ago(o.q_saved_at))}` : ''}` : '<span class="muted">עוד לא נפתח</span>';
+  const status = o.q_submitted_at ? `<b>נשלח</b> ${fmtDT(o.q_submitted_at)}` : o.q_opened_at ? `התחיל למלא · <b>${o.q_progress || 0}%</b>${o.q_saved_at ? ` · עדכון אחרון ${esc(ago(o.q_saved_at))}` : ''}` : o.q_sent_at ? `<b>נשלח ללקוח</b> ${fmtDT(o.q_sent_at)} · עוד לא נפתח` : '<span class="muted">עוד לא נשלח ללקוח</span>';
   // quantities the customer changed vs. what we entered from the WhatsApp photos
   const init = new Map((o.q_initial_lines || []).map(l => [l.product_id, l.qty]));
   const diff = o.q_qty_changed_at ? S.products.filter(p => p.category === 'media').map(p => [p, init.get(p.id) || 0, lines.find(l => l.product_id === p.id)?.qty || 0]).filter(([, a, b]) => a !== b) : [];
@@ -592,7 +605,7 @@ function bindDeal(ctx) {
     $$('#tl li[data-kind]').forEach(li => li.classList.toggle('hidden', !!k && (k === 'stage' ? !['stage', 'followup'].includes(li.dataset.kind) : li.dataset.kind !== k))); });
   $('#revive') && ($('#revive').onclick = async () => { if (await changeStage(ctx.o, ctx.o.media_qty ? 'בפולואפ' : 'פנייה חדשה', c)) reloadDeal(ctx); });
   $('#waBtn').onclick = () => openWa(ctx);
-  $('#qCopy') && ($('#qCopy').onclick = async () => { const u = qUrl(ctx.o); try { await navigator.clipboard.writeText(u); toast('קישור השאלון הועתק. מדביקים אותו בוואטסאפ ללקוח'); } catch { tell('קישור השאלון', u); } });
+  $('#qCopy') && ($('#qCopy').onclick = () => copyQLink(ctx));
   $('#qSend') && ($('#qSend').onclick = () => sendQuote(ctx));
   $('#qSent') && ($('#qSent').onclick = async () => { await markQuoteSent(ctx.o); reloadDeal(ctx); });
   $('#trackBtn') && ($('#trackBtn').onclick = async () => { const u = trackUrl(ctx.o); await navigator.clipboard.writeText(u).catch(() => {}); toast('הקישור הועתק. מדביקים אותו בוואטסאפ ללקוח'); });

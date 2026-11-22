@@ -123,13 +123,24 @@ async function getOrders(filter) {
 const getOrder = async id => { const [{ data, error }, qa] = await Promise.all([sb.from('v_orders').select('*').eq('id', id).single(), sb.from('orders').select(Q_COLS).eq('id', id).single()]); fail(error); fail(qa.error); return Object.assign(data, qa.data); };
 // ---------- onboarding questionnaire (q.html#<q_token>, spec crm/אפיון-שאלון-אונבורדינג.md) ----------
 // its columns are not in v_orders, so every order read merges them in from orders
-const Q_COLS = 'id,q_token,q_opened_at,q_saved_at,q_submitted_at,q_progress,q_initial_lines,q_qty_changed_at,q_unsure_type,storage_place,mold,delivery_method,cloud_type,terms_accepted_at,quote_sent_at';
+const Q_COLS = 'id,q_token,q_opened_at,q_saved_at,q_submitted_at,q_progress,q_initial_lines,q_qty_changed_at,q_unsure_type,storage_place,mold,delivery_method,cloud_type,terms_accepted_at,quote_sent_at,q_sent_at';
 const qUrl = o => ((S.settings.public_url?.text_value || '').trim() || (location.origin + location.pathname)).replace(/#.*$/, '').replace(/[^/]*$/, '') + 'q.html#' + o.q_token;
 /** the customer sent the form and nobody has sent them the quote yet */
 const quotePending = o => !!o.q_submitted_at && !o.quote_sent_at && phaseOf(o.stage) === 'sales';
+/** columns the orders_aq_marks trigger may change with a mark (stage move + follow-up), so undo puts them back */
+const Q_MARK_EXTRA = ['stage', 'stage_changed_at', 'next_followup', 'next_followup_time', 'followup_note', 'followup_channel'];
+/** the questionnaire link went to the customer. Keeps the first date. The DB moves early leads to "בפולואפ" and sets a 2-day follow-up */
+async function markQSent(o, msg = 'סומן: השאלון נשלח ללקוח. פולו-אפ בעוד יומיים') {
+  if (o.q_sent_at) return false;
+  await patchOrder(o, { q_sent_at: new Date().toISOString() }, msg, { extra: Q_MARK_EXTRA }); return true;
+}
+/** where the questionnaire stands, in a few words: '' | not opened | started X% | filled */
+const qState = o => o.q_submitted_at ? 'מילא את השאלון' : o.q_opened_at ? `התחיל למלא · ${o.q_progress || 0}%` : o.q_sent_at ? 'עוד לא נפתח' : '';
 function qChip(o) {
   if (quotePending(o)) return '<span class="chip orange" data-tip="הלקוח מילא את השאלון. בודקים את ההצעה ושולחים">לשלוח הצעה</span>';
   if (o.q_opened_at && !o.q_submitted_at && phaseOf(o.stage) === 'sales') return `<span class="chip" data-tip="הלקוח התחיל למלא את השאלון">שאלון ${o.q_progress || 0}%</span>`;
+  if (o.stage === 'בפולואפ' && o.q_sent_at && !o.q_opened_at) return `<span class="chip blue" data-tip="השאלון נשלח ועוד לא נפתח">✓ שאלון ${fmtShort(o.q_sent_at)}</span>`;
+  if (o.stage === 'הצעה נשלחה' && o.quote_sent_at) return `<span class="chip blue" data-tip="ההצעה נשלחה ללקוח">✓ הצעה ${fmtShort(o.quote_sent_at)}</span>`;
   return '';
 }
 /** Undo + redo for any action: runs apply(), then the toast offers "ביטול" (revert) and after that "החזרה" (apply again), back and forth. */
