@@ -129,7 +129,11 @@
   .box-body { padding: 12px; gap: 12px; }
   .choice { padding: 10px 12px; }
   .mrow { padding: 6px 0; }
-  .gallery { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+  /* the photos the customer sent on WhatsApp (top of the form): big enough to see clearly */
+  .gallery { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
+  /* the customer's own uploads: thumbnail + remove button */
+  .ph { position: relative; display: block; }
+  .ph-del { position: absolute; top: -7px; inset-inline-start: -7px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--surface); background: var(--rec); color: #fff; font: 700 16px/18px var(--sans); cursor: pointer; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
   /* mould: answers on the right, the example picture on the left of them */
   /* the hardware box: three clearly separated sub-questions (א / ב / ג) */
   [data-box="qty"] .box-body { gap: 0; padding-top: 4px; }
@@ -143,6 +147,7 @@
   .subpanel .upl { gap: 8px; }
   .subpanel .gallery { grid-template-columns: repeat(auto-fill, 56px); }
   .subpanel .gallery a { width: 56px; height: 56px; }
+  .subpanel .gallery { padding-top: 6px; }
   #photoNeed:empty { display: none; }
   .upl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .upl-row .gallery { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -309,7 +314,7 @@ function render() {
         <div class="sub-choice ${o.delivery_method === 'דיסק של הלקוח' ? '' : 'hidden'}" data-sub="דיסק של הלקוח"><div class="note warn">הדיסק חייב להיות ריק. קבצים שהיו עליו לא באחריותנו. <span id="diskRec"></span></div></div>
         ${radio('delivery_method', 'דיסק און קי', o.delivery_method, 'דיסק און קי מאיתנו', 'מגיע חזרה אליכם עם הקבצים')}
         <div class="sub-choice ${o.delivery_method === 'דיסק און קי' ? '' : 'hidden'}" data-sub="דיסק און קי">
-          ${pills('usb_size', o.usb_size, [['32', '32GB', '+' + price(11)], ['128', '128GB', '+' + price(12)]])}<span class="small muted" id="usbRec"></span></div>
+          ${pills('usb_size', o.usb_size, [['16', '16GB', '+' + price(22)], ['32', '32GB', '+' + price(11)], ['128', '128GB', '+' + price(12)]].filter(([s]) => prod(USB_PID[s])))}<span class="small muted" id="usbRec"></span></div>
         ${radio('delivery_method', 'ענן אישי של הלקוח', o.delivery_method, 'העלאה ישר לענן שלי', 'למי שכבר יש Google Drive, iCloud וכו׳')}
         <div class="sub-choice ${o.delivery_method === 'ענן אישי של הלקוח' ? '' : 'hidden'}" data-sub="ענן אישי של הלקוח"><select class="sel" data-part="order" data-k="cloud_type" aria-label="איזה ענן"><option value="">איזה ענן?</option>${['Google Drive', 'iCloud', 'Dropbox', 'OneDrive', 'אחר'].map(x => `<option ${o.cloud_type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
       </div>`)}
@@ -371,7 +376,7 @@ function bind() {
     if (k === 'delivery_method') {
       $$('[data-sub]').forEach(s => s.classList.toggle('hidden', s.dataset.sub !== v));
       if (v !== 'דיסק און קי') { O().usb_size = null; setUsbLine(0); $$('input[name=usb_size]').forEach(r => r.checked = false); }
-      else if (!O().usb_size) { const rec = diskFor(estGb()) > 32 ? 128 : 32; $(`input[name=usb_size][value="${rec}"]`).checked = true; O().usb_size = rec; setUsbLine(rec); queue('order', 'usb_size', rec); }
+      else if (!O().usb_size) { const rec = usbRecFor(estGb()); $(`input[name=usb_size][value="${rec}"]`).checked = true; O().usb_size = rec; setUsbLine(rec); queue('order', 'usb_size', rec); }
       if (v !== 'ענן אישי של הלקוח') { O().cloud_type = null; }
     }
     queue('order', k, v, true);
@@ -400,9 +405,13 @@ function bind() {
   $('#moreTypes') && ($('#moreTypes').onclick = () => { $('#restTypes').classList.remove('hidden'); $('#moreTypes').classList.add('hidden'); });
   $('#submitBtn').onclick = submit;
 }
+const USB_PID = { 16: 22, 32: 11, 128: 12 }; // USB size GB → product id
+/** smallest USB stick that fits the estimate (with 25% spare) */
+const usbRecFor = gb => gb * 1.25 <= 16 ? 16 : gb * 1.25 <= 32 ? 32 : 128;
 function setUsbLine(size) {
-  D.lines = D.lines.filter(l => l.product_id !== 11 && l.product_id !== 12);
-  if (size === 32) D.lines.push({ product_id: 11, qty: 1 }); if (size === 128) D.lines.push({ product_id: 12, qty: 1 });
+  const ids = Object.values(USB_PID);
+  D.lines = D.lines.filter(l => !ids.includes(l.product_id));
+  if (USB_PID[size]) D.lines.push({ product_id: USB_PID[size], qty: 1 });
 }
 function qtyChangedLocal() {
   const ids = new Set([...(D.order.initial_lines || []).map(l => l.product_id), ...D.lines.map(l => l.product_id)]);
@@ -425,8 +434,14 @@ function paintPhotoNeed() {
 function paintUploads() {
   const g = $('#updGallery'); if (!g) return;
   const ups = D.photos.filter(p => p.source === 'customer' && p.url);
-  g.innerHTML = ups.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה"></a>`).join('');
+  g.innerHTML = ups.map(p => `<span class="ph"><a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה"></a><button type="button" class="ph-del" data-phdel="${p.id}" aria-label="הסרת התמונה">×</button></span>`).join('');
   g.classList.toggle('hidden', !ups.length);
+  $$('[data-phdel]', g).forEach(b => b.onclick = async () => {
+    if (!await ask('להסיר את התמונה?', 'התמונה תוסר מהשאלון.', 'כן, להסיר', 'לא')) return;
+    b.disabled = true;
+    try { const r = await api({ op: 'photo_delete', id: Number(b.dataset.phdel) }); D.photos = D.photos.filter(p => p.id !== Number(b.dataset.phdel)); D.progress = r.progress; D.missing = r.missing; paintUploads(); paintProgress(); }
+    catch { b.disabled = false; const m = $('#updMsg'); if (m) m.textContent = 'ההסרה נכשלה. נסו שוב.'; }
+  });
 }
 async function shrink(file) {
   try {
@@ -452,7 +467,7 @@ function paintDisk() {
   const t = gb > 0 ? `לפי הכמויות, מומלץ דיסק של ${diskLabel(s)} לפחות.` : '';
   $('#diskRec') && ($('#diskRec').textContent = t);
   // the recommended USB size gets a "מומלץ" tag (none until there are quantities)
-  const rec = gb > 0 ? (s > 32 ? '128' : '32') : '';
+  const rec = gb > 0 ? String(usbRecFor(gb)) : '';
   $$('input[name=usb_size]').forEach(r => { const sp = r.nextElementSibling; sp.querySelector('.rec-tag')?.remove(); if (r.value === rec) sp.insertAdjacentHTML('afterbegin', '<b class="rec-tag">מומלץ</b>'); });
   $('#usbRec') && ($('#usbRec').textContent = gb > 0 ? (s > 128 ? 'לכמות כזו ייתכן שנצטרך יותר מדיסק אחד. נחזור אליכם עם המלצה.' : `לפי כמות החומרה שסימנת, ${rec}GB יספיק עבור כל החומרה.`) : '');
 }
