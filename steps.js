@@ -96,7 +96,7 @@ function subStatus(o) {
 }
 
 // ---------- required details before payment ----------
-const REQUIRED_BEFORE_PAID = [['full_name', 'שם מלא'], ['email', 'מייל'], ['id_number', 'ת.ז לחשבונית'], ['city', 'עיר'], ['street', 'רחוב'], ['house_number', 'מספר בית'], ['alt_contact_name', 'איש קשר נוסף'], ['alt_contact_phone', 'טלפון איש קשר נוסף']];
+const REQUIRED_BEFORE_PAID = [['full_name', 'שם מלא'], ['email', 'מייל'], ['id_number', 'ת.ז לחשבונית'], ['city', 'עיר'], ['street', 'רחוב'], ['house_number', 'מספר בית']]; // backup contact is optional (user decision 2026-11-22)
 // a business invoice needs the business name + number instead of the ID number
 const missingForPaid = (o, c) => REQUIRED_BEFORE_PAID.filter(([k]) => !(k === 'id_number' && c?.invoice_business && String(c.business_name || '').trim() && String(c.business_id || '').trim()) && !String(c?.[k] || '').trim()).map(x => x[1]).concat(o.media_qty ? [] : ['כמויות בהצעת המחיר']);
 const showRequired = o => stepIdx(o.stage) >= stepIdx('הצעה נשלחה') || phaseOf(o.stage) !== 'sales';
