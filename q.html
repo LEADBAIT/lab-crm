@@ -149,6 +149,8 @@
   .upl-row .gallery.hidden { display: none !important; }
   .upl-btn { min-height: 40px; font-size: 14px; padding: 8px 14px; }
   #updMsg:empty { display: none; }
+  .rec-tag { background: var(--ok); color: #fff; font-size: 11px; line-height: 16px; padding: 1px 7px; border-radius: 99px; }
+  #usbRec { color: var(--ok); font-weight: 700; }
   .mold-row { display: flex; align-items: center; gap: 10px; }
   .mold-row .pills { flex: none; }
   .mold-row .pills { flex-wrap: nowrap; gap: 5px; }
@@ -449,7 +451,10 @@ function paintDisk() {
   const gb = estGb(), s = diskFor(gb);
   const t = gb > 0 ? `לפי הכמויות, מומלץ דיסק של ${diskLabel(s)} לפחות.` : '';
   $('#diskRec') && ($('#diskRec').textContent = t);
-  $('#usbRec') && ($('#usbRec').textContent = gb > 0 ? (s > 128 ? `לכמות כזו ייתכן שנצטרך יותר מדיסק אחד. נחזור אליכם עם המלצה.` : `לפי הכמויות מומלץ ${s > 32 ? '128GB' : '32GB'}.`) : '');
+  // the recommended USB size gets a "מומלץ" tag (none until there are quantities)
+  const rec = gb > 0 ? (s > 32 ? '128' : '32') : '';
+  $$('input[name=usb_size]').forEach(r => { const sp = r.nextElementSibling; sp.querySelector('.rec-tag')?.remove(); if (r.value === rec) sp.insertAdjacentHTML('afterbegin', '<b class="rec-tag">מומלץ</b>'); });
+  $('#usbRec') && ($('#usbRec').textContent = gb > 0 ? (s > 128 ? 'לכמות כזו ייתכן שנצטרך יותר מדיסק אחד. נחזור אליכם עם המלצה.' : `לפי כמות החומרה שסימנת, ${rec}GB יספיק עבור כל החומרה.`) : '');
 }
 function paintProgress() {
   $('#pct').textContent = D.progress + '%'; $('#fill').style.width = D.progress + '%';
