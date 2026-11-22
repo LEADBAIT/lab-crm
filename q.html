@@ -153,6 +153,12 @@
   .upl-row .gallery.hidden { display: none !important; }
   .upl-btn { min-height: 40px; font-size: 14px; padding: 8px 14px; }
   #updMsg:empty { display: none; }
+  /* photo viewer */
+  #lightbox { border: 0; padding: 0; background: transparent; max-width: 100vw; max-height: 100vh; width: 100vw; height: 100vh; overflow: hidden; }
+  #lightbox[open] { display: flex; align-items: center; justify-content: center; }
+  #lightbox::backdrop { background: rgba(10,12,16,.88); }
+  #lbImg { max-width: calc(100vw - 32px); max-height: calc(100vh - 120px); border-radius: var(--radius-sm); box-shadow: 0 8px 30px rgba(0,0,0,.5); background: #fff; }
+  .lb-x { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 14px; width: 48px; height: 48px; border-radius: 50%; border: 2px solid #fff; background: rgba(0,0,0,.55); color: #fff; font: 700 30px/42px var(--sans); cursor: pointer; padding: 0; }
   .rec-tag { background: var(--ok); color: #fff; font-size: 11px; line-height: 16px; padding: 1px 7px; border-radius: 99px; }
   #usbRec { color: var(--ok); font-weight: 700; }
   .mold-row { display: flex; align-items: center; gap: 10px; }
@@ -179,6 +185,7 @@
   <main id="main"><div class="center muted">טוען…</div></main>
 </div>
 <div class="submit-bar hidden" id="bar"><div class="in"><span class="miss" id="barMiss"></span><button class="btn btn-primary" id="submitBtn">שליחה</button></div></div>
+<dialog id="lightbox" aria-label="תמונה בגודל מלא"><button type="button" class="lb-x" id="lbX" aria-label="סגירה">×</button><img id="lbImg" alt=""></dialog>
 <dialog id="dlg"><div class="box-head" id="dlgT"></div><div class="box-body"><p id="dlgB"></p><div class="acts"><button class="btn btn-primary" id="dlgOk">כן</button><button class="btn btn-secondary" id="dlgNo">לא</button></div></div></dialog>
 
 <script src="config.js"></script>
@@ -519,6 +526,16 @@ function renderDone() {
 function renderLocked() {
   $('#main').innerHTML = `<div class="done"><h1>ההצעה כבר נשלחה אליך</h1><p style="margin:0">לשינויים בפרטים, דבר איתנו ונעדכן.</p>${summaryHtml()}${waBtn('שלום, אני רוצה לשנות משהו בהזמנה')}</div>`;
 }
+// ---------- photo viewer: photos open inside the form (not a new tab); close with ×, a tap around the photo, or Esc ----------
+document.addEventListener('click', e => {
+  const a = e.target.closest('a.mold-pic, .gallery a'); if (!a) return;
+  e.preventDefault();
+  const img = a.querySelector('img'), lb = $('#lightbox');
+  $('#lbImg').src = a.getAttribute('href'); $('#lbImg').alt = img?.alt || '';
+  lb.showModal();
+});
+$('#lbX').onclick = () => $('#lightbox').close();
+$('#lightbox').addEventListener('click', e => { if (e.target.id !== 'lbImg') $('#lightbox').close(); });
 start();
 </script>
 </body>
