@@ -511,7 +511,7 @@ function summaryHtml() {
   const del = o.delivery_method === 'דיסק און קי' ? `דיסק און קי ${o.usb_size || ''}GB מאיתנו` : o.delivery_method === 'ענן אישי של הלקוח' ? `העלאה ל-${o.cloud_type || 'ענן'}` : o.delivery_method === 'דיסק של הלקוח' ? 'דיסק שלי, נשלח עם החומרה' : '—';
   const addr = [c.street, c.house_number].filter(Boolean).join(' ') + (c.city ? ', ' + c.city : '');
   const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
-  return `<div class="summary"><dl>${row('החומרה', items)}${row('קבצים', esc(del) + '<br><span class="small muted">+ קישור להורדה</span>')}${row('אקספרס', o.priority ? 'כן' : 'לא')}${row('החומרה בסוף', esc(o.return_method || '—'))}${row('איסוף מ-', esc(addr))}${row('חשבונית', esc(c.invoice_business ? c.business_name : c.email))}</dl></div>`;
+  return `<div class="summary"><dl>${row('החומרה', items)}${row('קבצים', esc(del))}${row('אקספרס', o.priority ? 'כן' : 'לא')}${row('החומרה בסוף', esc(o.return_method || '—'))}${row('איסוף מ-', esc(addr))}${row('חשבונית', esc(c.invoice_business ? c.business_name : c.email))}</dl></div>`;
 }
 function renderDone() {
   $('#progress').classList.add('hidden'); $('#bar').classList.add('hidden');
