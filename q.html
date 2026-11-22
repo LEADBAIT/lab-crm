@@ -288,7 +288,7 @@ function render() {
   const pills = (name, cur, list) => `<div class="pills">${list.map(([v, t, pr]) => `<label class="pill"><input type="radio" name="${name}" value="${esc(v)}" ${String(cur ?? '') === v ? 'checked' : ''}><span>${t}${pr ? ` <em>${pr}</em>` : ''}</span></label>`).join('')}</div>`;
   $('#main').innerHTML = `<div class="wrap">
     <div class="intro"><h1>${fn ? `שלום ${esc(fn)},` : 'שלום,'}</h1>
-      <p>3 דקות של שאלות, ותקבל הצעת מחיר מסודרת <b>תוך 24 שעות</b>. כל תשובה נשמרת לבד.</p></div>
+      <p>לקבלת הצעת מחיר סופית, יש למלא את הטופס הבא:</p></div>
     ${initialPhotos.length ? `<div class="gallery">${initialPhotos.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה" loading="lazy"></a>`).join('')}</div>` : ''}
 
     ${box(++n, 'qty', 'איזו חומרה יש לך?', `
