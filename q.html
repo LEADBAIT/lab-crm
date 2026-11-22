@@ -290,7 +290,10 @@ function render() {
   const mine = media().filter(p => initQty(p.id) > 0 || qtyOf(p.id) > 0), rest = media().filter(p => !mine.includes(p));
   const initialPhotos = D.photos.filter(p => p.kind === 'initial' && p.url);
   const price = id => prod(id) ? ils(prod(id).unit_price) : '';
-  const expressDays = D.settings.express_biz_days || 7, linkDays = D.settings.drive_link_days || 60;
+  const st = k => Number(D.settings[k]) || 0;
+  const expressDays = st('express_biz_days') || 7, slaDays = st('sla_target_days') || 21;
+  // self pickup: same timeline as the CRM's uncollected-hardware tasks (settings), not a separate number
+  const feeDays = st('storage_fee_days') || 30, destroyAfter = (st('destroy_days') || 90) + (st('destroy_notice_days') || 14);
   let n = 0;
   const pills = (name, cur, list) => `<div class="pills">${list.map(([v, t, pr]) => `<label class="pill"><input type="radio" name="${name}" value="${esc(v)}" ${String(cur ?? '') === v ? 'checked' : ''}><span>${t}${pr ? ` <em>${pr}</em>` : ''}</span></label>`).join('')}</div>`;
   $('#main').innerHTML = `<div class="wrap">
@@ -333,11 +336,11 @@ function render() {
       </div>`)}
 
     ${box(++n, 'express', 'צריך את זה מהר?', `
-      <p class="small muted" style="margin:0">רגיל: עד 14 ימי עסקים. לאירוע קרוב (יום הולדת, חג) יש אקספרס.</p>
+      <p class="small muted" style="margin:0">רגיל: עד ${slaDays} ימים. לאירוע קרוב (יום הולדת, חג) יש אקספרס.</p>
       <label class="choice"><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>אקספרס: עד ${expressDays} ימי עסקים</b></span><span class="price">+${price(14)}</span></label>`, false)}
 
     ${box(++n, 'return', 'מה תרצה שנעשה עם החומרה הישנה בסוף?', pills('return_method', o.return_method, [['לא מוחזר (בהסכמה)', 'לא צריך להחזיר'], ['החזרה במשלוח', 'להחזיר במשלוח', '+' + price(13)], ['איסוף עצמי', 'אאסוף בעצמי']])
-      + `<div class="note warn ${o.return_method === 'איסוף עצמי' ? '' : 'hidden'}" id="pickupNote">אפשר לאסוף עד 14 ימים מסוף העבודה. אחרי זה ניאלץ להיפטר מהחומרה.</div>`)}
+      + `<div class="note warn ${o.return_method === 'איסוף עצמי' ? '' : 'hidden'}" id="pickupNote">אפשר לאסוף בלי עלות עד ${feeDays} ימים מסוף העבודה. אחרי זה חלים דמי אחסון, ואחרי ${destroyAfter} ימים החומרה מושמדת.</div>`)}
 
     ${box(++n, 'address', 'מאיפה לאסוף?', `
       <p class="small muted" style="margin:0">שליח מגיע אליך. את היום נתאם אחרי שתאשר את ההצעה.</p>
@@ -517,7 +520,7 @@ function renderDone() {
   $('#progress').classList.add('hidden'); $('#bar').classList.add('hidden');
   const fn = firstName(C().full_name);
   $('#main').innerHTML = `<div class="done"><div class="big">✓</div><h1>תודה${fn ? ' ' + esc(fn) : ''}, קיבלנו הכל</h1>
-    <p style="margin:0">נבדוק את הפרטים ונשלח לך הצעת מחיר מסודרת <b>תוך 24 שעות</b>, בוואטסאפ.</p>
+    <p style="margin:0">נבדוק את הפרטים, והצעת המחיר תישלח אליך בוואטסאפ <b>בשעות הקרובות</b>.</p>
     ${summaryHtml()}
     <p class="small muted" style="margin:0">משהו לא נכון? אפשר לעדכן עד שנשלח את ההצעה.</p>
     <div style="display:grid;gap:8px"><button class="btn btn-secondary" id="editAgain">עדכון התשובות</button>${waBtn('שלום, מילאתי את השאלון')}</div></div>`;

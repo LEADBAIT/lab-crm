@@ -152,8 +152,8 @@ function nextCardHtml(ctx) {
   return `<section class="card next-card">
     <div class="eyebrow">${phTag(o.stage)}שלב ${i + 1} מתוך ${STEPS.length} · ${esc(s.key)}</div>
     <h2>הצעד הבא: ${esc(s.title)}</h2>
-    <p class="todo">${esc(s.todo)}</p>
-    ${FU_STAGES.includes(o.stage) ? `<div class="fu-line fu-${fuState(o)}"><span>פולו-אפ הבא: <b>${o.next_followup ? fuCh(o) + ' ' + (FU_CH[o.followup_channel] ? FU_CH[o.followup_channel][1] + ' ' : '') + esc(fuLabel(o)) + ' (' + fmtShort(o.next_followup) + ')' : 'אין צעד הבא'}</b>${o.followup_note ? ' · ' + esc(o.followup_note) : ''}${o.stage === 'בשיחה' ? ` · ניסיון ${o.followup_attempts || 1} מתוך ${MAX_ATTEMPTS}` : ''}</span><button class="btn sm" id="fuEdit">${o.next_followup ? 'שינוי' : 'קביעת פולו-אפ'}</button></div>` : ''}
+    <p class="todo">${esc(typeof s.todo === 'function' ? s.todo(o, ctx) : s.todo)}</p>
+    ${FU_STAGES.includes(o.stage) ? `<div class="fu-line fu-${fuState(o)}"><span>פולו-אפ הבא: <b>${o.next_followup ? fuCh(o) + ' ' + (FU_CH[o.followup_channel] ? FU_CH[o.followup_channel][1] + ' ' : '') + esc(fuLabel(o)) + ' (' + fmtShort(o.next_followup) + ')' : 'אין צעד הבא'}</b>${o.followup_note ? ' · ' + esc(o.followup_note) : ''}${o.stage === 'בשיחה' ? ` · ניסיון ${o.followup_attempts || 1}`: ''}</span><button class="btn sm" id="fuEdit">${o.next_followup ? 'שינוי' : 'קביעת פולו-אפ'}</button></div>` : ''}
     ${checks.length ? `<ul class="checklist">${checks.map((k, j) => checkHtml(ctx, k, j)).join('')}</ul>` : ''}
     ${s.fields ? `<div class="fields" style="margin-bottom:12px">${s.fields.map(k => fld(ctx, k)).join('')}</div>` : ''}
     ${s.pay ? `<div class="note" style="margin-bottom:12px">תשלום בקישור SUMIT: ההזמנה עוברת לבד לתיאום איסוף (בדרך כלל מיד, לכל המאוחר תוך שעה). תשלום בדרך אחרת: לוחצים "${esc(s.btn)}" ורושמים את התשלום.</div>` : ''}

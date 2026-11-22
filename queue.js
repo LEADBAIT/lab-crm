@@ -14,10 +14,10 @@ const TASK_TYPES = [
   { k: 'mismatch', name: 'פער בספירה', test: o => o.flag_count_mismatch && o.phase === 'ops',
     why: o => `הלקוח הצהיר על ${o.media_qty} פריטים, במעבדה נקלטו ${o.items_at_lab_or_later}`, urg: () => 0, act: { label: 'בדיקה', open: true } },
   { k: 'deliver', name: 'למסור ללקוח', test: o => o.phase === 'ops' && (o.files_received_at || o.stage === 'למסירה ללקוח') && !o.delivery_sent_at,
-    why: o => o.delivery_link ? 'הקבצים מוכנים והקישור מוכן. לשלוח ללקוח' : 'הקבצים מוכנים. צריך להדביק קישור הורדה ולשלוח', urg: () => 1, act: { label: 'שליחת הקבצים', open: true } },
+    why: o => 'הקבצים מוכנים. למסור ללקוח ולסמן שנמסרו', urg: () => 1, act: { label: 'שליחת הקבצים', open: true } },
   { k: 'late', name: 'באיחור', test: o => o.flag_sla,
     why: o => `${o.sla_reason} · ${o.stage}${o.lab_name ? ' · ' + o.lab_name : ''}`, urg: o => o.flag_sla === 'red' ? 0 : 1, act: { label: 'פתיחה', open: true } },
-  { k: 'expiring', name: 'קישור עומד להימחק', test: o => o.delivery_link_expires && o.delivery_link_expires >= today() && o.delivery_link_expires <= addDays(7),
+  { k: 'expiring', name: 'קישור עומד להימחק', test: o => o.delivery_link && o.delivery_link_expires && o.delivery_link_expires >= today() && o.delivery_link_expires <= addDays(7),
     why: o => `קישור ההורדה יימחק ${until(o.delivery_link_expires)}. כדאי להזכיר ללקוח להוריד`, urg: () => 2, act: { label: 'תזכורת להורדה', wa: true } },
   // retention: hardware that was never collected, waived hardware, and the files after the link expires
   { k: 'destroy', name: 'להשמיד חומרה', test: o => !o.destroyed_at && ((o.destroy_notice_at && daysSince(o.destroy_notice_at) >= (setting('destroy_notice_days') ?? 14))
@@ -27,7 +27,7 @@ const TASK_TYPES = [
   { k: 'uncollected', name: 'חומרה לא נאספה', test: o => !!hwWaitStep(o),
     why: o => { const d = daysSince(o.delivery_sent_at); return { remind: `החומרה מחכה ${d} ימים מאז שהקבצים נשלחו. להזכיר ללקוח לאסוף`, fee: `החומרה מחכה ${d} ימים. להודיע ללקוח על דמי אחסון`, notice: `החומרה מחכה ${d} ימים. הודעה אחרונה: אם לא תיאסף תוך ${setting('destroy_notice_days') ?? 14} יום היא תושמד` }[hwWaitStep(o)]; },
     urg: o => hwWaitStep(o) === 'notice' ? 0 : 1, act: { label: 'שלחתי ללקוח', hwStamp: true } },
-  { k: 'linkdel', name: 'למחוק קבצים', test: o => o.delivery_link_expires && o.delivery_link_expires < today() && !o.files_deleted_at,
+  { k: 'linkdel', name: 'למחוק קבצים', test: o => o.delivery_link && o.delivery_link_expires && o.delivery_link_expires < today() && !o.files_deleted_at,
     why: o => `קישור ההורדה פג ${until(o.delivery_link_expires)}. מוחקים את התיקייה בדרייב ומסמנים`, urg: () => 2, act: { label: 'התיקייה נמחקה', stamp: 'files_deleted_at' } },
 ];
 /** hardware back from the lab, files sent, still with us: which reminder is due ('remind' | 'fee' | 'notice' | '') */

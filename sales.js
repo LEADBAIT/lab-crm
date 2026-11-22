@@ -131,7 +131,7 @@ function nameCell(r) {
 }
 function stageCell(r) {
   return `<td><select class="stage-pill-sel" data-stage="${r.id}" aria-label="שלב" style="--sc:${stageColor(r.stage)}">${SALES_STAGES.map(s => `<option ${s === r.stage ? 'selected' : ''}>${esc(s)}</option>`).join('')}<option value="${LOST}">${LOST}…</option></select>
-    ${r.stage === 'בשיחה' ? `<div class="attempts" aria-label="ניסיון ${r.followup_attempts || 1} מתוך ${MAX_ATTEMPTS}">${Array.from({ length: MAX_ATTEMPTS }, (_, i) => `<span class="${i < (r.followup_attempts || 1) ? 'on' : ''}"></span>`).join('')}<small>ניסיון ${r.followup_attempts || 1}/${MAX_ATTEMPTS}</small></div>` : ''}</td>`;
+    ${r.stage === 'בשיחה' ? `<div class="attempts"><small>ניסיון ${r.followup_attempts || 1}</small></div>` : ''}</td>`;
 }
 function fuCell(r) {
   const st = fuState(r);

@@ -12,7 +12,7 @@ const STEPS = [
     wa: true, btn: 'פניתי ללקוח', open: ['customer', 'sale'],
     checks: [{ label: 'יצרנו קשר', done: o => !!o.last_contact_at, at: o => o.last_contact_at, act: 'contact' }] },
   { key: 'בשיחה', short: 'שיחה', phase: 'sales',
-    title: 'להשיג את הלקוח', todo: 'פנינו ועוד לא דיברנו. מנסים שוב במועד הפולו-אפ. אחרי 4 ניסיונות בלי מענה הליד נסגר לבד כ"לא עונה".',
+    title: 'להשיג את הלקוח', todo: 'פנינו ועוד לא דיברנו. מנסים שוב במועד הפולו-אפ. הליד נסגר רק כשמסמנים אותו כלא רלוונטי.',
     wa: true, btn: 'דיברנו, ממשיכים לפולו-אפ', open: ['customer', 'sale'],
     checks: [{ label: 'יצרנו קשר', done: o => !!o.last_contact_at, at: o => o.last_contact_at, act: 'contact' }] },
   { key: 'בפולואפ', short: 'פולואפ', phase: 'sales',
@@ -55,11 +55,11 @@ const STEPS = [
       FILES_CHECK,
       { label: 'החומרה חזרה אלינו', done: o => !!o.back_from_lab_at, at: o => o.back_from_lab_at, act: 'ms:back_from_lab_at' }] },
   { key: 'למסירה ללקוח', short: 'מסירה', phase: 'ops', date: o => o.back_from_lab_at,
-    title: 'למסור ללקוח', todo: 'לשלוח ללקוח את קישור ההורדה, ולהחזיר לו את הקלטות המקוריות.',
+    title: 'למסור ללקוח', todo: deliveryTodo,
     wa: true, btn: 'הלקוח קיבל הכל, סיום', set: ['returned_at'], open: ['delivery'],
     fields: ['delivery_link', 'return_method', 'return_tracking'],
-    need: o => [!o.delivery_link && 'קישור הורדה ללקוח', !o.delivery_sent_at && 'לסמן שהקישור נשלח', !closingDone(o) && `ספירת סגירה (${o.items_packed}/${o.items_count} נסרקו "נארז להחזרה")`].filter(Boolean),
-    checks: [FILES_CHECK, { label: 'קישור ההורדה נשלח ללקוח', done: o => !!o.delivery_sent_at, at: o => o.delivery_sent_at, act: 'ms:delivery_sent_at' },
+    need: o => [!o.delivery_sent_at && 'לסמן שהקבצים נמסרו ללקוח', !closingDone(o) && `ספירת סגירה (${o.items_packed}/${o.items_count} נסרקו "נארז להחזרה")`].filter(Boolean),
+    checks: [FILES_CHECK, { label: 'הקבצים נמסרו ללקוח', done: o => !!o.delivery_sent_at, at: o => o.delivery_sent_at, act: 'ms:delivery_sent_at' },
       { label: 'ספירת סגירה: כל פריט נסרק "נארז להחזרה"', done: closingDone, act: 'closing', show: o => o.items_count > 0 && !o.returned_at && !o.hardware_waived_at },
       { label: 'החומרה הוחזרה ללקוח', done: o => !!o.returned_at, at: o => o.returned_at, act: 'ms:returned_at', show: o => !o.hardware_waived_at },
       { label: 'הלקוח ויתר על החומרה (לא חוזרת אליו)', done: o => !!o.hardware_waived_at, at: o => o.hardware_waived_at, act: 'waive', show: o => !o.returned_at || !!o.hardware_waived_at }] },
@@ -69,6 +69,14 @@ const STEPS = [
     checks: [{ label: 'ביקשנו ביקורת בגוגל', done: o => !!o.review_requested_at, at: o => o.review_requested_at, act: 'ms:review_requested_at' },
       { label: 'ביקשנו סטורי', done: o => !!o.story_requested_at, at: o => o.story_requested_at, act: 'ms:story_requested_at' }] },
 ];
+/** delivery step instructions built from what the customer chose (user decision 2026-11-23: no assumed download link / return) */
+function deliveryTodo(o, ctx) {
+  const usb = (ctx?.lines || []).map(l => S.products.find(p => p.id === l.product_id)).find(p => p && /דיסק און קי/.test(p.name));
+  const files = { 'דיסק און קי': `לשלוח ללקוח ${usb ? usb.name : 'דיסק און קי'} עם הקבצים.`, 'דיסק של הלקוח': 'להעתיק את הקבצים לדיסק שהלקוח שלח, ולהחזיר לו אותו.',
+    'ענן אישי של הלקוח': `להעלות את הקבצים ל-${o.cloud_type || 'ענן'} של הלקוח.` }[o.delivery_method] || 'למסור ללקוח את הקבצים (הלקוח לא בחר איך לקבל).';
+  const hw = { 'לא מוחזר (בהסכמה)': 'החומרה לא חוזרת ללקוח.', 'החזרה במשלוח': 'להחזיר את החומרה במשלוח.', 'איסוף עצמי': 'הלקוח אוסף את החומרה בעצמו.' }[o.return_method] || 'לבדוק עם הלקוח מה עושים עם החומרה.';
+  return files + ' ' + hw + (o.delivery_link ? ' יש גם קישור הורדה: לשלוח אותו.' : '');
+}
 /** closing count: every barcode scanned "נארז להחזרה" (or closed otherwise) before the hardware leaves */
 function closingDone(o) { return !o.items_count || !!o.returned_at || o.items_packed >= o.items_count; }
 const stepIdx = k => STEPS.findIndex(s => s.key === k);
@@ -89,13 +97,13 @@ function subStatus(o) {
   const d = n => n === 0 ? 'היום' : n === 1 ? 'אתמול' : `לפני ${n} ימים`;
   switch (o.stage) {
     case 'פנייה חדשה': return o.last_contact_at ? `ניסינו ליצור קשר ${d(daysSince(o.last_contact_at))}` : `עוד לא דיברנו · נכנסה ${ago(o.created_at)}`;
-    case 'בשיחה': return `ניסיון ${o.followup_attempts || 1} מתוך 4 · ${o.last_contact_at ? 'פנינו ' + d(daysSince(o.last_contact_at)) : 'עוד לא נרשמה פנייה'}`;
+    case 'בשיחה': return `ניסיון ${o.followup_attempts || 1} · ${o.last_contact_at ? 'פנינו ' + d(daysSince(o.last_contact_at)) : 'עוד לא נרשמה פנייה'}`;
     case 'בפולואפ': return o.media_qty ? `${o.media_qty} פריטים · ${money(o.total)}, ההצעה עוד לא נשלחה` : 'עוד אין כמויות בהצעה';
     case 'הצעה נשלחה': return `${money(o.total)} · נשלחה ${d(daysSince(o.stage_changed_at))}`;
     case 'לתאם איסוף': return o.pickup_date ? `שליח מגיע ${until(o.pickup_date)} (${fmtShort(o.pickup_date)})` : !o.lab_id ? 'צריך לבחור מעבדה ולהזמין שליח' : 'צריך להזמין שליח';
     case 'בדרך למעבדה': return `נאסף ${o.picked_up_at ? d(daysSince(o.picked_up_at)) : ''}`;
     case 'במעבדה': return o.conversion_done_at ? 'ההמרה הסתיימה, מחכים לחומרה' : o.intake_done_at ? `בהמרה · ${o.items_converted}/${o.items_count} הומרו` : 'בקליטה';
-    case 'למסירה ללקוח': return o.delivery_sent_at ? `הקישור נשלח · נמחק ${fmtShort(o.delivery_link_expires)}` : o.delivery_link ? 'הקישור מוכן, עוד לא נשלח' : 'צריך קישור הורדה';
+    case 'למסירה ללקוח': return o.delivery_sent_at ? `הקבצים נמסרו${o.delivery_link ? ' · הקישור יימחק ' + fmtShort(o.delivery_link_expires) : ''}` : 'הקבצים עוד לא נמסרו';
     case 'הושלם': return o.completed_at ? `הסתיים ${fmtDate(o.completed_at)}` : 'הסתיים';
     case LOST: return o.loss_category ? `סיבה: ${o.loss_category}` : '';
   }
@@ -111,7 +119,6 @@ const showRequired = o => stepIdx(o.stage) >= stepIdx('הצעה נשלחה') || 
 // ---------- follow-ups (manual: a date is set only by us) ----------
 /** stages where a lead must always have a next follow-up date */
 const FU_STAGES = ['בשיחה', 'בפולואפ', 'הצעה נשלחה'];
-const MAX_ATTEMPTS = 4;
 const fuTime = t => t ? String(t).slice(0, 5) : '';
 /** 'late' | 'today' | 'none' (in a follow-up stage without a date) | 'future' | '' */
 function fuState(o) {
@@ -135,10 +142,10 @@ function fuLabel(o) {
 /** YYYY-MM-DD n days from today (Israel time) */
 const dayPlus = n => new Date(Date.now() + n * 864e5).toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
 async function followupModal(o, { stage = o.stage, title, date, note } = {}) {
-  // in "בשיחה" rescheduling counts as one more attempt; the 4th closes the lead (database trigger)
+  // in "בשיחה" rescheduling counts as one more attempt (counted only; leads never close by themselves, user decision 2026-11-23)
   const resched = stage === o.stage && o.stage === 'בשיחה' && o.next_followup;
   const next = resched ? (o.followup_attempts || 1) + 1 : 1;
-  const warn = resched ? (next >= MAX_ATTEMPTS ? `<div class="warn">זה הניסיון ה-${MAX_ATTEMPTS}. שמירה תסגור את הליד כ"לא רלוונטי" (לא עונה).</div>` : `<p class="small muted">ניסיון ${next} מתוך ${MAX_ATTEMPTS}</p>`) : '';
+  const warn = resched ? `<p class="small muted">ניסיון ${next}</p>` : '';
   const ch = o.followup_channel || 'call';
   const p = modal(`<h2>${esc(title || 'מתי חוזרים ל' + custName(o) + '?')}</h2>${warn}<form id="fuF" class="grid">
     <div class="field">איך חוזרים <span class="req">*</span><div class="seg big" role="radiogroup" aria-label="איך חוזרים">${Object.entries(FU_CH).map(([k, [ic, l]]) => `<button type="button" role="radio" data-ch="${k}" class="${k === ch ? 'on' : ''}" aria-checked="${k === ch}">${ic} ${l}</button>`).join('')}</div><input type="hidden" name="ch" value="${ch}"></div>
