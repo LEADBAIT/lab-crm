@@ -72,6 +72,7 @@ function actInd(r) {
 function kcardHtml(r) {
   const flags = dealFlags(r, true);
   return `<div class="kcard" draggable="true" data-id="${r.id}">${actInd(r)}<span class="t">${esc(custName(r))}</span>
+    ${r.full_name && r.phone ? `<div class="ph"><bdi dir="ltr">${esc(fmtPhone(r.phone))}</bdi></div>` : ''}
     <div class="m">${esc(subStatus(r))}</div>
     <div class="foot">${r.total > 0 ? `<span class="v">${money(r.total)}</span>` : ''}${r.source ? `<span class="muted">${r.total > 0 ? '· ' : ''}${esc(r.source)}</span>` : ''}</div>
     ${flags ? `<div class="tags">${flags}</div>` : ''}</div>`;

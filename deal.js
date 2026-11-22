@@ -47,7 +47,7 @@ VIEWS.order = async function vOrder(id) {
     sb.from('order_events').select('*').eq('order_id', id).is('deleted_at', null).order('at', { ascending: false }).limit(150)]);
   [rl, ri, re].forEach(r => fail(r.error));
   const { data: c, error } = await sb.from('customers').select('*').eq('id', o.customer_id).single(); fail(error);
-  const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data };
+  const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data, photos: await loadPhotos(id) };
   // #order/<id>/<section> opens that section (the sales dashboard uses it, e.g. for missing invoice details)
   const sec = location.hash.split('/')[2];
   if (sec && SECTIONS.some(s => s[0] === sec)) { SEC_OPEN[id] ||= new Set(); SEC_OPEN[id].add(sec); }
@@ -186,6 +186,7 @@ const FIELD_DATE = d => /^\d{4}-\d{2}-\d{2}$/.test(d) ? fmtDate(d) : fmtDT(d);
 // ---------- sections ----------
 const SECTIONS = [
   ['customer', 'פרטי לקוח וכתובת', ctx => { const m = showRequired(ctx.o) ? missingForPaid(ctx.o, ctx.c).filter(x => x !== 'כמויות בהצעת המחיר') : []; return [ctx.c.city, m.length ? `<span class="chip red">חסרים ${m.length} פרטים</span>` : ''].filter(Boolean).join(' · '); }],
+  ['photos', 'תמונות החומרה', ctx => { const p = ctx.photos || [], u = p.filter(x => x.kind === 'update').length; return p.length ? `${p.length} תמונות${u ? ` · <span class="chip orange">${u} אחרי שינוי כמויות</span>` : ''}` : '<span class="chip red">אין תמונות</span>'; }],
   ['quote', 'הצעת מחיר', ctx => ctx.o.media_qty ? `${ctx.o.media_qty} פריטים · ${money(ctx.o.total)}` : 'עוד אין כמויות'],
   ['items', 'פריטים וברקודים', ctx => ctx.items.length ? `${ctx.items.length} ברקודים · ${ctx.o.items_at_lab_or_later} הגיעו למעבדה · ${ctx.o.items_converted} הומרו` : 'עוד לא נוצרו'],
   ['payment', 'תשלום, עלות וזיכוי', ctx => [ctx.o.payment_status, ctx.o.paid_amount ? money(ctx.o.paid_amount) : '', ctx.o.invoice_number ? 'חשבונית ' + ctx.o.invoice_number : '',
@@ -205,6 +206,7 @@ const SEC_BODY = {
   customer: ctx => `<div class="fields">${['full_name', 'phone', 'email', 'id_number', 'alt_contact_name', 'alt_contact_phone'].map(k => fld(ctx, k)).join('')}</div>
     <div class="subhead">כתובת לאיסוף</div><div class="fields">${['city', 'street', 'house_number', 'floor', 'apartment', 'entry_code'].map(k => fld(ctx, k)).join('')}</div>
     <div style="margin-top:12px">${tog(ctx, 'mailing_list')}</div>`,
+  photos: ctx => photosHtml(ctx),
   quote: ctx => quoteHtml(ctx),
   items: ctx => itemsHtml(ctx),
   payment: ctx => `<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}${creditHtml(ctx)}${moneyHtml(ctx.o)}`,
@@ -538,6 +540,7 @@ function bindDeal(ctx) {
   $('#copyPhone') && ($('#copyPhone').onclick = async () => { const p = fmtPhone(c.phone); try { await navigator.clipboard.writeText(p); toast('הטלפון הועתק: ' + p); } catch { tell('הטלפון', p); } });
   bindAutosave(view(), (t, k, v) => afterSave(ctx, t, k, v));
   bindNext(ctx);
+  bindPhotos(ctx);
   $$('details.sec').forEach(d => d.addEventListener('toggle', () => SEC_OPEN[o.id][d.open ? 'add' : 'delete'](d.dataset.sec)));
   $$('[data-step]').forEach(b => b.onclick = async () => { const s = STEPS[b.dataset.step]; if (s.key !== ctx.o.stage && await changeStage(ctx.o, s.key, c)) { delete SEC_OPEN[o.id]; reloadDeal(ctx); } });
   // Pipedrive won / lost: "שילם" runs the normal move to pickup (payment dialog, required details); "לא רלוונטי" asks why
