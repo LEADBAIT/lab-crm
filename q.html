@@ -204,6 +204,13 @@ const IC = {
   8: '<rect x="6" y="4" width="32" height="26" fill="#fff" stroke="#8C96A3"/><rect x="9" y="7" width="26" height="17" fill="#8AB4F8"/><path d="M9 24l8-8 6 6 4-3 8 5z" fill="#1F6F5C"/>',
   9: '<rect x="10" y="3" width="24" height="28" rx="2" fill="#EADFC2" stroke="#8C96A3"/><rect x="14" y="8" width="16" height="13" fill="#59616E"/>',
 };
+// 21 = audio reel-to-reel: two open reels (metal flanges with three windows) joined by the tape
+IC[21] = (() => {
+  const reel = cx => `<circle cx="${cx}" cy="15" r="10" fill="#8C96A3"/><circle cx="${cx}" cy="15" r="7.2" fill="#3A2A20"/>`
+    + [0, 120, 240].map(a => `<path d="M${cx} 15 L${(cx + 8.6 * Math.cos((a - 30) * Math.PI / 180)).toFixed(1)} ${(15 + 8.6 * Math.sin((a - 30) * Math.PI / 180)).toFixed(1)} A8.6 8.6 0 0 1 ${(cx + 8.6 * Math.cos((a + 30) * Math.PI / 180)).toFixed(1)} ${(15 + 8.6 * Math.sin((a + 30) * Math.PI / 180)).toFixed(1)} Z" fill="#C9D1DB"/>`).join('')
+    + `<circle cx="${cx}" cy="15" r="2.6" fill="#1B1F27"/><circle cx="${cx}" cy="15" r="1" fill="#C9D1DB"/>`;
+  return `${reel(11)}${reel(33)}<path d="M11 25 L33 25" stroke="#1B1F27" stroke-width="1.6"/><rect x="18" y="27" width="8" height="5" rx="1" fill="#59616E"/>`;
+})();
 const icon = id => `<svg viewBox="0 0 44 34" aria-hidden="true">${IC[id] || IC[1]}</svg>`;
 
 // ---------- server ----------
