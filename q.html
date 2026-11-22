@@ -130,6 +130,12 @@
   .choice { padding: 10px 12px; }
   .mrow { padding: 6px 0; }
   .gallery { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+  .mold-pic { margin: 0; display: flex; align-items: center; gap: 10px; }
+  .mold-pic svg { width: 120px; height: 72px; flex: none; border: 1px solid var(--line); padding: 3px; background: var(--surface); }
+  .mold-pic figcaption { font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+  .note.good { border-inline-start-width: 4px; background: #E9F5F0; color: #14503F; font-size: 15px; line-height: 22px; }
+  .more { font-weight: 700; }
+  .upl .need { font-weight: 700; color: var(--stamp-text); font-size: 14px; line-height: 20px; }
   @media (max-width: 480px) { .wrap { padding: 12px; } .site { border: 0; } }
 </style>
 </head>
@@ -169,6 +175,14 @@ const IC = {
   9: '<rect x="10" y="3" width="24" height="28" rx="2" fill="#EADFC2" stroke="#8C96A3"/><rect x="14" y="8" width="16" height="13" fill="#59616E"/>',
 };
 const icon = id => `<svg viewBox="0 0 44 34" aria-hidden="true">${IC[id] || IC[1]}</svg>`;
+// drawn example of a mouldy VHS tape (white-grey fuzzy spots on the shell, the label and the tape window). Own drawing, no copyright.
+const MOLD_SVG = (() => {
+  const spots = [[22,30,5],[30,26,3],[118,22,4],[128,30,6],[138,24,3],[60,70,4],[70,76,3],[100,72,5],[112,66,3],[40,62,3],[146,60,4],[18,74,4],[84,30,3],[52,24,2.5],[94,24,2.5],[66,48,3],[98,50,3.5],[76,52,2]];
+  const fuzz = spots.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r + 2}" fill="#E8E6DF" opacity=".35"/><circle cx="${x}" cy="${y}" r="${r}" fill="#F2F1EC" opacity=".9"/><circle cx="${x + r * .4}" cy="${y - r * .3}" r="${r * .45}" fill="#B9B6AC" opacity=".8"/>`).join('');
+  return `<rect x="4" y="8" width="152" height="80" rx="5" fill="#1F1F25"/><rect x="14" y="14" width="132" height="22" rx="2" fill="#EADFC2"/>
+    <rect x="44" y="42" width="72" height="22" rx="3" fill="#3A3A42"/><circle cx="58" cy="53" r="8" fill="#5A4636"/><circle cx="102" cy="53" r="8" fill="#5A4636"/>
+    <circle cx="58" cy="53" r="3" fill="#1F1F25"/><circle cx="102" cy="53" r="3" fill="#1F1F25"/>${fuzz}`;
+})();
 
 // ---------- server ----------
 async function api(body) {
@@ -235,6 +249,8 @@ const inp = (part, k, label, { req = false, type = 'text', mode = '', ph = '', a
 
 function render() {
   const c = C(), o = O(), fn = firstName(c.full_name);
+  // default answer: the old hardware does not come back (saved, so the question already counts as answered)
+  if (!o.return_method) { o.return_method = 'לא מוחזר (בהסכמה)'; queue('order', 'return_method', o.return_method); }
   const mine = media().filter(p => initQty(p.id) > 0 || qtyOf(p.id) > 0), rest = media().filter(p => !mine.includes(p));
   const initialPhotos = D.photos.filter(p => p.kind === 'initial' && p.url);
   const price = id => prod(id) ? ils(prod(id).unit_price) : '';
@@ -246,25 +262,27 @@ function render() {
       <p>3 דקות של שאלות, ותקבלו הצעת מחיר מסודרת <b>תוך 24 שעות</b>. כל תשובה נשמרת לבד.</p></div>
     ${initialPhotos.length ? `<div class="gallery">${initialPhotos.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה" loading="lazy"></a>`).join('')}</div>` : ''}
 
-    ${box(++n, 'qty', 'מה יש לכם?', `
+    ${box(++n, 'qty', 'איזו חומרה יש לכם?', `
       ${initialPhotos.length && mine.length ? '<p class="small muted" style="margin:0">מילאנו לפי התמונות ששלחתם. בדקו שזה נכון.</p>' : ''}
       <div>${mine.map(mrow).join('') || '<p class="muted small" style="margin:0">סמנו מה יש לכם ובאיזו כמות:</p>'}</div>
-      ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>+ יש עוד סוגים</button><div id="restTypes" ${mine.length ? 'class="hidden"' : ''}>${rest.map(mrow).join('')}</div>` : ''}
-      <label class="toggle-line small"><input type="checkbox" data-part="order" data-k="q_unsure_type" ${o.q_unsure_type ? 'checked' : ''}> לא בטוחים מה הסוג? סמנו, ונבדוק בתמונות</label>
+      ${rest.length ? `<button type="button" class="more" id="moreTypes" ${mine.length ? '' : 'hidden'}>+ יש לי עוד סוגי חומרה</button><div id="restTypes" ${mine.length ? 'class="hidden"' : ''}>${rest.map(mrow).join('')}</div>` : ''}
+      <label class="toggle-line small"><input type="checkbox" data-part="order" data-k="q_unsure_type" ${o.q_unsure_type ? 'checked' : ''}> אני לא בטוח איזו חומרה יש לי</label>
       <div id="photoNeed"></div>
-      <div class="q2"><span>איפה זה היה שמור?</span>${pills('storage_place', o.storage_place, [['בפנים', 'בבית'], ['בחוץ', 'מחסן / בוידעם'], ['לא ידוע', 'לא יודעים']])}</div>
-      <div class="q2"><span>יש עובש (נקודות לבנות)?</span>${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודעים']])}</div>
-      <p class="small muted" style="margin:0">עובש לא נורא: מנקים אותו כחלק מהשירות.</p>`)}
+      <div class="q2"><span>איפה החומרה הייתה שמורה במהלך השנים?</span>${pills('storage_place', o.storage_place, [['בפנים', 'במקום סגור'], ['בחוץ', 'במקום בחוץ'], ['לא ידוע', 'לא יודע']])}</div>
+      <div class="q2"><span>יש עובש על החומרה?</span>
+        <figure class="mold-pic"><svg viewBox="0 0 160 96" role="img" aria-label="דוגמה: קלטת עם עובש, נקודות לבנות ואפורות על הקלטת ועל הסרט">${MOLD_SVG}</svg><figcaption>כך נראה עובש: נקודות או כתמים לבנים-אפורים</figcaption></figure>
+        ${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודע']])}</div>
+      <div class="note good"><b>עובש לא נורא:</b> אנחנו מנקים אותו כחלק מהשירות ומצילים את החומרה.</div>`)}
 
-    ${box(++n, 'delivery', 'איך לקבל את הקבצים?', `
-      <p class="small muted" style="margin:0">קישור להורדה כלול תמיד (שמור ${linkDays} יום). בחרו עוד אפשרות אחת:</p>
+    ${box(++n, 'delivery', 'איך תרצה לקבל את הקבצים הדיגיטליים בסיום?', `
+      <p class="small muted" style="margin:0">בחר אפשרות אחת:</p>
       <div class="choices">
-        ${radio('delivery_method', 'דיסק של הלקוח', o.delivery_method, 'דיסק שלי', 'שולחים אותו יחד עם החומרה')}
+        ${radio('delivery_method', 'דיסק של הלקוח', o.delivery_method, 'דיסק און קי משלי', 'שולחים אותו עם השליח, יחד עם החומרה')}
         <div class="sub-choice ${o.delivery_method === 'דיסק של הלקוח' ? '' : 'hidden'}" data-sub="דיסק של הלקוח"><div class="note warn">הדיסק חייב להיות ריק. קבצים שהיו עליו לא באחריותנו. <span id="diskRec"></span></div></div>
-        ${radio('delivery_method', 'דיסק און קי', o.delivery_method, 'דיסק און קי מאיתנו', 'מגיע אליכם עם הקבצים')}
+        ${radio('delivery_method', 'דיסק און קי', o.delivery_method, 'דיסק און קי מאיתנו', 'מגיע חזרה אליכם עם הקבצים')}
         <div class="sub-choice ${o.delivery_method === 'דיסק און קי' ? '' : 'hidden'}" data-sub="דיסק און קי">
           ${pills('usb_size', o.usb_size, [['32', '32GB', '+' + price(11)], ['128', '128GB', '+' + price(12)]])}<span class="small muted" id="usbRec"></span></div>
-        ${radio('delivery_method', 'ענן אישי של הלקוח', o.delivery_method, 'הענן שלי', 'למי שכבר יש Google Drive, iCloud וכו׳')}
+        ${radio('delivery_method', 'ענן אישי של הלקוח', o.delivery_method, 'העלאה ישר לענן שלי', 'למי שכבר יש Google Drive, iCloud וכו׳')}
         <div class="sub-choice ${o.delivery_method === 'ענן אישי של הלקוח' ? '' : 'hidden'}" data-sub="ענן אישי של הלקוח"><select class="sel" data-part="order" data-k="cloud_type" aria-label="איזה ענן"><option value="">איזה ענן?</option>${['Google Drive', 'iCloud', 'Dropbox', 'OneDrive', 'אחר'].map(x => `<option ${o.cloud_type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
       </div>`)}
 
@@ -272,7 +290,8 @@ function render() {
       <p class="small muted" style="margin:0">רגיל: עד 14 ימי עסקים. לאירוע קרוב (יום הולדת, חג) יש אקספרס.</p>
       <label class="choice"><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>אקספרס: עד ${expressDays} ימי עסקים</b></span><span class="price">+${price(14)}</span></label>`, false)}
 
-    ${box(++n, 'return', 'מה לעשות עם החומרה בסוף?', pills('return_method', o.return_method, [['החזרה במשלוח', 'להחזיר במשלוח', '+' + price(13)], ['איסוף עצמי', 'אאסוף בעצמי'], ['לא מוחזר (בהסכמה)', 'לא צריך להחזיר']]))}
+    ${box(++n, 'return', 'מה תרצה שנעשה עם החומרה הישנה בסוף?', pills('return_method', o.return_method, [['לא מוחזר (בהסכמה)', 'לא צריך להחזיר'], ['החזרה במשלוח', 'להחזיר במשלוח', '+' + price(13)], ['איסוף עצמי', 'אאסוף בעצמי']])
+      + `<div class="note warn ${o.return_method === 'איסוף עצמי' ? '' : 'hidden'}" id="pickupNote">אפשר לאסוף עד 14 ימים מסוף העבודה. אחרי זה ניאלץ להיפטר מהחומרה.</div>`)}
 
     ${box(++n, 'address', 'מאיפה לאסוף?', `
       <p class="small muted" style="margin:0">שליח מגיע אליכם. את היום נתאם אחרי שתאשרו את ההצעה.</p>
@@ -312,6 +331,7 @@ function bind() {
   $$('input[type=checkbox][data-part]').forEach(el => el.addEventListener('change', () => {
     const v = el.checked; if (el.dataset.part === 'customer') C()[el.dataset.k] = v; else O()[el.dataset.k] = v;
     if (el.dataset.k === 'invoice_business') { $('#invPrivate').classList.toggle('hidden', v); $('#invBiz').classList.toggle('hidden', !v); }
+    if (el.dataset.k === 'q_unsure_type') paintPhotoNeed();
     queue(el.dataset.part, el.dataset.k, v, true);
   }));
   // radios
@@ -319,6 +339,7 @@ function bind() {
     const k = el.name, v = el.value;
     if (k === 'usb_size') { O().usb_size = Number(v); setUsbLine(Number(v)); return queue('order', 'usb_size', Number(v), true); }
     O()[k] = v;
+    if (k === 'return_method') $('#pickupNote').classList.toggle('hidden', v !== 'איסוף עצמי');
     if (k === 'delivery_method') {
       $$('[data-sub]').forEach(s => s.classList.toggle('hidden', s.dataset.sub !== v));
       if (v !== 'דיסק און קי') { O().usb_size = null; setUsbLine(0); $$('input[name=usb_size]').forEach(r => r.checked = false); }
@@ -359,20 +380,23 @@ function qtyChangedLocal() {
   const ids = new Set([...(D.order.initial_lines || []).map(l => l.product_id), ...D.lines.map(l => l.product_id)]);
   return [...ids].filter(id => prod(id)?.category === 'media').some(id => initQty(id) !== qtyOf(id));
 }
-/** optional: the customer may add photos of the hardware (never required) */
+/** photos of the hardware: optional, but required when the customer is not sure what they have */
 function paintPhotoNeed() {
   const box = $('#photoNeed'); if (!box) return;
-  if (box.dataset.ready) return paintUploads();
-  box.dataset.ready = '1';
-  box.innerHTML = `<div class="upl">
-    <div class="gallery" id="updGallery"></div>
-    <label class="btn btn-secondary" style="justify-self:start;min-height:40px;font-size:15px">+ הוספת תמונה (לא חובה)<input type="file" accept="image/*" multiple hidden id="updPhoto"></label><span class="small" id="updMsg"></span></div>`;
-  $('#updPhoto').onchange = e => uploadUpdate([...e.target.files]);
+  const must = !!O().q_unsure_type;
+  if (box.dataset.ready !== String(must)) {
+    box.dataset.ready = String(must);
+    box.innerHTML = `<div class="upl ${must ? 'note warn' : ''}">
+      ${must ? '<span class="need">העלה תמונות של כל החומרה, ואנחנו נבדוק בעצמנו (חשוב שהתמונות יהיו ברורות)</span>' : ''}
+      <div class="gallery" id="updGallery"></div>
+      <label class="btn ${must ? 'btn-primary' : 'btn-secondary'}" style="justify-self:start;min-height:40px;font-size:15px">${must ? 'העלאת תמונות' : '+ הוספת תמונה (לא חובה)'}<input type="file" accept="image/*" multiple hidden id="updPhoto"></label><span class="small" id="updMsg"></span></div>`;
+    $('#updPhoto').onchange = e => uploadUpdate([...e.target.files]);
+  }
   paintUploads();
 }
 function paintUploads() {
   const g = $('#updGallery'); if (!g) return;
-  const ups = D.photos.filter(p => p.kind === 'update' && p.url);
+  const ups = D.photos.filter(p => p.source === 'customer' && p.url);
   g.innerHTML = ups.map(p => `<a href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="תמונה של החומרה"></a>`).join('');
   g.classList.toggle('hidden', !ups.length);
 }
@@ -407,7 +431,7 @@ function paintProgress() {
   $$('[data-box]').forEach(b => b.classList.remove('missing'));
   $('#barMiss').textContent = !miss.length ? 'הכל מוכן לשליחה ✓' : miss.length === 1 ? `נשאר רק: ${miss[0].label}` : `נשארו ${miss.length} שאלות חובה`;
 }
-const MISS_BOX = { qty: 'qty', address: 'address', alt: 'address', delivery: 'delivery', return: 'return', invoice: 'invoice', email: 'invoice', terms: 'invoice' };
+const MISS_BOX = { qty: 'qty', photo: 'qty', address: 'address', alt: 'address', delivery: 'delivery', return: 'return', invoice: 'invoice', email: 'invoice', terms: 'invoice' };
 async function submit() {
   const b = $('#submitBtn'); b.disabled = true; b.textContent = 'שולח…';
   try { await flush(); await inflight; await api({ op: 'submit' }); sessionStorage.removeItem('q-edit'); D.order.q_submitted_at = new Date().toISOString(); renderDone(); window.scrollTo(0, 0); }
