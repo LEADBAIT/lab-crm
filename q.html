@@ -130,9 +130,12 @@
   .choice { padding: 10px 12px; }
   .mrow { padding: 6px 0; }
   .gallery { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
-  .mold-pic { margin: 0; display: flex; align-items: center; gap: 10px; }
-  .mold-pic svg { width: 120px; height: 72px; flex: none; border: 1px solid var(--line); padding: 3px; background: var(--surface); }
-  .mold-pic figcaption { font-size: 13px; line-height: 18px; color: var(--ink-muted); }
+  /* mould: answers on the right, the example picture on the left of them */
+  .mold-row { display: flex; align-items: center; gap: 10px; }
+  .mold-row .pills { flex: 1; min-width: 0; }
+  .mold-row .pills { flex-wrap: nowrap; gap: 5px; }
+  .mold-row .pill span { padding: 6px 10px; font-size: 14px; white-space: nowrap; }
+  .mold-pic { width: 72px; height: 44px; flex: none; border: 1px solid var(--line); padding: 3px; background: var(--surface); }
   .note.good { border-inline-start-width: 4px; background: #E9F5F0; color: #14503F; font-size: 15px; line-height: 22px; }
   .more { font-weight: 700; }
   .upl .need { font-weight: 700; color: var(--stamp-text); font-size: 14px; line-height: 20px; }
@@ -270,8 +273,8 @@ function render() {
       <div id="photoNeed"></div>
       <div class="q2"><span>איפה החומרה הייתה שמורה במהלך השנים?</span>${pills('storage_place', o.storage_place, [['בפנים', 'במקום סגור'], ['בחוץ', 'במקום בחוץ'], ['לא ידוע', 'לא יודע']])}</div>
       <div class="q2"><span>יש עובש על החומרה?</span>
-        <figure class="mold-pic"><svg viewBox="0 0 160 96" role="img" aria-label="דוגמה: קלטת עם עובש, נקודות לבנות ואפורות על הקלטת ועל הסרט">${MOLD_SVG}</svg><figcaption>כך נראה עובש: נקודות או כתמים לבנים-אפורים</figcaption></figure>
-        ${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודע']])}</div>
+        <div class="mold-row">${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודע']])}
+          <svg class="mold-pic" viewBox="0 0 160 96" role="img" aria-label="דוגמה: קלטת עם עובש, נקודות לבנות ואפורות על הקלטת ועל הסרט">${MOLD_SVG}</svg></div></div>
       <div class="note good"><b>עובש לא נורא:</b> אנחנו מנקים אותו כחלק מהשירות ומצילים את החומרה.</div>`)}
 
     ${box(++n, 'delivery', 'איך תרצה לקבל את הקבצים הדיגיטליים בסיום?', `
