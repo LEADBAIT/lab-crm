@@ -135,7 +135,8 @@
   .mold-row .pills { flex: 1; min-width: 0; }
   .mold-row .pills { flex-wrap: nowrap; gap: 5px; }
   .mold-row .pill span { padding: 6px 10px; font-size: 14px; white-space: nowrap; }
-  .mold-pic { width: 72px; height: 44px; flex: none; border: 1px solid var(--line); padding: 3px; background: var(--surface); }
+  .mold-pic { width: 64px; height: 64px; flex: none; border: 1px solid var(--line); padding: 2px; background: var(--surface); display: block; cursor: zoom-in; }
+  .mold-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .note.good { border-inline-start-width: 4px; background: #E9F5F0; color: #14503F; font-size: 15px; line-height: 22px; }
   .more { font-weight: 700; }
   .upl .need { font-weight: 700; color: var(--stamp-text); font-size: 14px; line-height: 20px; }
@@ -178,14 +179,6 @@ const IC = {
   9: '<rect x="10" y="3" width="24" height="28" rx="2" fill="#EADFC2" stroke="#8C96A3"/><rect x="14" y="8" width="16" height="13" fill="#59616E"/>',
 };
 const icon = id => `<svg viewBox="0 0 44 34" aria-hidden="true">${IC[id] || IC[1]}</svg>`;
-// drawn example of a mouldy VHS tape (white-grey fuzzy spots on the shell, the label and the tape window). Own drawing, no copyright.
-const MOLD_SVG = (() => {
-  const spots = [[22,30,5],[30,26,3],[118,22,4],[128,30,6],[138,24,3],[60,70,4],[70,76,3],[100,72,5],[112,66,3],[40,62,3],[146,60,4],[18,74,4],[84,30,3],[52,24,2.5],[94,24,2.5],[66,48,3],[98,50,3.5],[76,52,2]];
-  const fuzz = spots.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r + 2}" fill="#E8E6DF" opacity=".35"/><circle cx="${x}" cy="${y}" r="${r}" fill="#F2F1EC" opacity=".9"/><circle cx="${x + r * .4}" cy="${y - r * .3}" r="${r * .45}" fill="#B9B6AC" opacity=".8"/>`).join('');
-  return `<rect x="4" y="8" width="152" height="80" rx="5" fill="#1F1F25"/><rect x="14" y="14" width="132" height="22" rx="2" fill="#EADFC2"/>
-    <rect x="44" y="42" width="72" height="22" rx="3" fill="#3A3A42"/><circle cx="58" cy="53" r="8" fill="#5A4636"/><circle cx="102" cy="53" r="8" fill="#5A4636"/>
-    <circle cx="58" cy="53" r="3" fill="#1F1F25"/><circle cx="102" cy="53" r="3" fill="#1F1F25"/>${fuzz}`;
-})();
 
 // ---------- server ----------
 async function api(body) {
@@ -274,7 +267,7 @@ function render() {
       <div class="q2"><span>איפה החומרה הייתה שמורה במהלך השנים?</span>${pills('storage_place', o.storage_place, [['בפנים', 'במקום סגור'], ['בחוץ', 'במקום בחוץ'], ['לא ידוע', 'לא יודע']])}</div>
       <div class="q2"><span>יש עובש על החומרה?</span>
         <div class="mold-row">${pills('mold', o.mold, [['על חלק', 'כן, על חלק'], ['אין', 'אין'], ['לא ידוע', 'לא יודע']])}
-          <svg class="mold-pic" viewBox="0 0 160 96" role="img" aria-label="דוגמה: קלטת עם עובש, נקודות לבנות ואפורות על הקלטת ועל הסרט">${MOLD_SVG}</svg></div></div>
+          <a href="mold-example.jpg" target="_blank" rel="noopener" class="mold-pic"><img src="mold-example.jpg" alt="דוגמה: קלטת וידאו פתוחה, עם כתמי עובש לבנים על גלגל הסרט" width="64" height="64"></a></div></div>
       <div class="note good"><b>עובש לא נורא:</b> אנחנו מנקים אותו כחלק מהשירות ומצילים את החומרה.</div>`)}
 
     ${box(++n, 'delivery', 'איך תרצה לקבל את הקבצים הדיגיטליים בסיום?', `
