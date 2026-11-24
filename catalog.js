@@ -33,9 +33,75 @@ function pkgSummary(p) {
     <span class="tiny muted" style="display:block">שווי ${money(m.value)}${m.saving ? ` · חוסך ${money(m.saving)}` : ''}${m.zero.length ? ` · <span style="color:var(--orange)">בלי מחיר: ${esc(m.zero.join(', '))}</span>` : ''}</span>`;
 }
 
+// ---------- promotions (Black Friday etc.) ----------
+// An order gets every promotion running when its questionnaire is submitted, its quote is sent or its validity renewed (DB trigger
+// orders_promo_apply), keeps it after the promotion ends, loses it while the quote is expired. They come off the final line one after the other.
+const PROMO_KIND = { percent: 'אחוז הנחה', amount: 'סכום קבוע (₪)', gift: 'מוצר במתנה' };
+const todayIL = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+function promoState(m) {
+  const t = todayIL();
+  if (!m.active) return ['כבוי', ''];
+  if (m.starts_on > t) return ['מתוכנן', 'blue'];
+  if (m.ends_on < t) return ['הסתיים', ''];
+  return ['פעיל עכשיו', 'green'];
+}
+const promoValue = m => m.kind === 'percent' ? `${Number(m.value)}%` : m.kind === 'amount' ? money(m.value) : `מתנה: ${esc(prodById(m.gift_product_id)?.name || '?')}`;
+async function promosHtml() {
+  const { data: stats, error } = await sb.from('v_promotion_stats').select('*'); fail(error);
+  const st = id => stats.find(s => s.promotion_id === id) || { orders: 0, paid_orders: 0, discount_paid: 0 };
+  const rows = (S.promos || []).map(m => { const [lbl, cls] = promoState(m), s = st(m.id); return `<tr>
+    <td><b>${esc(m.name)}</b>${m.banner_text ? `<span class="tiny muted" style="display:block;max-width:280px">באנר: ${esc(m.banner_text)}</span>` : ''}</td>
+    <td>${promoValue(m)}</td><td class="small">${fmtShort(m.starts_on)} – ${fmtShort(m.ends_on)}</td><td><span class="chip ${cls}">${lbl}</span></td>
+    <td class="num">${s.orders}${s.paid_orders ? ` <span class="tiny muted">(${s.paid_orders} שילמו)</span>` : ''}</td><td class="num">${money(s.discount_paid) || '₪0'}</td>
+    <td>${isAdmin() ? `<button class="btn sm" data-editpromo="${m.id}">עריכה</button>` : ''}</td></tr>`; }).join('');
+  return `<section class="card flush" style="margin-top:16px"><div class="card-head" style="padding:14px 16px 0"><h3>מבצעים</h3><span class="tiny muted">נכנס לבד לכל הזמנה שהשאלון שלה נשלח, ההצעה שלה נשלחה או שהתוקף שלה חודש בתאריכי המבצע. יורד מהשורה האחרונה, אחרי כל ההנחות. כמה מבצעים יחד יורדים אחד אחרי השני.</span></div>
+    <div class="table-wrap"><table><thead><tr><th>שם</th><th>הנחה</th><th>תאריכים</th><th>מצב</th><th class="num">הזמנות</th><th class="num">הנחה שניתנה</th><th></th></tr></thead><tbody>
+    ${rows || '<tr class="empty-row"><td colspan="7">עוד אין מבצעים</td></tr>'}</tbody></table></div>
+    ${isAdmin() ? '<div style="padding:0 16px 14px"><button class="btn sm" id="addPromo">+ מבצע</button></div>' : ''}
+    <p class="tiny muted" style="padding:0 16px 14px">"הנחה שניתנה" = בהזמנות ששולמו. כשתוקף ההצעה עובר, גם הנחת המבצע יורדת, וחידוש התוקף מחזיר אותה.</p></section>`;
+}
+/** add / edit a promotion. Resolves true when saved. */
+function editPromo(id) {
+  const m = (S.promos || []).find(x => x.id === id) || { name: '', kind: 'percent', value: 30, starts_on: todayIL(), ends_on: todayIL(), active: true, banner_text: '' };
+  const gifts = S.products.filter(p => ['addon', 'repair'].includes(p.category) && (p.active || p.id === m.gift_product_id));
+  const b = modal(`<h2>${id ? 'עריכת מבצע' : 'מבצע חדש'}</h2><form id="pf" class="grid" style="gap:14px">
+    <label class="field">שם (הלקוח רואה אותו בהצעה ובחשבונית)<input name="name" required value="${esc(m.name)}" placeholder="בלק פריידי"></label>
+    <div class="fields"><label class="field">סוג<select name="kind">${Object.entries(PROMO_KIND).map(([k, l]) => `<option value="${k}" ${m.kind === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field" data-pk="value">ערך<input name="value" type="number" step="0.01" min="0" value="${Number(m.value) || ''}"><span class="hint" id="pfHint"></span></label>
+      <label class="field" data-pk="gift">מוצר במתנה<select name="gift_product_id"><option value="">בחירה</option>${gifts.map(p => `<option value="${p.id}" ${m.gift_product_id === p.id ? 'selected' : ''}>${esc(p.name)} (${money(p.unit_price)})</option>`).join('')}</select></label></div>
+    <div class="fields"><label class="field">מתאריך<input name="starts_on" type="date" required value="${m.starts_on}"></label><label class="field">עד תאריך (כולל)<input name="ends_on" type="date" required value="${m.ends_on}"></label></div>
+    <label class="field">באנר בשאלון ובדף המעקב<input name="banner_text" maxlength="120" value="${esc(m.banner_text || '')}" placeholder="בלק פריידי: 30% הנחה על הכל עד יום ראשון"><span class="hint">ריק = בלי באנר.</span></label>
+    <label class="toggle" style="gap:6px"><input type="checkbox" name="active" ${m.active ? 'checked' : ''}> פעיל</label>
+    <p id="pfErr" class="small" style="color:var(--red)" hidden></p>
+    <div class="actions"><button class="btn primary">שמירה</button><button type="button" class="btn" id="pfNo">ביטול</button></div></form>`);
+  const sync = () => { const k = $('[name=kind]', b).value; $('[data-pk=value]', b).hidden = k === 'gift'; $('[data-pk=gift]', b).hidden = k !== 'gift';
+    $('#pfHint', b).textContent = k === 'percent' ? 'אחוז מהסכום הסופי' : 'שקלים מהסכום הסופי'; };
+  $('[name=kind]', b).onchange = sync; sync();
+  return new Promise(res => {
+    $('#pfNo', b).onclick = () => { closeModal(); res(false); };
+    $('#modal').addEventListener('cancel', () => res(false), { once: true });
+    $('#pf', b).onsubmit = async e => { e.preventDefault();
+      const f = new FormData(e.target), err = t => { $('#pfErr', b).textContent = t; $('#pfErr', b).hidden = false; };
+      const row = { name: String(f.get('name')).trim(), kind: f.get('kind'), value: f.get('kind') === 'gift' ? 0 : Number(f.get('value') || 0),
+        gift_product_id: f.get('kind') === 'gift' ? Number(f.get('gift_product_id')) || null : null, starts_on: f.get('starts_on'), ends_on: f.get('ends_on'),
+        banner_text: String(f.get('banner_text') || '').trim() || null, active: f.get('active') === 'on' };
+      if (!row.name) return err('חסר שם');
+      if (row.ends_on < row.starts_on) return err('תאריך הסיום לפני תאריך ההתחלה');
+      if (row.kind === 'percent' && !(row.value > 0 && row.value <= 100)) return err('אחוז בין 1 ל-100');
+      if (row.kind === 'amount' && !(row.value > 0)) return err('חסר סכום');
+      if (row.kind === 'gift' && !row.gift_product_id) return err('לבחור מוצר במתנה');
+      const { error } = id ? await sb.from('promotions').update(row).eq('id', id) : await sb.from('promotions').insert(row); fail(error);
+      closeModal(); toast('המבצע נשמר'); res(true); };
+  });
+}
+/** promotion lines of an order (from v_orders.promo_lines) for totals, quote text and print */
+const promoRows = o => o.promo_lines || [];
+const promoLabel = l => l.kind === 'gift' ? `${l.name}: ${prodById(l.gift_product_id)?.name || 'מתנה'} במתנה` : `${l.name}${l.kind === 'percent' ? ` ${Number(l.value)}%` : ''}`;
+
 // ---------- in an order (deal page, quote text, print) ----------
 /** how many of a product the order's package already includes; the customer pays only for the rest (same rule as v_orders) */
-const includedQty = (o, pid) => o?.package_id ? (pkgItems(o.package_id).find(x => x.product_id === pid)?.qty || 0) : 0;
+const includedQty = (o, pid) => (o?.package_id ? (pkgItems(o.package_id).find(x => x.product_id === pid)?.qty || 0) : 0)
+  + (o?.promo_gifts || []).filter(g => Number(g) === pid).length; // gifts from promotions count like package contents (same as v_orders)
 const chargedQty = (o, pid, qty) => Math.max(0, (qty || 0) - includedQty(o, pid));
 const inclNote = (o, pid, qty) => { const n = Math.min(includedQty(o, pid), qty || 0); return n ? ` (${n === qty ? '' : n + ' '}כלול בחבילה)` : ''; };
 const pkgContents = o => o?.package_id ? pkgItems(o.package_id).map(x => `${x.qty > 1 ? x.qty + '× ' : ''}${prodById(x.product_id)?.name || ''}`).filter(Boolean).join(', ') : '';
@@ -43,6 +109,7 @@ const pkgContents = o => o?.package_id ? pkgItems(o.package_id).map(x => `${x.qt
 function orderActions(o, lines = []) {
   const m = new Map(lines.filter(l => l.qty > 0).map(l => [l.product_id, l.qty]));
   if (o.package_id) pkgItems(o.package_id).forEach(x => m.set(x.product_id, Math.max(m.get(x.product_id) || 0, x.qty)));
+  (o.promo_gifts || []).forEach(g => { const id = Number(g); m.set(id, Math.max(m.get(id) || 0, 1)); });
   return [...m].map(([pid, qty]) => ({ p: prodById(pid), qty })).filter(x => x.p?.action_text);
 }
 function actionsHtml(ctx) {

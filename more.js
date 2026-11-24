@@ -135,6 +135,7 @@ VIEWS.settings = async function vSettings(tab) {
   tab = known(tab) ? tab : known(sessionStorage.getItem('setTab')) ? sessionStorage.getItem('setTab') : 'prices';
   sessionStorage.setItem('setTab', tab);
   let body = '';
+  const promoBox = tab === 'prices' ? await promosHtml() : '';
   if (tab === 'prices') body = `
     ${Object.entries(CAT).map(([cat, name]) => { const ps = S.products.filter(p => p.category === cat); return `<section class="card flush" style="margin-bottom:16px"><div class="card-head" style="padding:14px 16px 0"><h3>${name}</h3></div><div class="table-wrap"><table>
       <thead><tr><th></th><th>שם (כפי שהלקוח רואה)</th><th class="num">מחיר כולל מע"מ</th>${cat === 'media' ? '<th class="num">ממוצע מתחרים</th><th>מקבל ברקוד ונספר להנחה</th>' : '<th class="num">רווח</th>'}${cat === 'package' ? '<th>מה כלול</th>' : ''}${cat === 'media' ? '' : '<th>מוצג ללקוח</th>'}<th>פעיל</th><th></th></tr></thead><tbody>
@@ -160,7 +161,7 @@ VIEWS.settings = async function vSettings(tab) {
       ${S.coupons.map(x => `<tr><td><b>${esc(x.code)}</b></td><td><label class="field"><input type="number" data-save="coupons:${esc(x.code)}:percent" data-num data-zero value="${x.percent || 0}" style="width:80px"></label></td>
         <td><label class="field"><input type="number" data-save="coupons:${esc(x.code)}:amount" data-num data-zero value="${x.amount || 0}" style="width:80px"></label></td><td><label class="field"><input data-save="coupons:${esc(x.code)}:campaign" value="${esc(x.campaign || '')}"></label></td>
         <td><label class="field"><input type="date" data-save="coupons:${esc(x.code)}:valid_until" value="${x.valid_until || ''}"></label></td><td><label class="toggle"><input type="checkbox" data-save="coupons:${esc(x.code)}:active" ${x.active ? 'checked' : ''}></label></td></tr>`).join('') || '<tr class="empty-row"><td colspan="6">אין קופונים</td></tr>'}
-      </tbody></table></div><div style="padding:0 16px 14px"><button class="btn sm" id="addCp">+ קופון</button></div></section>`;
+      </tbody></table></div><div style="padding:0 16px 14px"><button class="btn sm" id="addCp">+ קופון</button></div></section>${promoBox}`;
   if (tab === 'process') body = `<section class="card"><h3 style="margin-bottom:6px">תזכורות ויעדים</h3>${['sla_target_days', 'sla_max_days', 'express_biz_days', 'drive_link_days'].map(sentence).join('')}</section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">זמן מקסימלי לכל שלב</h3><p class="small muted" style="margin-bottom:8px">הזמנה שעוברת את הזמן של השלב שלה נצבעת ומופיעה ב"היום" עם הסיבה.</p>${['stage_days_pickup', 'stage_days_transit', 'stage_days_intake', 'stage_days_convert', 'stage_days_return', 'stage_days_delivery'].map(sentence).join('')}</section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">חומרה שנשארת אצלנו</h3><p class="small muted" style="margin-bottom:8px">כל שלב מופיע כמשימה בלשונית "בעבודה", עם הודעת וואטסאפ מוכנה.</p>${['uncollected_remind_days', 'storage_fee_days', 'destroy_days', 'destroy_notice_days', 'waived_keep_days'].map(sentence).join('')}</section>
@@ -227,6 +228,8 @@ function bindSettings(tab) {
     const { data, error } = await sb.from('products').insert({ name: f.name, category: cat, unit_price: Number(f.unit_price || 0), counts_for_tier: cat === 'media', pricing: cat === 'package' ? 'order' : 'unit', sort: 99 }).select('id').single(); fail(error);
     await loadRef(); if (cat !== 'media') await editProduct(data.id); re(); });
   $$('[data-editprod]').forEach(b => b.onclick = async () => { if (await editProduct(Number(b.dataset.editprod))) { await loadRef(); re(); } });
+  $$('[data-editpromo]').forEach(b => b.onclick = async () => { if (await editPromo(Number(b.dataset.editpromo))) { await loadRef(); re(); } });
+  $('#addPromo')?.addEventListener('click', async () => { if (await editPromo(null)) { await loadRef(); re(); } });
   $('#addTier')?.addEventListener('click', () => add('discount_tiers', { min_items: Math.max(0, ...S.tiers.map(t => t.min_items)) + 10, percent: 0 }));
   $$('[data-deltier]').forEach(b => b.onclick = async () => {
     const t = S.tiers.find(x => String(x.id) === b.dataset.deltier); let id = t.id;

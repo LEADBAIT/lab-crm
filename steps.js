@@ -276,6 +276,7 @@ function quoteText(o, c, lines) {
   if (o.coupon_percent > 0) L.push(`קופון ${o.coupon_code}: -${Number(o.coupon_percent)}%`);
   if (o.coupon_amount > 0) L.push(`קופון ${o.coupon_code}: -${money(o.coupon_amount)}`);
   if (o.manual_discount > 0) L.push(`הנחה: -${money(o.manual_discount)}`);
+  promoRows(o).forEach(l => L.push(l.kind === 'gift' ? `🎁 ${promoLabel(l)}` : `${promoLabel(l)}: -${money(l.amount)}`));
   L.push('', `סה"כ לתשלום: ${money(o.total)} (כולל מע"מ)`, '');
   if (S.settings.terms?.text_value) L.push(S.settings.terms.text_value);
   return L.join('\n');
@@ -287,6 +288,7 @@ function totalsHtml(o) {
     ${o.extras_subtotal > 0 ? `<span>תוספות${o.package_name ? ' + ' + esc(o.package_name) : ''}</span><span>${money(o.extras_subtotal)}</span>` : ''}
     ${o.coupon_percent > 0 || o.coupon_amount > 0 ? `<span>קופון ${esc(o.coupon_code)}</span><span>${o.coupon_percent > 0 ? '-' + Number(o.coupon_percent) + '%' : ''} ${o.coupon_amount > 0 ? '-' + money(o.coupon_amount) : ''}</span>` : ''}
     ${o.manual_discount > 0 ? `<span>הנחה ידנית</span><span>-${money(o.manual_discount)}</span>` : ''}
-    ${o.media_units > 0 && Number(o.total) > Number(o.total_raw) ? `<span class="muted">הושלם למינימום הזמנה (${money(setting('min_order'))})</span><span></span>` : ''}
+    ${o.media_units > 0 && Number(o.total) + Number(o.promo_discount || 0) > Number(o.total_raw) ? `<span class="muted">הושלם למינימום הזמנה (${money(setting('min_order'))})</span><span></span>` : ''}
+    ${promoRows(o).map(l => `<span style="color:var(--green)">${esc(promoLabel(l))}</span><span style="color:var(--green)">${l.kind === 'gift' ? 'מתנה' : '-' + money(l.amount)}</span>`).join('')}
     <span class="grand">סה"כ כולל מע"מ</span><span class="grand">${money(o.total)}</span></div>`;
 }

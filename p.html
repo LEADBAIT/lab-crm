@@ -288,7 +288,7 @@ function linesHtml() {
     </div>
     <div class="totals" id="totals">
       ${hasSaving() || q.min_order_fill > 0 ? `<div class="r"><span>סה"כ לפני הנחות</span><span class="num">${ils(q.subtotal)}</span></div>` : ''}
-      ${q.discounts.map(x => `<div class="r disc"><span>${esc(x.label)}</span><span class="num">−${ils(x.amount)}</span></div>`).join('')}
+      ${q.discounts.map(x => `<div class="r disc"><span>${esc(x.label)}</span><span class="num">${x.kind === 'gift' ? 'מתנה' : '−' + ils(x.amount)}</span></div>`).join('')}
       ${q.min_order_fill > 0 ? `<div class="r"><span>השלמה למינימום הזמנה</span><span class="num">${ils(q.min_order_fill)}</span></div>` : ''}
       <div class="r grand"><span>לתשלום</span><span>${hasSaving() ? `<s class="num">${ils(q.full_price)}</s>` : ''}<span class="num">${ils(q.total)}</span></span></div>
       <div class="vat">כל המחירים כוללים מע"מ</div>

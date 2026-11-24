@@ -124,6 +124,7 @@ VIEWS.quote = async function vQuote(id) {
       ${o.tier_percent > 0 ? `<span>הנחת כמות ${Number(o.tier_percent)}%</span><span>-${money(o.tier_discount)}</span>` : ''}
       ${o.coupon_code ? `<span>קופון ${esc(o.coupon_code)}</span><span>${o.coupon_percent > 0 ? '-' + Number(o.coupon_percent) + '%' : '-' + money(o.coupon_amount)}</span>` : ''}
       ${o.manual_discount > 0 ? `<span>הנחה</span><span>-${money(o.manual_discount)}</span>` : ''}
+      ${promoRows(o).map(l => `<span>${esc(promoLabel(l))}</span><span>${l.kind === 'gift' ? 'מתנה' : '-' + money(l.amount)}</span>`).join('')}
       <span>לפני מע"מ</span><span>${money(o.total_before_vat)}</span><span class="grand">סה"כ כולל מע"מ</span><span class="grand">${money(o.total)}</span></div>
     <p class="small" style="margin-top:24px;white-space:pre-line">${esc(S.settings.terms?.text_value || '')}</p></div>`;
 };
