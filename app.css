@@ -696,7 +696,7 @@ html.embed .shell { margin: 0; }
 html.embed main { padding: var(--s3) !important; }
 html.embed .deal-top { top: 0; }
 html.embed .deal { grid-template-columns: minmax(0, 1fr); }
-html.embed .deal .side { position: static; max-height: none; overflow: visible; order: 2; }
+html.embed .deal .side { position: static; max-height: none; overflow: visible; order: -1; }
 html.embed .deal .quote-total { position: static; }
 html.embed .quote-layout { grid-template-columns: minmax(0, 1fr); }
 
@@ -711,7 +711,7 @@ html.embed .quote-layout { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 1000px) {
   .deal, .queue-layout, .scan-layout, .quote-layout, .settings { grid-template-columns: minmax(0, 1fr); }
   .side, .quote-total, .subnav { position: static; max-height: none; }
-  .deal .side { position: static; max-height: none; overflow: visible; order: 2; } /* one column: the next step first, summary after */
+  .deal .side { position: static; max-height: none; overflow: visible; order: -1; } /* one column: customer links + summary first (user decision 2026-11-25) */
   .subnav { display: flex; overflow-x: auto; scrollbar-width: none; }
   .subnav button { white-space: nowrap; flex: none; }
   .subnav .desc { display: none; }
@@ -774,7 +774,7 @@ html.embed .quote-layout { grid-template-columns: minmax(0, 1fr); }
   .dh-acts .sep-v { display: none; }
   .dh-acts .won, .dh-acts .lost { order: -1; flex: 1 1 calc(50% - 3px); min-height: 36px; }
   .dh-acts > a.btn { flex: 1 1 auto; }
-  .deal-top.stuck .dh-acts > :not(.won):not(.lost) { display: none; }
+  .deal-top.stuck .dh-acts > :not(.won):not(.lost):not(#waBtn):not(.dd) { display: none; }
   /* stuck (scrolled): one row = name + won / lost, then the thin stage bar */
   .deal-top.stuck .deal-head { flex-wrap: nowrap; padding-block: 8px; }
   .deal-top.stuck h1 { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -972,3 +972,19 @@ tr.clickable { cursor: pointer; }
 .ldot.orange { background: var(--orange-bg); color: var(--orange); filter: none; opacity: 1; }
 .ldot.green { background: var(--green-bg); color: var(--green); filter: none; opacity: 1; }
 .ldot.red { background: var(--red-bg); color: var(--red); filter: none; opacity: 1; }
+
+/* ---------- deal page tabs (stage 3) ---------- */
+.deal-tabs-wrap { margin-top: var(--s2); }
+.deal-tabs { width: 100%; }
+.deal-tabs button { flex: 1 1 0; justify-content: center; }
+.tabp { display: grid; gap: var(--s3); margin-top: var(--s3); }
+.tabp.hidden { display: none; }
+.alert-card { border-color: var(--red); background: var(--red-bg); }
+.alert-card h3 { color: var(--red); margin: 0 0 8px; font-size: 15px; }
+.alert-row { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--red) 25%, transparent); }
+.alert-row:first-of-type { border-top: 0; }
+.repeat-bar { font-size: 13px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.pin-card .pin-text { white-space: pre-wrap; font-size: 14px; padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--yellow) 18%, transparent); }
+ul.plain { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; }
+.timeline.compact li { padding-block: 4px; }
+.timeline.compact .ic { width: 14px; height: 14px; font-size: 10px; }

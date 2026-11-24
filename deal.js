@@ -1,5 +1,5 @@
-/* Customer / deal page: one page per order. Top: who + progress. Center: "the next step" with only what it needs.
-   Below: everything else in collapsible sections. Side: contact, notes, timeline. */
+/* Customer / deal page: one page per order. Top: who + progress. Center: "the next step" with only what it needs, then
+   tabs (לקוח · הצעה ותשלום · תפעול · מסירה · היסטוריה) that open on the current stage. Side: customer links, summary, pinned note. */
 'use strict';
 const H = k => (window.HINTS || {})[k] || '';
 // every editable order/customer field, defined once (label, type, list, hint)
@@ -47,16 +47,21 @@ VIEWS.order = async function vOrder(id) {
   const [o, rl, ri, re] = await Promise.all([getOrder(id), sb.from('order_lines').select('*').eq('order_id', id), sb.from('items').select('*').eq('order_id', id).order('seq'),
     sb.from('order_events').select('*').eq('order_id', id).is('deleted_at', null).order('at', { ascending: false }).limit(150)]);
   [rl, ri, re].forEach(r => fail(r.error));
-  const { data: c, error } = await sb.from('customers').select('*').eq('id', o.customer_id).single(); fail(error);
-  const { data: extraPays } = await sb.from('order_payments').select('*').eq('order_id', id).order('id', { ascending: false });
-  const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data, photos: await loadPhotos(id), extraPays: extraPays || [] };
+  const [rc, rx, rp, ra, photos] = await Promise.all([sb.from('customers').select('*').eq('id', o.customer_id).single(),
+    sb.from('order_payments').select('*').eq('order_id', id).order('id', { ascending: false }),
+    sb.from('v_orders').select('id, stage, total, created_at').eq('customer_id', o.customer_id).neq('id', id).order('id', { ascending: false }),
+    sb.from('order_events').select('id, new_value, at').eq('order_id', id).eq('kind', 'alert').is('handled_at', null).order('at', { ascending: false }),
+    loadPhotos(id)]);
+  [rc, rx, rp, ra].forEach(r => fail(r.error));
+  const ctx = { o, c: rc.data, lines: rl.data, items: ri.data, events: re.data, photos, extraPays: rx.data || [], prevOrders: rp.data || [], alerts: ra.data || [] };
+  SEC_OPEN[id] ||= new Set();
   // photos live in order_photos, not in v_orders: give the step checks what they need
   o.photos_count = ctx.photos.length; o.photos_first_at = ctx.photos[0]?.created_at || null;
   // #order/<id>/<section> opens that section (the sales dashboard uses it, e.g. for missing invoice details)
   const sec = location.hash.split('/')[2];
-  if (sec && SECTIONS.some(s => s[0] === sec)) { SEC_OPEN[id] ||= new Set(); SEC_OPEN[id].add(sec); }
+  if (sec && SECTIONS.some(s => s[0] === sec)) SEC_OPEN[id].add(sec);
   renderDeal(ctx);
-  if (sec) setTimeout(() => $(`[data-sec="${sec}"]`)?.scrollIntoView({ block: 'start' }), 50);
+  if (sec) setTimeout(() => openSec(sec), 50);
 };
 const reloadDeal = ctx => VIEWS.order(ctx.o.id);
 
@@ -81,10 +86,9 @@ function renderDeal(ctx) {
   <div class="deal">
     <aside class="side">${sideHtml(ctx)}</aside>
     <div class="stack">
+      ${alertsHtml(ctx)}${repeatHtml(ctx)}
       ${lost ? '' : `<div id="nextBox">${nextCardHtml(ctx)}</div>`}
-      ${historyHtml(ctx)}
-      <div class="section-title">פרטים</div>
-      ${sectionsHtml(ctx)}
+      ${tabsHtml(ctx)}
     </div>
   </div>`;
   bindDeal(ctx);
@@ -105,7 +109,6 @@ function stickyHead() {
 }
 function dealMeta(o) {
   return `<span>#${o.id}</span><span>·</span><span>${stagePill(o.stage)}</span>${o.total > 0 ? `<span>·</span><b>${money(o.total)}</b>` : ''}
-    ${o.source ? `<span>·</span><span>${esc(o.source)}</span>` : ''}${o.lab_name ? `<span>·</span><span>מעבדה: ${esc(o.lab_name)}</span>` : ''}
     ${o.is_repeat ? '<span class="chip blue">לקוח חוזר</span>' : ''}${o.priority ? '<span class="chip orange">אקספרס</span>' : ''}
     ${o.flag_sla ? `<span class="chip ${o.flag_sla}">${esc(o.sla_reason)}</span>` : o.days_at_lab != null ? `<span class="chip">${o.priority ? o.lab_biz_days + ' ימי עסקים' : o.days_at_lab + ' ימים'} מהקליטה</span>` : ''}${o.flag_count_mismatch ? '<span class="chip red">פער בספירת פריטים</span>' : ''}
     ${o.flag_cash_at_courier ? '<span class="chip orange">מזומן אצל השליח</span>' : ''}`;
@@ -193,6 +196,7 @@ const FIELD_DATE = d => /^\d{4}-\d{2}-\d{2}$/.test(d) ? fmtDate(d) : fmtDT(d);
 
 // ---------- sections ----------
 const SECTIONS = [
+  ['activity', 'מה הלקוח מילא וביצע', ctx => ctx.o.q_submitted_at ? 'השאלון מולא' : ctx.o.q_opened_at ? `השאלון ${ctx.o.q_progress || 0}%` : 'עוד לא מילא'],
   ['customer', 'פרטי לקוח וכתובת', ctx => { const m = showRequired(ctx.o) ? missingForPaid(ctx.o, ctx.c).filter(x => x !== 'כמויות בהצעת המחיר') : []; return [ctx.c.city && esc(ctx.c.city), m.length ? `<span class="chip red">חסרים ${m.length} פרטים</span>` : ''].filter(Boolean).join(' · '); }],
   ['photos', 'תמונות החומרה', ctx => { const p = ctx.photos || [], u = p.filter(x => x.kind === 'update').length; return p.length ? `${p.length} תמונות${u ? ` · <span class="chip orange">${u} אחרי שינוי כמויות</span>` : ''}` : '<span class="chip red">אין תמונות</span>'; }],
   ['quote', 'הצעת מחיר', ctx => ctx.o.media_qty ? `${ctx.o.media_qty} פריטים · ${money(ctx.o.total)}` : 'עוד אין כמויות'],
@@ -204,25 +208,114 @@ const SECTIONS = [
   ['sale', 'מקור ומכירה', ctx => [ctx.o.source, ctx.o.temperature].filter(Boolean).map(esc).join(' · ')],
   ['after', 'אחרי סיום', ctx => [ctx.o.review_requested_at && 'ביקורת ✓', ctx.o.story_requested_at && 'סטורי ✓', ctx.o.gift_sent && 'מתנה ✓'].filter(Boolean).join(' · ')],
 ];
-function sectionsHtml(ctx) {
-  const id = ctx.o.id, s = stepOf(ctx.o.stage);
-  SEC_OPEN[id] ||= new Set(s?.open || ['customer', 'sale']);
-  return SECTIONS.map(([k, title, sum]) => `<details class="sec" data-sec="${k}" ${SEC_OPEN[id].has(k) ? 'open' : ''}>
-    <summary>${title} <span class="sum" data-sum="${k}">${sum(ctx)}</span></summary><div class="body" data-body="${k}">${SEC_BODY[k](ctx)}</div></details>`).join('');
+/** the deal page's tabs: [key, label, sections]. The page opens on the tab of the current stage (DEAL_TAB_OF). */
+const DEAL_PANES = [['customer', 'לקוח', ['activity', 'customer', 'photos', 'sale']], ['quote', 'הצעה ותשלום', ['quote', 'payment']],
+  ['ops', 'תפעול', ['shipping', 'items']], ['delivery', 'מסירה', ['delivery', 'after']], ['history', 'היסטוריה', []]];
+const DEAL_TAB_OF = { 'פנייה חדשה': 'customer', 'בשיחה': 'customer', 'בפולואפ': 'customer', 'הצעה נשלחה': 'quote', 'לתאם איסוף': 'ops',
+  'בדרך למעבדה': 'ops', 'במעבדה': 'ops', 'למסירה ללקוח': 'delivery', 'הושלם': 'delivery' };
+const DEAL_TAB = {}; // order id -> { tab, stage }: a stage change opens that stage's tab again
+const paneOf = sec => DEAL_PANES.find(p => p[2].includes(sec))?.[0];
+function curTab(o) {
+  const want = [...(SEC_OPEN[o.id] || [])].pop(); // a section something asked to show (e.g. after a payment) wins once
+  if (want && paneOf(want)) { SEC_OPEN[o.id].clear(); DEAL_TAB[o.id] = { tab: paneOf(want), stage: o.stage }; }
+  const t = DEAL_TAB[o.id];
+  if (!t || t.stage !== o.stage) DEAL_TAB[o.id] = { tab: (o.stage === 'בפולואפ' && o.q_submitted_at) ? 'quote' : DEAL_TAB_OF[o.stage] || 'customer', stage: o.stage };
+  return DEAL_TAB[o.id].tab;
 }
+function secHtml(ctx, k) {
+  const [, title, sum] = SECTIONS.find(s => s[0] === k);
+  return `<details class="sec" data-sec="${k}" open><summary>${title} <span class="sum" data-sum="${k}">${sum(ctx)}</span></summary><div class="body" data-body="${k}">${SEC_BODY[k](ctx)}</div></details>`;
+}
+function tabsHtml(ctx) {
+  const cur = curTab(ctx.o), id = ctx.o.id;
+  const badge = k => k === 'history' ? ` <span class="n">${ctx.events.length}</span>` : k === 'customer' && ctx.alerts.length ? ' <span class="chip red">!</span>' : '';
+  return `<div class="deal-tabs-wrap"><div class="seg big deal-tabs" role="tablist" aria-label="פרטי ההזמנה" data-order="${id}">${DEAL_PANES.map(([k, n]) =>
+    `<button role="tab" data-dtab="${k}" class="${k === cur ? 'on' : ''}" aria-selected="${k === cur}">${n}${badge(k)}</button>`).join('')}</div></div>
+    ${DEAL_PANES.map(([k, , secs]) => `<div class="tabp ${k === cur ? '' : 'hidden'}" data-tabp="${k}" role="tabpanel">${k === 'history' ? historyHtml(ctx) : secs.map(s => secHtml(ctx, s)).join('')}</div>`).join('')}`;
+}
+function showTab(k) {
+  const bar = $('.deal-tabs'); if (!bar) return;
+  $$('[data-dtab]').forEach(b => { b.classList.toggle('on', b.dataset.dtab === k); b.setAttribute('aria-selected', b.dataset.dtab === k); });
+  $$('[data-tabp]').forEach(p => p.classList.toggle('hidden', p.dataset.tabp !== k));
+  const id = Number(bar.dataset.order); if (DEAL_TAB[id]) DEAL_TAB[id].tab = k;
+}
+/** show a section wherever it is: its tab, opened, scrolled into view */
+function openSec(k) {
+  const p = paneOf(k); if (p) showTab(p);
+  const d = $(`[data-sec="${k}"]`); if (!d) return;
+  d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+// ---------- what the customer filled and did ----------
+const SRC_LABEL = { q: 'בשאלון', quote: 'בדף ההצעה', track: 'בדף המעקב' };
+function activityHtml(ctx) {
+  const { o, lines } = ctx;
+  const chosen = lines.filter(l => l.qty > 0 && SRC_LABEL[l.source]).map(l => `<li>${esc(productName(l.product_id))}${l.qty > 1 ? ' ×' + l.qty : ''} <span class="muted">· ${SRC_LABEL[l.source]}</span></li>`);
+  const evs = ctx.events.filter(e => /הלקוח/.test(e.by_email || '') || e.kind === 'quote' || (e.kind === 'payment' && /SUMIT/.test(e.new_value || ''))).slice(0, 12);
+  return `${questionnaireHtml(ctx)}
+    ${o.package_name ? `<div class="small" style="margin-top:8px">חבילה: <b>${esc(o.package_name)}</b></div>` : ''}
+    ${chosen.length ? `<div class="subhead">מה הלקוח הוסיף בעצמו</div><ul class="small plain">${chosen.join('')}</ul>` : ''}
+    ${evs.length ? `<div class="subhead">מה הלקוח עשה</div><ul class="timeline compact">${evs.map(ev => `<li><span class="ic">•</span><div><div class="ev-t">${evText(ev)}</div><div class="w"><bdi dir="ltr">${fmtDT(ev.at)}</bdi></div></div></li>`).join('')}</ul>` : ''}`;
+}
+/** staff alerts on this order (order_events kind 'alert', e.g. a payment the server could not record by itself) */
+function alertsHtml(ctx) {
+  if (!ctx.alerts.length) return '';
+  return `<section class="card alert-card"><h3>⚠ דורש בדיקה</h3>${ctx.alerts.map(a => `<div class="alert-row"><div class="grow">${esc(a.new_value)}<div class="tiny muted">${esc(ago(a.at))}</div></div><button class="btn sm" data-alertok="${a.id}">טופל ✓</button></div>`).join('')}</section>`;
+}
+/** a customer who ordered before: a bar with links to the earlier orders */
+function repeatHtml(ctx) {
+  const p = ctx.prevOrders; if (!p.length) return '';
+  return `<div class="repeat-bar"><span class="chip blue">לקוח חוזר</span> ${plural(p.length, 'הזמנה קודמת אחת', 'הזמנות קודמות')}: ${p.slice(0, 5).map(x => `<a href="#order/${x.id}">#${x.id}</a> <span class="muted">${esc(x.stage)}${Number(x.total) ? ' · ' + money(x.total) : ''}</span>`).join(' · ')}</div>`;
+}
+/** pinned note (orders.notes): one note that is always in view; pinned from the history or written here */
+function pinnedHtml(ctx) {
+  const n = (ctx.o.notes || '').trim();
+  return `<section class="card pin-card"><div class="card-head"><h3>📌 הערה נעוצה</h3><button class="link-btn" id="pinEdit">${n ? 'עריכה' : 'כתיבה'}</button></div>
+    ${n ? `<div class="pin-text">${esc(n)}</div>` : '<p class="small muted">מה חשוב לזכור על הלקוח. אפשר גם לנעוץ הערה מההיסטוריה (📌).</p>'}</section>`;
+}
+async function editPin(ctx, text) {
+  const f = text != null ? { t: text } : await formModal('הערה נעוצה', `<label class="field">ההערה<textarea name="t" rows="5" placeholder="למשל: הקלטות של החתונה, רגיש. לא להתקשר לפני 16:00">${esc(ctx.o.notes || '')}</textarea><span class="hint">משאירים ריק כדי להסיר את הנעיצה.</span></label>`);
+  if (!f) return;
+  await patchOrder(ctx.o, { notes: String(f.t || '').trim() || null }, f.t ? 'ההערה ננעצה' : 'הנעיצה הוסרה'); reloadDeal(ctx);
+}
+/** one window for a payment taken outside the quote page (Bit, transfer, cash): records it, moves a sale to pickup,
+ *  and can issue the SUMIT invoice-receipt in the same step (user decision 2026-11-25) */
+async function recordPayment(ctx) {
+  const { o, c } = ctx;
+  const methods = (S.opts.payment_method || []).filter(x => x.active && !/SUMIT/.test(x.value)).map(x => x.value);
+  const f = await formModal('רישום תשלום', `<label class="field">איך שילם<select name="method" required>${methods.map(m => `<option ${m === o.payment_method ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+    <label class="field">סכום (₪, כולל מע"מ)<input name="amount" type="number" step="0.01" min="0" required value="${Number(o.total) || ''}"></label>
+    <label class="field">אסמכתא (לא חובה)<input name="reference" placeholder="מספר העברה / שם בביט"></label>
+    ${o.sumit_doc_id ? `<p class="hint">כבר הופקה חשבונית ${esc(o.invoice_number || '')}.</p>` : `<label class="toggle"><input type="checkbox" name="receipt" checked> להפיק חשבונית מס-קבלה ב-SUMIT${c.email ? ' (נשלחת במייל ' + esc(c.email) + ')' : ''}</label>`}
+    <p class="hint">תשלום בדף ההצעה (קישור SUMIT) נרשם לבד. "מזומן לשליח": ההזמנה מחכה במשימות עד שהכסף מגיע, והחשבונית מופקת אחר כך.</p>`, { ok: 'רישום התשלום' });
+  if (!f) return;
+  const cash = /מזומן לשליח/.test(f.method), amount = Number(f.amount);
+  const patch = { payment_method: f.method, paid_amount: amount, payment_status: cash ? 'מזומן אצל שליח' : 'שולם', ...(cash ? {} : { paid_at: o.paid_at || new Date().toISOString() }) };
+  await patchOrder(o, patch, 'התשלום נרשם: ' + money(amount) + ' (' + f.method + ')', { extra: ['stage', 'stage_changed_at'] });
+  if (phaseOf(o.stage) === 'sales') await changeStage({ ...o, ...patch }, 'לתאם איסוף', c);
+  if (f.receipt && !cash && !o.sumit_doc_id) {
+    toast('מפיק חשבונית ב-SUMIT…', { ms: 8000 });
+    const d = await callSumit({ order_id: o.id, action: 'receipt', method: f.method, amount, reference: f.reference });
+    if (d) toast(`חשבונית ${d.number} הופקה${d.emailed ? ' ונשלחה ללקוח' : ''}`, { ms: 6000 });
+  }
+  delete SEC_OPEN[o.id]; reloadDeal(ctx);
+}
+/** which scan action fits the stage (the scan screen opens on it) */
+const SCAN_FOR = { 'לתאם איסוף': 'נאסף', 'בדרך למעבדה': 'במעבדה', 'במעבדה': 'הומר', 'למסירה ללקוח': 'נארז להחזרה' };
 const SEC_BODY = {
   customer: ctx => `<div class="fields">${['full_name', 'phone', 'email', 'id_number', 'alt_contact_name', 'alt_contact_phone'].map(k => fld(ctx, k)).join('')}</div>
     <div style="margin-top:12px">${tog(ctx, 'invoice_business')}</div>${ctx.c.invoice_business ? `<div class="fields" style="margin-top:8px">${fld(ctx, 'business_name')}${fld(ctx, 'business_id')}</div>` : ''}
     <div class="subhead">כתובת לאיסוף</div><div class="fields">${['city', 'street', 'house_number', 'floor', 'apartment', 'entry_code'].map(k => fld(ctx, k)).join('')}</div>
     <div style="margin-top:12px">${tog(ctx, 'mailing_list')}</div>`,
-  photos: ctx => photosHtml(ctx),
+  activity: ctx => activityHtml(ctx),
+  photos: ctx => `${photosHtml(ctx)}<div class="fields" style="margin-top:12px">${fld(ctx, 'drive_folder_url', { wide: true })}</div>`,
   quote: ctx => quoteHtml(ctx),
-  items: ctx => itemsHtml(ctx),
-  payment: ctx => `<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}${extraPaysHtml(ctx)}${creditHtml(ctx)}${moneyHtml(ctx.o)}`,
+  items: ctx => `${SCAN_FOR[ctx.o.stage] && ctx.items.length ? `<div class="row" style="margin-bottom:10px"><button class="btn sm primary" data-scanfor="${SCAN_FOR[ctx.o.stage]}">סריקה: ${SCAN_FOR[ctx.o.stage]}</button><a class="btn sm ghost" href="#labels/${ctx.o.id}">מדבקות</a><a class="btn sm ghost" href="#boxlabel/${ctx.o.id}">מדבקת ארגז</a></div>` : ''}${itemsHtml(ctx)}`,
+  payment: ctx => `${ctx.o.payment_status !== 'שולם' && ctx.o.stage !== LOST ? '<div class="row" style="margin-bottom:10px"><button class="btn sm primary" data-recpay>רישום תשלום</button></div>' : ''}<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}${extraPaysHtml(ctx)}${creditHtml(ctx)}${moneyHtml(ctx.o)}`,
   shipping: ctx => `<div class="fields">${['lab_id', 'courier', 'pickup_date', 'pickup_tracking'].map(k => fld(ctx, k)).join('')}${fld(ctx, 'files_link_from_lab', { wide: true })}</div>
     <div class="row" style="margin-top:12px"><a class="btn sm" href="#shipments/new/${ctx.o.id}">משלוח חדש עם ההזמנה</a></div>`,
   delivery: ctx => `<div class="fields">${fld(ctx, 'delivery_link', { wide: true })}${ro('הקישור יימחק ב-', fmtDate(ctx.o.delivery_link_expires))}${['return_method', 'return_tracking'].map(k => fld(ctx, k)).join('')}
-    ${fld(ctx, 'personal_cloud_link')}${fld(ctx, 'drive_folder_url')}</div><div style="margin-top:12px">${tog(ctx, 'cloud_affiliate')}</div>`,
+    ${fld(ctx, 'personal_cloud_link')}${ctx.o.destroyed_at ? ro('החומרה הושמדה', fmtDT(ctx.o.destroyed_at)) : ''}</div><div style="margin-top:12px">${tog(ctx, 'cloud_affiliate')}</div>
+    ${!ctx.o.destroyed_at && (ctx.o.hardware_waived_at || ctx.o.destroy_notice_at || ctx.o.storage_fee_at) ? `<div class="row" style="margin-top:12px"><span class="small muted grow">${ctx.o.hardware_waived_at ? 'הלקוח ויתר על החומרה ' + fmtShort(ctx.o.hardware_waived_at) : 'החומרה לא נאספה'}</span><button class="btn sm danger" data-destroy>השמדת חומרה</button></div>` : ''}`,
   sale: ctx => `<div class="fields">${fld(ctx, 'source')}${fld(ctx, 'temperature')}${ro('נכנס', fmtDT(ctx.o.created_at))}${ctx.o.est_quantity ? ro('כמות שהלקוח כתב בטופס', ctx.o.est_quantity) : ''}
     ${ctx.o.stage === LOST ? fld(ctx, 'loss_category') + fld(ctx, 'loss_note', { wide: true }) : ''}</div>
     ${ctx.o.meta_lead_id ? `<div class="subhead">הגיע מטופס לידים במטא: ${esc(ctx.o.meta_form || '')}</div><div class="fields">
@@ -464,15 +557,9 @@ function contactHtml(ctx) {
     ${kv('עיר', esc(c.city || ''))}${kv('כתובת', esc(addr))}${c.alt_contact_name ? kv('איש קשר נוסף', esc(c.alt_contact_name) + (c.alt_contact_phone ? ` · <bdi dir="ltr">${esc(fmtPhone(c.alt_contact_phone))}</bdi>` : '')) : ''}</dl>`;
 }
 function sideHtml(ctx) {
-  const { o } = ctx, sales = phaseOf(o.stage) === 'sales';
   return `${linksCardHtml(ctx)}
     <section class="card"><div class="card-head"><h3>סיכום</h3></div><div id="sumBox">${summaryHtml(ctx)}</div></section>
-    ${questionnaireHtml(ctx)}
-    <section class="card"><div class="card-head"><h3>איש קשר</h3><button class="link-btn" data-opensec="customer">עריכה</button></div><div id="contactBox">${contactHtml(ctx)}</div>
-      ${sales ? `<div class="divider"></div><div class="row spread"><span class="small muted">${o.last_contact_at ? 'דיברנו ' + ago(o.last_contact_at) : 'עוד לא דיברנו'}</span><button class="btn sm" id="contacted">✓ דיברתי איתו עכשיו</button></div>` : ''}
-    </section>
-    <section class="card"><div class="card-head"><h3>הערות קבועות</h3></div>
-      <label class="field"><textarea data-save="orders:${o.id}:notes" rows="4" placeholder="מה חשוב לזכור על הלקוח הזה (למשל: הקלטות של החתונה, רגיש)">${esc(o.notes || '')}</textarea></label></section>`;
+    ${pinnedHtml(ctx)}`;
 }
 /** History (Pipedrive): a composer with tabs, filter pills, and a vertical timeline. */
 const HIST_SHOW = 6; // latest events shown before "show all"
@@ -480,13 +567,12 @@ const HIST_F = [['', 'הכל'], ['note', 'הערות'], ['stage', 'שלבים'],
 function historyHtml(ctx) {
   const { o } = ctx;
   return `<section class="card composer">
-      <div class="ctabs" role="tablist"><button class="on" data-ctab="note" role="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4h16v12l-4 4H4z"/><path d="M8 9h8M8 13h5"/></svg>הערה</button></div>
       <div class="cbody" data-cbody="note"><form id="noteForm" class="stack" style="gap:8px"><textarea name="t" rows="2" placeholder="מה קרה? (שיחה, עדכון, מה הלקוח אמר…)" required></textarea><div class="row" style="justify-content:flex-end"><button class="btn primary sm">שמירת הערה</button></div></form></div>
     </section>
     <div><div class="hist-head"><h3>היסטוריה</h3><div class="pills" role="group" aria-label="סינון היסטוריה">${HIST_F.map(([k, l]) => `<button class="${k ? '' : 'on'}" data-hf="${k}">${l}${k ? '' : ` <span class="n">${ctx.events.length}</span>`}</button>`).join('')}</div></div>
       <ul class="timeline ${ctx.events.length > HIST_SHOW ? 'clipped' : ''}" id="tl">${ctx.events.map((ev, i) => { const [ic, cls] = EV_IC[ev.kind] || EV_IC.note, note = ev.kind === 'note';
         return `<li data-ev="${ev.id}" data-kind="${esc(ev.kind)}" class="${i >= HIST_SHOW ? 'extra' : ''}"><span class="ic ${note ? 'note' : cls}">${ic}</span><div><div class="ev-t">${evText(ev)}</div><div class="w"><bdi dir="ltr">${fmtDT(ev.at)}</bdi>${ev.by_email ? ' · ' + esc(ev.by_email.split('@')[0]) : ''}${ev.edited_at ? ` · <span data-tip="${esc('לפני העריכה: ' + (ev.original_value || ''))}">נערך</span>` : ''}
-          ${note ? `<span class="ev-acts"><button class="link-btn" data-evedit="${ev.id}">עריכה</button><button class="link-btn danger" data-evdel="${ev.id}">מחיקה</button></span>` : ''}</div></div></li>`; }).join('') || '<li class="empty-li">עוד אין רישומים</li>'}</ul>
+          ${note ? `<span class="ev-acts"><button class="link-btn" data-evpin="${ev.id}">📌 נעיצה</button><button class="link-btn" data-evedit="${ev.id}">עריכה</button><button class="link-btn danger" data-evdel="${ev.id}">מחיקה</button></span>` : ''}</div></div></li>`; }).join('') || '<li class="empty-li">עוד אין רישומים</li>'}</ul>
       ${ctx.events.length > HIST_SHOW ? `<button class="btn sm ghost" id="histAll" style="margin-top:8px">הצגת כל ההיסטוריה (${ctx.events.length})</button>` : ''}
       <p class="tiny muted" style="margin-top:10px">הערות אפשר לערוך ולמחוק. מעברי שלב, תשלומים ושיחות נרשמים לבד ולא נערכים, כדי שההיסטוריה תישאר אמינה.</p></div>`;
 }
@@ -527,7 +613,7 @@ async function runUncheck(ctx, k) {
 async function runCheck(ctx, k) {
   const o = ctx.o;
   if (k.act === 'contact') { await markContacted(o); return reloadDeal(ctx); }
-  if (k.act.startsWith('open:')) { const s = k.act.slice(5), d = $(`[data-sec="${s}"]`); if (!d) return; d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  if (k.act.startsWith('open:')) return openSec(k.act.slice(5));
   if (k.act === 'items') return genItems(ctx);
   if (k.act === 'quotesent') { await markQuoteSent(o); return reloadDeal(ctx); }
   if (k.act === 'paylink') return dealPayLink(ctx);
@@ -546,7 +632,7 @@ async function runCheck(ctx, k) {
 }
 /** SUMIT payment link from the customer page: same flow as the sales list (paymentLink in sales.js) */
 const dealPayLink = ctx => paymentLink(ctx.o, { phone: ctx.c.phone, after: () => reloadDeal(ctx),
-  noQuote: () => { const d = $('[data-sec="quote"]'); if (d) { d.open = true; SEC_OPEN[ctx.o.id].add('quote'); d.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } });
+  noQuote: () => openSec('quote') });
 async function genItems(ctx) { const { data, error } = await sb.rpc('generate_items', { p_order: ctx.o.id }); fail(error); toast(data ? `נוצרו ${data} ברקודים` : 'אין ברקודים חדשים ליצירה'); SEC_OPEN[ctx.o.id].add('items'); reloadDeal(ctx); }
 /** WhatsApp chat with the customer, no prepared text. In sales, opening it counts as contacting the lead. */
 async function openWa(ctx) {
@@ -561,10 +647,10 @@ function bindNext(ctx) {
   $$('#nextBox [data-chk]').forEach(b => b.onclick = () => runCheck(ctx, checks[b.dataset.chk]));
   $$('#nextBox [data-actdone], #nextBox [data-actundo]').forEach(b => b.onclick = async () => { b.disabled = true;
     await setActionDone(ctx.o, Number(b.dataset.actdone || b.dataset.actundo), !!b.dataset.actdone); lightRefresh(ctx); });
-  $('#advance') && ($('#advance').onclick = async () => { const nx = STEPS[stepIdx(ctx.o.stage) + 1]; if (nx && await changeStage(ctx.o, nx.key, ctx.c)) {
+  $('#advance') && ($('#advance').onclick = async () => { if (stepOf(ctx.o.stage)?.pay) return recordPayment(ctx);
+    const nx = STEPS[stepIdx(ctx.o.stage) + 1]; if (nx && await changeStage(ctx.o, nx.key, ctx.c)) {
     delete SEC_OPEN[ctx.o.id]; reloadDeal(ctx); } });
   $('#fuEdit') && ($('#fuEdit').onclick = async () => { if (await setFollowup(ctx.o)) reloadDeal(ctx); });
-  $('#toLost') && ($('#toLost').onclick = async () => { if (await changeStage(ctx.o, LOST, ctx.c)) reloadDeal(ctx); });
   $('#waOpen') && ($('#waOpen').onclick = () => openWa(ctx));
   bindLinks($('#nextBox'), ctx);
   $$('#nextBox [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
@@ -580,7 +666,6 @@ async function markQuoteSent(o) {
 const Q_LABEL = { storage_place: 'איפה נשמרה', mold: 'עובש', delivery_method: 'קבלת הקבצים', cloud_type: 'ענן', return_method: 'החומרה בסוף' };
 function questionnaireHtml(ctx) {
   const { o, c, lines } = ctx;
-  if (phaseOf(o.stage) !== 'sales' && !o.q_opened_at) return '';
   const status = o.q_submitted_at ? `<b>נשלח</b> ${fmtDT(o.q_submitted_at)}` : o.q_opened_at ? `התחיל למלא · <b>${o.q_progress || 0}%</b>${o.q_saved_at ? ` · עדכון אחרון ${esc(ago(o.q_saved_at))}` : ''}` : o.q_sent_at ? `<b>נשלח ללקוח</b> ${fmtDT(o.q_sent_at)} · עוד לא נפתח` : '<span class="muted">עוד לא נשלח ללקוח</span>';
   // quantities the customer changed vs. what we entered from the WhatsApp photos
   const init = new Map((o.q_initial_lines || []).map(l => [l.product_id, l.qty]));
@@ -588,7 +673,7 @@ function questionnaireHtml(ctx) {
   const ups = (ctx.photos || []).filter(p => p.source === 'customer').length; // optional photos the customer added in the form
   const kv = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : '';
   const ans = o.q_opened_at ? `<dl class="kv" style="margin-top:8px">${Object.entries(Q_LABEL).map(([k, l]) => kv(l, o[k])).join('')}${kv('אקספרס', o.priority ? 'כן' : '')}${kv('תקנון', o.terms_accepted_at ? 'אושר ' + fmtShort(o.terms_accepted_at) : '')}</dl>` : '';
-  return `<section class="card" id="qCard"><div class="card-head"><h3>מה הלקוח מילא</h3></div>
+  return `<div id="qCard">
     <div class="small">${status}</div>
     ${quotePending(o) ? `<div class="warn" style="margin-top:8px"><b>ההצעה עוד לא נשלחה.</b> בודקים את הצעת המחיר (השורות כבר מולאו מהשאלון) ושולחים.<div class="row" style="margin-top:8px"><button class="btn sm primary" data-lsend="quote:wa">שליחת ההצעה בוואטסאפ</button><button class="btn sm" id="qSent">כבר שלחתי ✓</button></div></div>` : ''}
     ${o.quote_sent_at && o.q_submitted_at ? `<div class="small muted" style="margin-top:6px">ההצעה נשלחה ${fmtDT(o.quote_sent_at)}. השאלון נעול לעריכה.</div>` : ''}
@@ -596,7 +681,7 @@ function questionnaireHtml(ctx) {
     ${ups ? `<div class="small" style="margin-top:6px"><span class="chip blue">הלקוח הוסיף ${ups} תמונות</span> <button class="link-btn" data-opensec="photos">לצפייה</button></div>` : ''}
     ${o.q_unsure_type ? '<div class="note" style="margin-top:8px">הלקוח לא בטוח מה הסוג של חלק מהפריטים. לזהות לפי התמונות.</div>' : ''}
     ${c.invoice_business ? `<div class="small" style="margin-top:6px">חשבונית על שם עסק: <b>${esc(c.business_name || '')}</b> ${esc(c.business_id || '')}</div>` : ''}
-    ${ans}</section>`;
+    ${ans}</div>`;
 }
 async function editDate(ctx, k) {
   const f = await formModal('תיקון תאריך', `<label class="field">תאריך ושעה<input type="datetime-local" name="v" value="${toLocalInput(ctx.o[k])}"><span class="hint">משאירים ריק כדי למחוק את הסימון.</span></label>`);
@@ -608,14 +693,19 @@ function bindDeal(ctx) {
   bindAutosave(view(), (t, k, v) => afterSave(ctx, t, k, v));
   bindNext(ctx);
   bindPhotos(ctx);
-  $$('details.sec').forEach(d => d.addEventListener('toggle', () => SEC_OPEN[o.id][d.open ? 'add' : 'delete'](d.dataset.sec)));
+  $$('[data-dtab]').forEach(b => b.onclick = () => showTab(b.dataset.dtab));
   $$('[data-step]').forEach(b => b.onclick = async () => { const s = STEPS[b.dataset.step]; if (s.key !== ctx.o.stage && await changeStage(ctx.o, s.key, c)) { delete SEC_OPEN[o.id]; reloadDeal(ctx); } });
   // Pipedrive won / lost: "שילם" runs the normal move to pickup (payment dialog, required details); "לא רלוונטי" asks why
-  $('#wonBtn') && ($('#wonBtn').onclick = async () => { if (await changeStage(ctx.o, 'לתאם איסוף', c)) { delete SEC_OPEN[o.id]; reloadDeal(ctx); } });
+  $('#wonBtn') && ($('#wonBtn').onclick = () => recordPayment(ctx));
   $('#lostBtn') && ($('#lostBtn').onclick = async () => { if (await changeStage(ctx.o, LOST, c)) reloadDeal(ctx); });
-  $$('[data-opensec]').forEach(b => b.onclick = () => { const s = b.dataset.opensec, d = $(`[data-sec="${s}"]`); d.open = true; SEC_OPEN[o.id].add(s); d.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+  $$('[data-opensec]').forEach(b => b.onclick = () => openSec(b.dataset.opensec));
+  $$('[data-alertok]').forEach(b => b.onclick = async () => { const { error } = await sb.rpc('handle_alert', { p_id: Number(b.dataset.alertok) }); fail(error); toast('סומן כטופל'); reloadDeal(ctx); });
+  $$('[data-recpay]').forEach(b => b.onclick = () => recordPayment(ctx));
+  $$('[data-scanfor]').forEach(b => b.onclick = () => { sessionStorage.setItem('scanStatus', b.dataset.scanfor); go('scan'); });
+  $$('[data-destroy]').forEach(b => b.onclick = async () => { if (await destroyHardware(ctx.o)) reloadDeal(ctx); });
+  $('#pinEdit') && ($('#pinEdit').onclick = () => editPin(ctx));
+  $$('[data-evpin]').forEach(b => b.onclick = () => editPin(ctx, ctx.events.find(x => x.id === Number(b.dataset.evpin))?.new_value || ''));
   // composer tabs + history filter
-  $$('[data-ctab]').forEach(b => b.onclick = () => { $$('[data-ctab]').forEach(x => x.classList.toggle('on', x === b)); $$('[data-cbody]').forEach(x => x.classList.toggle('hidden', x.dataset.cbody !== b.dataset.ctab)); });
   const unclip = () => { $('#tl')?.classList.remove('clipped'); $('#histAll')?.remove(); };
   $('#histAll') && ($('#histAll').onclick = unclip);
   $$('[data-hf]').forEach(b => b.onclick = () => { $$('[data-hf]').forEach(x => x.classList.toggle('on', x === b)); const k = b.dataset.hf; if (k) unclip();
@@ -674,8 +764,6 @@ function bindDeal(ctx) {
   $$('[data-body="after"] [data-msedit]').forEach(b => b.onclick = () => editDate(ctx, b.dataset.msedit));
   $$('[data-body="after"] [data-unchk]').forEach(b => b.onclick = () => runUncheck(ctx, STEP_DONE().checks[Number(b.dataset.unchk.slice(1))]));
   // side
-  $('#contacted') && ($('#contacted').onclick = async () => { await markContacted(ctx.o); reloadDeal(ctx); });
-  $$('[data-fu]').forEach(b => b.onclick = async () => { const d = addDays(Number(b.dataset.fu)); const { error } = await sb.from('orders').update({ next_followup: d }).eq('id', o.id); fail(error); $$(`[data-save="orders:${o.id}:next_followup"]`).forEach(i => i.value = d); toast('נחזור ללקוח ב-' + fmtDate(d)); });
   // journal notes: edit in place, delete (hidden, restorable) — both with undo/redo
   const noteRpc = (fn, args) => async () => { const { error } = await sb.rpc(fn, args); fail(error); };
   $$('[data-evdel]').forEach(b => b.onclick = () => { const id = Number(b.dataset.evdel);
