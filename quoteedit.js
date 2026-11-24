@@ -58,7 +58,7 @@ function validityHtml(ctx) {
 
 // ---------- promotions (S5): automatic + manual per order ----------
 const promoName = pid => S.promos.find(p => p.id === pid)?.name || 'מבצע';
-const promoValue = p => !p ? '' : p.kind === 'percent' ? `${Number(p.value)}%` : p.kind === 'amount' ? money(p.value) : 'מתנה: ' + productName(p.gift_product_id);
+const qePromoValue = p => !p ? '' : p.kind === 'percent' ? `${Number(p.value)}%` : p.kind === 'amount' ? money(p.value) : 'מתנה: ' + productName(p.gift_product_id);
 const promoRunning = p => { const t = today(); return p.active && p.starts_on <= t && p.ends_on >= t; };
 function promoBoxHtml(ctx) {
   const o = ctx.o, paid = o.payment_status === 'שולם';
@@ -68,14 +68,14 @@ function promoBoxHtml(ctx) {
   const coming = sb && !paid ? S.promos.filter(p => promoRunning(p) && !has.has(p.id)) : [];
   const addable = S.promos.filter(p => !inOrder.some(x => x.promotion_id === p.id));
   const row = x => { const p = S.promos.find(y => y.id === x.promotion_id), l = amount.get(x.promotion_id);
-    return `<li><span class="grow"><b>${esc(promoName(x.promotion_id))}</b> <span class="muted">${esc(promoValue(p))}</span>
+    return `<li><span class="grow"><b>${esc(promoName(x.promotion_id))}</b> <span class="muted">${esc(qePromoValue(p))}</span>
       <span class="tiny muted" style="display:block">${x.source === 'staff' ? 'נוסף ידנית' : esc(x.reason || '')} · ${esc(fmtShort(x.applied_at))}${o.quote_expired_at ? ' · לא פעיל עד חידוש התוקף' : ''}</span></span>
       ${l ? `<span class="pos">${l.kind === 'gift' ? 'מתנה' : '−' + money(l.amount)}</span>` : ''}${paid ? '' : `<button class="link-btn danger" data-promo-del="${x.id}">הסרה</button>`}</li>`; };
   return `<div class="card-head"><h3>מבצעים</h3></div>
     ${inOrder.length ? `<ul class="promo-list">${inOrder.map(row).join('')}</ul>` : '<p class="small muted" style="margin:0">אין מבצע בהזמנה.</p>'}
-    ${coming.length ? `<div class="note" style="margin-top:8px">בשליחה או בחידוש ייכנס: <b>${coming.map(p => esc(p.name) + ' ' + esc(promoValue(p))).join(', ')}</b></div>` : ''}
+    ${coming.length ? `<div class="note" style="margin-top:8px">בשליחה או בחידוש ייכנס: <b>${coming.map(p => esc(p.name) + ' ' + esc(qePromoValue(p))).join(', ')}</b></div>` : ''}
     ${removed.length ? `<div class="small muted" style="margin-top:8px">הוסרו מההזמנה: ${removed.map(x => `${esc(promoName(x.promotion_id))} ${paid ? '' : `<button class="link-btn" data-promo-back="${x.id}">החזרה</button>`}`).join(' · ')}</div>` : ''}
-    ${paid || !addable.length ? '' : `<div class="row" style="margin-top:10px;gap:6px"><select id="promoPick" aria-label="מבצע להוספה">${addable.map(p => `<option value="${p.id}">${esc(p.name)} (${esc(promoValue(p))})${promoRunning(p) ? '' : ' · לא בתאריכים'}</option>`).join('')}</select><button class="btn sm" id="promoAdd">הוספת מבצע</button></div>`}`;
+    ${paid || !addable.length ? '' : `<div class="row" style="margin-top:10px;gap:6px"><select id="promoPick" aria-label="מבצע להוספה">${addable.map(p => `<option value="${p.id}">${esc(p.name)} (${esc(qePromoValue(p))})${promoRunning(p) ? '' : ' · לא בתאריכים'}</option>`).join('')}</select><button class="btn sm" id="promoAdd">הוספת מבצע</button></div>`}`;
 }
 const promoEvent = (o, text) => sb.from('order_events').insert({ order_id: o.id, kind: 'field', new_value: text });
 async function promoRemove(ctx, rowId) {
