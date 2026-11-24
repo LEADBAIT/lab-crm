@@ -186,16 +186,18 @@ async function changeStage(o, to, c, { qOk = false } = {}) {
     Object.assign(patch, { loss_category: f.loss_category, loss_note: f.loss_note || null });
   } else if (dest > from && from >= 0) {
     // moving forward: check what the current step needs
-    const cur = STEPS[from];
-    const miss = cur.need ? cur.need(o) : [];
-    if (miss.length && dest === from + 1) { await tell('עוד לא אפשר לעבור לשלב הבא', 'חסר: ' + miss.join(', ')); return false; }
+    // what every step we pass through needs (skipping ahead on the stage bar or the board must not skip the checks).
+    // Sales steps count only for the current one, so "the customer paid" can still jump from any sales step.
+    const miss = [];
+    for (let i = from; i < dest; i++) if (STEPS[i].need && (i === from || STEPS[i].phase !== 'sales')) miss.push(...STEPS[i].need(o));
+    if (miss.length) { await tell('עוד לא אפשר לעבור לשלב הזה', 'חסר: ' + [...new Set(miss)].join(', ')); return false; }
     if (STEPS[dest].phase !== 'sales' && phaseOf(o.stage) === 'sales') {
       c ||= (await sb.from('customers').select('*').eq('id', o.customer_id).single()).data;
       const m = missingForPaid(o, c);
       if (m.length && !await ask('חסרים פרטים לחשבונית ולאיסוף', 'חסר: ' + m.join(', ') + '\n\nאפשר להשלים אחר כך, אבל השליח והחשבונית צריכים אותם.', { ok: 'להמשיך בכל זאת', cancel: 'להשלים קודם' })) return false;
       if (o.payment_status === 'לא שולם' || !o.payment_status) {
         const f = await formModal('רישום התשלום', `<label class="field">איך שילם<select name="payment_method">${opts('payment_method', o.payment_method)}</select></label>
-          <label class="field">סכום ששולם (₪)<input name="paid_amount" type="number" step="1" value="${esc(o.total)}"></label>
+          <label class="field">סכום ששולם (₪)<input name="paid_amount" type="number" step="0.01" min="0" value="${esc(o.total)}"></label>
           <label class="field">מצב התשלום<select name="payment_status">${opts('payment_status', 'שולם', { empty: false })}</select><span class="hint">"מזומן אצל שליח" = השליח גובה. ההזמנה תופיע במשימות עד שהכסף מגיע.</span></label>`, { ok: 'שמירה ומעבר לתיאום איסוף' });
         if (!f) return false;
         Object.assign(patch, { payment_status: f.payment_status, payment_method: f.payment_method || null, paid_amount: f.paid_amount ? Number(f.paid_amount) : null });

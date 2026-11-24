@@ -57,6 +57,19 @@ function toast(msg, { ms = 2400, undo, label = 'ביטול' } = {}) {
   if (undo) $('button', t).onclick = () => { t.classList.add('hidden'); undo(); };
   t._h = setTimeout(() => t.classList.add('hidden'), undo ? 6000 : ms);
 }
+// ---------- double-click guard ----------
+// A save, payment, invoice or stage button pressed twice within 1.2s runs once (a double click must never create two
+// invoices, payment links, promotions or shipments). Quantity steppers and plain toggles are not affected.
+const ONCE_SEL = 'form button:not([type=button]), [data-sumit], [data-paylink], #advance, #wonBtn, #lostBtn, .btn.primary, .btn.solid';
+const ONCE_MS = 1200;
+function onceGuard(el, e) {
+  if (!el) return;
+  const now = Date.now();
+  if (Number(el.dataset.busyUntil || 0) > now) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  el.dataset.busyUntil = now + ONCE_MS;
+}
+document.addEventListener('click', e => onceGuard(e.target.closest?.(ONCE_SEL), e), true);
+document.addEventListener('submit', e => onceGuard(e.target, e), true);
 function fail(error) { if (error) { console.error(error); toast('משהו נכשל: ' + (error.message || error), { ms: 5000 }); throw error; } }
 
 // ---------- dialogs ----------
@@ -107,25 +120,38 @@ const trackUrl = o => ((S.settings.public_url?.text_value || '').trim() || (loca
 async function loadRef() {
   const q = [sb.from('settings').select('*').order('sort'), sb.from('options').select('*').order('sort'), sb.from('products').select('*').order('sort'),
     sb.from('labs').select('*').order('name'), sb.from('discount_tiers').select('*').order('min_items'), sb.from('coupons').select('*').order('code'),
-    sb.from('message_templates').select('*').order('sort'), sb.from('package_items').select('*'), sb.from('promotions').select('*').order('starts_on', { ascending: false })];
+    sb.from('message_templates').select('*').order('sort'), sb.from('package_items').select('*'), sb.from('promotions').select('*').order('starts_on', { ascending: false }),
+    sb.from('orders').select('id').eq('is_test', true)];
   const r = await Promise.all(q); r.forEach(x => fail(x.error));
-  const [st, op, pr, lb, tr, cp, tp, pi, pm] = r.map(x => x.data);
+  const [st, op, pr, lb, tr, cp, tp, pi, pm, tests] = r.map(x => x.data);
   S.pkgItems = pi; S.promos = pm;
+  // test orders (orders.is_test) stay out of lists, tasks and reports unless "show test orders" is on in the user menu
+  S.testIds = new Set(tests.map(x => x.id)); S.showTests = lsGet('showTests') === 'on';
   S.settings = Object.fromEntries(st.map(x => [x.key, x]));
   S.opts = {}; op.forEach(o => (S.opts[o.list] ||= []).push(o));
   S.products = pr; S.labs = lb; S.tiers = tr; S.coupons = cp; S.templates = tp;
 }
+/** false for a test order while test orders are hidden */
+const realOrder = id => S.showTests || !S.testIds?.has(id);
 async function getOrders(filter) {
   let q = sb.from('v_orders').select('*').order('id', { ascending: false });
   if (filter) q = filter(q);
-  const [{ data, error }, qa] = await Promise.all([q, sb.from('orders').select(Q_COLS)]); fail(error); fail(qa.error);
-  const m = new Map(qa.data.map(x => [x.id, x])); data.forEach(o => Object.assign(o, m.get(o.id))); return data;
+  const { data, error } = await q; fail(error);
+  // the questionnaire/quote columns for exactly these orders, in chunks (a URL holds ~200 ids; a query returns at most 1000 rows)
+  const ids = data.map(o => o.id), m = new Map();
+  for (let i = 0; i < ids.length; i += 200) {
+    const qa = await sb.from('orders').select(Q_COLS).in('id', ids.slice(i, i + 200)); fail(qa.error);
+    qa.data.forEach(x => m.set(x.id, x));
+  }
+  data.forEach(o => Object.assign(o, m.get(o.id)));
+  if (data.length >= 1000) toast('מוצגות רק 1000 ההזמנות האחרונות. צמצמו בחיפוש או בסינון', { ms: 6000 });
+  return data.filter(o => realOrder(o.id) && (S.showTests || !o.is_test));
 }
 const getOrder = async id => { const [{ data, error }, qa] = await Promise.all([sb.from('v_orders').select('*').eq('id', id).single(), sb.from('orders').select(Q_COLS).eq('id', id).single()]); fail(error); fail(qa.error); return Object.assign(data, qa.data); };
 // ---------- onboarding questionnaire (q.html#<q_token>, spec crm/אפיון-שאלון-אונבורדינג.md) ----------
 // its columns are not in v_orders, so every order read merges them in from orders
 const Q_COLS = 'id,q_token,q_opened_at,q_saved_at,q_submitted_at,q_progress,q_initial_lines,q_qty_changed_at,q_unsure_type,storage_place,mold,delivery_method,cloud_type,terms_accepted_at,quote_sent_at,q_sent_at,'
-  + 'quote_token,quote_version,quote_valid_until,quote_expired_at,quote_views,quote_first_view_at,quote_last_view_at,quote_pay_clicked_at,quote_accepted_at,quote_accepted_name,quote_addons,actions_done';
+  + 'quote_token,quote_version,quote_valid_until,quote_expired_at,quote_views,quote_first_view_at,quote_last_view_at,quote_pay_clicked_at,quote_accepted_at,quote_accepted_name,quote_addons,actions_done,is_test';
 const pageUrl = (file, token) => ((S.settings.public_url?.text_value || '').trim() || (location.origin + location.pathname)).replace(/#.*$/, '').replace(/[^/]*$/, '') + file + '#' + token;
 const qUrl = o => pageUrl('q.html', o.q_token);
 // ---------- quote link (p.html#<quote_token>, spec crm/אפיון-הצעת-מחיר.md) ----------
@@ -266,13 +292,6 @@ $('#loginForm').addEventListener('submit', async e => {
   if (error) return $('#loginMsg').textContent = /invalid/i.test(error.message) ? 'המייל או הסיסמה לא נכונים.' : 'הכניסה נכשלה: ' + error.message;
   boot();
 });
-$('#signupBtn').addEventListener('click', async () => {
-  const f = new FormData($('#loginForm'));
-  if (!f.get('email') || String(f.get('password')).length < 6) return $('#loginMsg').textContent = 'ממלאים מייל וסיסמה (6 תווים לפחות) ולוחצים שוב.';
-  const { error } = await sb.auth.signUp({ email: String(f.get('email')).trim().toLowerCase(), password: f.get('password') });
-  $('#loginMsg').textContent = error && /rate limit/i.test(error.message) ? 'נשלחו יותר מדי מיילי אישור בשעה האחרונה. מחכים שעה, או שמנהל יוצר את המשתמש ב-Supabase (Authentication → Add user → Auto Confirm).'
-    : error ? 'ההרשמה נכשלה: ' + error.message : 'נשלח אליך מייל אישור. אחרי האישור חוזרים לכאן ונכנסים.';
-});
 
 // ---------- theme ----------
 // default is dark (chosen 2026-11-19); '' = follow the device
@@ -306,6 +325,7 @@ $('#userBtn').addEventListener('click', e => {
   const t = themePref();
   dropdown(e.currentTarget, [{ head: S.me?.name || S.user?.email || '' },
     ...(isLab() ? [] : [{ label: 'סיור היכרות עם ה-CRM', run: startTour }]),
+    { label: S.showTests ? 'הסתרת הזמנות בדיקה' : 'הצגת הזמנות בדיקה', run: () => { lsSet('showTests', S.showTests ? 'off' : 'on'); S.showTests = !S.showTests; route(); } },
     { label: tipsOn() ? 'הסתרת הסברים במעבר עכבר' : 'הצגת הסברים במעבר עכבר', run: () => { lsSet('tips', tipsOn() ? 'off' : 'on'); toast(tipsOn() ? 'ההסברים מוצגים' : 'ההסברים הוסתרו'); } },
     { label: t === 'dark' ? 'מצב בהיר' : t === 'light' ? 'מצב לפי המכשיר' : 'מצב כהה', run: () => { lsSet('theme', t === 'dark' ? 'light' : t === 'light' ? '' : 'dark'); applyTheme(); } },
     'sep', { label: 'יציאה', run: async () => { await sb.auth.signOut(); location.hash = ''; location.reload(); } }]);

@@ -7,6 +7,7 @@ VIEWS.labbills = async function vLabBills() {
   const [{ data: rows, error: e1 }, { data: paid, error: e2 }] = await Promise.all([
     sb.from('v_orders').select('id, full_name, lab_id, lab_name, lab_month, lab_cost, lab_cost_missing, items_count, media_qty, items_no_charge, conversion_done_at, back_from_lab_at').not('lab_month', 'is', null),
     sb.from('expenses').select('*').not('lab_id', 'is', null)]); fail(e1); fail(e2);
+  rows.splice(0, rows.length, ...rows.filter(r => realOrder(r.id)));
   const months = [...new Set(rows.map(r => r.lab_month.slice(0, 7)).concat([month]))].sort().reverse();
   const mName = m => new Date(m + '-01').toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
   const inM = rows.filter(r => r.lab_month.slice(0, 7) === sel);

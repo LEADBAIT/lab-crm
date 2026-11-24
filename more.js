@@ -6,6 +6,7 @@ VIEWS.reports = async function vReports() {
   // v_order_lines: what each line really charges (package contents and promotion gifts are free)
   const [{ data: exp }, { data: lines }, { data: xpays }] = await Promise.all([sb.from('expenses').select('*'), sb.from('v_order_lines').select('order_id, product_id, category, qty, charged_qty, unit_price, line_total'),
     sb.from('order_payments').select('order_id, lines, amount, paid_at').eq('status', 'paid')]);
+  [lines, xpays].forEach(a => a && a.splice(0, a.length, ...a.filter(x => realOrder(x.order_id))));
   const month = today().slice(0, 7), sel = sessionStorage.getItem('dashMonth') || month;
   const prevOf = m => { const [y, mm] = m.split('-').map(Number); const d = new Date(y, mm - 2, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
   const mName = m => new Date(m + '-01').toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });

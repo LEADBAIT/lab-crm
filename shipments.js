@@ -35,6 +35,7 @@ VIEWS.shipments = async function vShipments() {
 
 async function newShipment(preOrder) {
   const { data: orders, error } = await sb.from('v_orders').select('id, full_name, stage, lab_id, lab_name, items_count, media_qty, returned_at, phase').eq('phase', 'ops').order('id'); fail(error);
+  orders.splice(0, orders.length, ...orders.filter(o => realOrder(o.id) || o.id === preOrder));
   const pre = orders.find(o => o.id === preOrder);
   const guessDir = o => !o ? 'lab_to_us' : !o.lab_id || ['לתאם איסוף', 'בדרך למעבדה'].includes(o.stage) ? 'to_lab' : o.stage === 'למסירה ללקוח' ? 'us_to_customer' : 'lab_to_us';
   const p = modal(`<h2>משלוח חדש</h2><form id="shF" class="grid">

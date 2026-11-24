@@ -196,15 +196,15 @@ const FIELD_DATE = d => /^\d{4}-\d{2}-\d{2}$/.test(d) ? fmtDate(d) : fmtDT(d);
 
 // ---------- sections ----------
 const SECTIONS = [
-  ['customer', 'פרטי לקוח וכתובת', ctx => { const m = showRequired(ctx.o) ? missingForPaid(ctx.o, ctx.c).filter(x => x !== 'כמויות בהצעת המחיר') : []; return [ctx.c.city, m.length ? `<span class="chip red">חסרים ${m.length} פרטים</span>` : ''].filter(Boolean).join(' · '); }],
+  ['customer', 'פרטי לקוח וכתובת', ctx => { const m = showRequired(ctx.o) ? missingForPaid(ctx.o, ctx.c).filter(x => x !== 'כמויות בהצעת המחיר') : []; return [ctx.c.city && esc(ctx.c.city), m.length ? `<span class="chip red">חסרים ${m.length} פרטים</span>` : ''].filter(Boolean).join(' · '); }],
   ['photos', 'תמונות החומרה', ctx => { const p = ctx.photos || [], u = p.filter(x => x.kind === 'update').length; return p.length ? `${p.length} תמונות${u ? ` · <span class="chip orange">${u} אחרי שינוי כמויות</span>` : ''}` : '<span class="chip red">אין תמונות</span>'; }],
   ['quote', 'הצעת מחיר', ctx => ctx.o.media_qty ? `${ctx.o.media_qty} פריטים · ${money(ctx.o.total)}` : 'עוד אין כמויות'],
   ['items', 'פריטים וברקודים', ctx => ctx.items.length ? `${ctx.items.length} ברקודים · ${ctx.o.items_at_lab_or_later} הגיעו למעבדה · ${ctx.o.items_converted} הומרו` : 'עוד לא נוצרו'],
-  ['payment', 'תשלום, עלות וזיכוי', ctx => [ctx.o.payment_status, ctx.o.paid_amount ? money(ctx.o.paid_amount) : '', ctx.o.invoice_number ? 'חשבונית ' + ctx.o.invoice_number : '',
+  ['payment', 'תשלום, עלות וזיכוי', ctx => [esc(ctx.o.payment_status || ''), ctx.o.paid_amount ? money(ctx.o.paid_amount) : '', ctx.o.invoice_number ? 'חשבונית ' + esc(ctx.o.invoice_number) : '',
     ctx.o.lab_id && ctx.o.paid_at ? 'רווח ' + money(orderProfit(ctx.o)) : '', ctx.o.items_no_charge && !ctx.o.credit_done_at ? `<span class="chip orange">זיכוי פתוח ${money(ctx.o.credit_amount ?? ctx.o.credit_due)}</span>` : ''].filter(Boolean).join(' · ')],
-  ['shipping', 'משלוח ומעבדה', ctx => [ctx.o.lab_name, ctx.o.pickup_date ? 'איסוף ' + fmtShort(ctx.o.pickup_date) : ''].filter(Boolean).join(' · ') || 'לא נקבע'],
+  ['shipping', 'משלוח ומעבדה', ctx => [ctx.o.lab_name && esc(ctx.o.lab_name), ctx.o.pickup_date ? 'איסוף ' + fmtShort(ctx.o.pickup_date) : ''].filter(Boolean).join(' · ') || 'לא נקבע'],
   ['delivery', 'מסירה והחזרה', ctx => ctx.o.delivery_sent_at ? 'הקישור נשלח ' + fmtShort(ctx.o.delivery_sent_at) : ctx.o.delivery_link ? 'יש קישור, עוד לא נשלח' : ''],
-  ['sale', 'מקור ומכירה', ctx => [ctx.o.source, ctx.o.temperature].filter(Boolean).join(' · ')],
+  ['sale', 'מקור ומכירה', ctx => [ctx.o.source, ctx.o.temperature].filter(Boolean).map(esc).join(' · ')],
   ['after', 'אחרי סיום', ctx => [ctx.o.review_requested_at && 'ביקורת ✓', ctx.o.story_requested_at && 'סטורי ✓', ctx.o.gift_sent && 'מתנה ✓'].filter(Boolean).join(' · ')],
 ];
 function sectionsHtml(ctx) {
@@ -307,7 +307,7 @@ function extraPaysHtml(ctx) {
   const ps = ctx.extraPays || []; if (!ps.length) return '';
   return `<div class="subhead">תשלומים נוספים (תוספות מדף המעקב)</div><div class="table-wrap"><table><thead><tr><th>מה</th><th class="num">סכום</th><th>מצב</th><th>חשבונית</th></tr></thead><tbody>
     ${ps.map(p => { const [l, c] = EXTRA_ST[p.status] || [p.status, '']; return `<tr><td class="small">${(p.lines || []).map(x => `${x.qty > 1 ? x.qty + '× ' : ''}${esc(productName(x.product_id) || '')}`).join(', ')}<span class="tiny muted" style="display:block">${fmtDT(p.created_at)}</span></td>
-      <td class="num">${money(p.amount)}</td><td><span class="chip ${c}">${l}</span>${p.paid_at ? ` <span class="tiny muted">${fmtShort(p.paid_at)}</span>` : ''}</td>
+      <td class="num">${money(p.amount)}</td><td><span class="chip ${c}">${esc(l)}</span>${p.paid_at ? ` <span class="tiny muted">${fmtShort(p.paid_at)}</span>` : ''}</td>
       <td>${p.sumit_doc_url ? `<a href="${esc(p.sumit_doc_url)}" target="_blank" rel="noopener">${esc(p.invoice_number || 'מסמך')}</a>` : p.status === 'open' && p.sumit_payment_url ? `<a class="small" href="${esc(p.sumit_payment_url)}" target="_blank" rel="noopener">קישור התשלום</a>` : ''}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
 function moneyHtml(o) {
@@ -358,7 +358,13 @@ async function callSumit(body) {
 }
 async function sumitAction(ctx, act) {
   const { o, c } = ctx;
-  if (act === 'customer_url') { toast('פותח את SUMIT…'); const d = await callSumit({ order_id: o.id, action: act }); if (d?.url) window.open(d.url, '_blank', 'noopener'); return; }
+  if (act === 'customer_url') {
+    // the window opens on the click itself (a window opened after an await is blocked as a pop-up), then goes to SUMIT
+    const w = window.open('', '_blank'); toast('פותח את SUMIT…');
+    const d = await callSumit({ order_id: o.id, action: act });
+    if (d?.url && w) { w.opener = null; w.location.href = d.url; } else w?.close();
+    return;
+  }
   if (act === 'receipt') {
     const methods = (S.opts.payment_method || []).filter(x => x.active && !/SUMIT/.test(x.value)).map(x => x.value);
     const f = await formModal('הפקת חשבונית מס-קבלה', `<label class="field">איך הלקוח שילם<select name="method" required>${methods.map(m => `<option ${m === o.payment_method ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
