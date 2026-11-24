@@ -17,7 +17,7 @@ VIEWS.labbills = async function vLabBills() {
     return { os, due, pd, left: Math.round((due - pd) * 100) / 100, missing: os.filter(r => r.lab_cost_missing).length }; };
   const totalLeft = labs.reduce((s, l) => s + Math.max(0, bill(l).left), 0);
   view().innerHTML = `<div class="page-head"><div><div class="sub">כמה חייבים לכל מעבדה על ההזמנות שהיא סיימה בחודש (לפי מחירון העלות). תשלום נרשם גם כהוצאה בקטגוריה "מעבדות".</div></div>
-      <div class="row"><label class="field" style="min-width:200px">חודש<select id="bm">${months.map(m => `<option value="${m}" ${m === sel ? 'selected' : ''}>${mName(m)}</option>`).join('')}</select></label>
+      <div class="row"><div class="seg" role="tablist" aria-label="כספים"><a class="${'labbills' === 'expenses' ? 'on' : ''}" href="#expenses" role="tab">הוצאות</a><a class="${'labbills' === 'labbills' ? 'on' : ''}" href="#labbills" role="tab">חשבונות מעבדות</a></div><label class="field" style="min-width:200px">חודש<select id="bm">${months.map(m => `<option value="${m}" ${m === sel ? 'selected' : ''}>${mName(m)}</option>`).join('')}</select></label>
       <div class="card kpi" style="min-width:160px"><span class="l">נשאר לשלם</span><span class="v">${money(totalLeft)}</span></div></div></div>
     ${labs.map(l => { const b = bill(l); return `<section class="card flush" style="margin-bottom:16px">
       <div class="card-head" style="padding:14px 16px 0"><h3>${esc(l.name)}</h3><div class="row">

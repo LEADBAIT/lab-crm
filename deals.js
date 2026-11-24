@@ -39,7 +39,8 @@ VIEWS.deals = async function vDeals(tab) {
   $('#flab') && ($('#flab').onchange = e => { F.lab = e.target.value; saveF(); draw(); });
   $('#furg').onchange = e => { F.urg = e.target.checked; e.target.closest('.fchip').classList.toggle('on', F.urg); saveF(); draw(); };
   $$('[data-tab]').forEach(b => b.onclick = () => go('deals/' + b.dataset.tab));
-  if (tab === 'ops') { const tasks = buildTasks(rows.filter(r => r._ph === 'ops' || r._ph === 'done')).filter(x => x.t.k !== 'new'); $$('[data-tact]').forEach(b => b.onclick = () => runTask(tasks.find(x => String(x.o.id) === b.dataset.tact), b)); }
+  if (tab === 'ops') { const tasks = buildTasks(rows.filter(r => r._ph === 'ops' || r._ph === 'done')).filter(x => x.t.k !== 'new'); $$('[data-tact]').forEach(b => b.onclick = () => runTask(tasks.find(x => String(x.o.id) === b.dataset.tact), b));
+    $$('[data-bulktask]').forEach(b => b.onclick = async () => { const k = b.dataset.bulktask; if (await runBulkTask(k, tasks.filter(x => x.t.k === k).map(x => x.o))) route(); }); }
   $$('[data-mode]').forEach(b => b.onclick = () => { lsSet('dealsView', b.dataset.mode); VIEWS.deals(tab); });
   draw();
 };
@@ -48,7 +49,10 @@ VIEWS.deals = async function vDeals(tab) {
 function opsTasksHtml(rows) {
   const tasks = buildTasks(rows.filter(r => r._ph === 'ops' || r._ph === 'done')).filter(x => x.t.k !== 'new');
   if (!tasks.length) return '';
-  return `<section class="card flush" style="margin-bottom:12px"><div class="card-head" style="padding:12px 16px 0"><h3>משימות תפעול</h3><span class="small muted">${tasks.length}</span></div>${tasks.map(taskHtml).join('')}</section>`;
+  // the same action on all tasks of one type (cash arrived / courier picked up), when there are two or more
+  const bulk = Object.entries(BULK_TASK).map(([k, label]) => [k, label, tasks.filter(x => x.t.k === k)]).filter(([, , l]) => l.length > 1);
+  return `<section class="card flush" style="margin-bottom:12px"><div class="card-head" style="padding:12px 16px 0"><h3>משימות להיום</h3><span class="small muted">${tasks.length}</span>
+    ${bulk.map(([k, label, l]) => `<button class="btn sm" data-bulktask="${k}">${esc(label)} (${l.length})</button>`).join('')}</div>${tasks.map(taskHtml).join('')}</section>`;
 }
 function dealFlags(r, onCard) {
   return [r.stage === 'פנייה חדשה' && !r.last_contact_at && !onCard && '<span class="chip red">עוד לא דיברנו</span>',
@@ -70,12 +74,14 @@ function actInd(r) {
   const st = fuState(r); if (!st) return '';
   return `<span class="act-ind ${st}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${IND_SVG[st]}</svg></span>`;
 }
+/** add-ons still to do on an ops card (from the package and promotion gifts; lines are on the deal page) */
+const openActs = r => { const done = r.actions_done || {}, n = orderActions(r, []).filter(a => !done[a.p.id]).length; return n ? ` <span class="chip orange">${n} תוספות</span>` : ''; };
 function kcardHtml(r) {
   const flags = dealFlags(r, true);
   return `<div class="kcard" draggable="true" data-id="${r.id}">${actInd(r)}<span class="t">${esc(custName(r))}</span>
     ${r.full_name && r.phone ? `<div class="ph"><bdi dir="ltr">${esc(fmtPhone(r.phone))}</bdi></div>` : ''}
     <div class="m">${esc(subStatus(r))}</div>
-    <div class="foot">${r.total > 0 ? `<span class="v">${money(r.total)}</span>` : ''}${r.source ? `<span class="muted">${r.total > 0 ? '· ' : ''}${esc(r.source)}</span>` : ''}</div>
+    <div class="foot">${r.total > 0 ? `<span class="v">${money(r.total)}</span>` : ''}${r._ph === 'ops' ? (r.lab_name ? `<span class="muted">${r.total > 0 ? '· ' : ''}${esc(r.lab_name)}</span>` : '') + openActs(r) : r.source ? `<span class="muted">${r.total > 0 ? '· ' : ''}${esc(r.source)}</span>` : ''}</div>
     ${flags ? `<div class="tags">${flags}</div>` : ''}</div>`;
 }
 const DSORT = { name: r => custName(r), stage: r => stepIdx(r.stage), qty: r => Number(r.media_qty || 0), total: r => Number(r.total || 0), time: r => r.created_at };

@@ -170,7 +170,7 @@ function nextCardHtml(ctx) {
       ${nxt && s.btn ? `<button class="btn primary lg" id="advance">${esc(s.btn)} ←</button>` : ''}
       ${linkShortcutHtml(ctx)}
       ${s.wa ? '<button class="btn wa" id="waOpen">פתיחת שיחה בוואטסאפ</button>' : ''}
-      ${s.key === 'לתאם איסוף' ? `<a class="btn ghost" href="#labels/${o.id}">מדבקות</a><a class="btn ghost" href="#manifest/${o.id}">דף משלוח</a>` : ''}
+      ${s.key === 'לתאם איסוף' ? '<button class="btn primary" data-pickwiz>תיאום איסוף (3 צעדים)</button>' : ''}
     </div>
   </section>`;
 }
@@ -305,6 +305,37 @@ async function recordPayment(ctx) {
   }
   delete SEC_OPEN[o.id]; reloadDeal(ctx);
 }
+/** "תיאום איסוף" in 3 steps (user decision 2026-11-25): 1. lab, courier, date · 2. barcodes and printing · 3. shipment + tracking page */
+async function pickupWizard(ctx) {
+  const { o } = ctx;
+  const f = await formModal('תיאום איסוף · צעד 1 מתוך 3', `<label class="field">מעבדה <span class="req">*</span><select name="lab_id" required><option value=""></option>${S.labs.filter(l => l.active || l.id === o.lab_id).map(l => `<option value="${l.id}" ${l.id === o.lab_id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
+    <label class="field">חברת שליחויות<select name="courier">${opts('courier', o.courier)}</select></label>
+    <label class="field">תאריך איסוף <span class="req">*</span><input type="date" name="pickup_date" required min="${today()}" value="${esc(o.pickup_date || '')}"></label>
+    <label class="field">מספר משלוח (לא חובה)<input name="pickup_tracking" value="${esc(o.pickup_tracking || '')}"></label>`, { ok: 'המשך ←' });
+  if (!f) return;
+  await patchOrder(o, { lab_id: Number(f.lab_id), courier: f.courier || null, pickup_date: f.pickup_date, pickup_tracking: f.pickup_tracking || null }, 'נקבע איסוף ' + fmtDate(f.pickup_date));
+  Object.assign(o, { lab_id: Number(f.lab_id), pickup_date: f.pickup_date });
+  // 2. barcodes (a button, user decision) and the print sheets
+  const step2 = () => new Promise(res => {
+    const missing = Math.max(0, (o.media_qty || 0) - ctx.items.length);
+    const b = modal(`<h2>תיאום איסוף · צעד 2 מתוך 3</h2><p>ברקוד לכל קלטת, דיסק וסליל, ומדבקות להדפסה.</p>
+      <div class="row" style="flex-wrap:wrap;gap:8px">${missing ? `<button class="btn primary" id="wzGen">יצירת ${missing} ברקודים</button>` : `<span class="chip green">${ctx.items.length} ברקודים מוכנים</span>`}
+        <a class="btn" href="#labels/${o.id}" target="_blank">הדפסת מדבקות</a><a class="btn" href="#boxlabel/${o.id}" target="_blank">מדבקת ארגז</a></div>
+      <div class="actions"><button class="btn primary" id="wzNext">המשך ←</button><button class="btn" id="wzStop">סיום כאן</button></div>`);
+    $('#wzGen', b) && ($('#wzGen', b).onclick = async () => { const { data, error } = await sb.rpc('generate_items', { p_order: o.id }); fail(error); toast(`נוצרו ${data || 0} ברקודים`);
+      const r = await sb.from('items').select('*').eq('order_id', o.id).order('seq'); fail(r.error); ctx.items = r.data; $('#wzGen', b).outerHTML = `<span class="chip green">${ctx.items.length} ברקודים מוכנים</span>`; });
+    $('#wzNext', b).onclick = () => { closeModal(); res(true); }; $('#wzStop', b).onclick = () => { closeModal(); res(false); };
+    $('#modal').addEventListener('cancel', () => res(false), { once: true });
+  });
+  if (!await step2()) return reloadDeal(ctx);
+  // 3. the shipment (sheet with signatures) and the customer's tracking page
+  const b = modal(`<h2>תיאום איסוף · צעד 3 מתוך 3</h2><p>שיוך למשלוח (דף עם רשימת הפריטים וחתימות), ושליחת דף המעקב ללקוח עם מועד האיסוף.</p>
+    <div class="row" style="flex-wrap:wrap;gap:8px"><a class="btn" href="#shipments/new/${o.id}" id="wzShip">משלוח חדש עם ההזמנה</a><button class="btn wa" id="wzTrack">שליחת דף המעקב בוואטסאפ</button></div>
+    <div class="actions"><button class="btn primary" id="wzDone">סיום</button></div>`);
+  $('#wzShip', b).onclick = () => closeModal();
+  $('#wzTrack', b).onclick = () => linkSend(o, 'track', 'wa', { c: ctx.c, ctx, after: async () => {} });
+  $('#wzDone', b).onclick = () => { closeModal(); reloadDeal(ctx); };
+}
 /** which scan action fits the stage (the scan screen opens on it) */
 const SCAN_FOR = { 'לתאם איסוף': 'נאסף', 'בדרך למעבדה': 'במעבדה', 'במעבדה': 'הומר', 'למסירה ללקוח': 'נארז להחזרה' };
 const SEC_BODY = {
@@ -315,7 +346,7 @@ const SEC_BODY = {
   activity: ctx => activityHtml(ctx),
   photos: ctx => `${photosHtml(ctx)}<div class="fields" style="margin-top:12px">${fld(ctx, 'drive_folder_url', { wide: true })}</div>`,
   quote: ctx => quoteHtml(ctx),
-  items: ctx => `${SCAN_FOR[ctx.o.stage] && ctx.items.length ? `<div class="row" style="margin-bottom:10px"><button class="btn sm primary" data-scanfor="${SCAN_FOR[ctx.o.stage]}">סריקה: ${SCAN_FOR[ctx.o.stage]}</button><a class="btn sm ghost" href="#labels/${ctx.o.id}">מדבקות</a><a class="btn sm ghost" href="#boxlabel/${ctx.o.id}">מדבקת ארגז</a></div>` : ''}${itemsHtml(ctx)}`,
+  items: ctx => `${SCAN_FOR[ctx.o.stage] && ctx.items.length ? `<div class="row" style="margin-bottom:10px"><button class="btn sm primary" data-scanfor="${SCAN_FOR[ctx.o.stage]}">סריקה: ${SCAN_FOR[ctx.o.stage]}</button></div>` : ''}${itemsHtml(ctx)}`,
   payment: ctx => `${ctx.o.payment_status !== 'שולם' && ctx.o.stage !== LOST ? '<div class="row" style="margin-bottom:10px"><button class="btn sm primary" data-recpay>רישום תשלום</button></div>' : ''}<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}${extraPaysHtml(ctx)}${creditHtml(ctx)}${moneyHtml(ctx.o)}`,
   shipping: ctx => `<div class="fields">${['lab_id', 'courier', 'pickup_date', 'pickup_tracking'].map(k => fld(ctx, k)).join('')}${fld(ctx, 'files_link_from_lab', { wide: true })}</div>
     <div class="row" style="margin-top:12px"><a class="btn sm" href="#shipments/new/${ctx.o.id}">משלוח חדש עם ההזמנה</a></div>`,
@@ -530,7 +561,7 @@ function itemsHtml(ctx) {
     <button class="btn primary" style="margin-top:12px" data-gen ${o.media_qty ? '' : 'disabled'}>${o.media_qty ? `יצירת ${o.media_qty} ברקודים` : 'קודם ממלאים כמויות בהצעת המחיר'}</button></div>`;
   const statuses = (S.opts.item_status || []).filter(x => x.active).map(x => x.value);
   return `<div class="row spread" style="margin-bottom:12px"><div class="row small"><span class="chip">הוצהרו ${o.media_qty}</span><span class="chip">ברקודים ${items.length}</span><span class="chip blue">הגיעו למעבדה ${o.items_at_lab_or_later}</span><span class="chip green">הומרו ${o.items_converted}</span>${o.items_no_charge ? `<span class="chip orange" data-tip="ריק, תוכן לא משפחתי או לא ניתן להמרה: הלקוח לא מחויב עליהם">לא לחיוב ${o.items_no_charge}</span>` : ''}${o.items_packed ? `<span class="chip">נספרו להחזרה ${o.items_packed}/${items.length}</span>` : ''}${o.intake_done_at ? `<span class="chip">קליטה הסתיימה ${fmtShort(o.intake_done_at)}</span>` : ''}</div>
-    <div class="row">${items.length < o.media_qty ? `<button class="btn sm" data-gen>יצירת ${o.media_qty - items.length} ברקודים חסרים</button>` : ''}<a class="btn sm" href="#labels/${o.id}">מדבקות</a><a class="btn sm" href="#boxlabel/${o.id}">מדבקת ארגז</a><a class="btn sm" href="#manifest/${o.id}">דף משלוח</a></div></div>
+    <div class="row">${items.length < o.media_qty ? `<button class="btn sm" data-gen>יצירת ${o.media_qty - items.length} ברקודים חסרים</button>` : ''}<a class="btn sm" href="#labels/${o.id}">מדבקות</a><a class="btn sm" href="#boxlabel/${o.id}">מדבקת ארגז</a><a class="btn sm" href="#shipments/new/${o.id}">משלוח עם דף חתימות</a></div></div>
     <div class="bulk-bar hidden" id="ibulk"><b id="ibulkN"></b><span>להעביר את כולם ל:</span>
       <select id="ibulkTo">${statuses.map(s => `<option>${esc(s)}</option>`).join('')}</select><button class="btn sm primary" id="ibulkGo">החלה</button><span>·</span><button class="btn sm ghost" id="ibulkDel" data-tip="למשל כשהלקוח שלח פחות קלטות. אפשר למחוק רק ברקודים שעוד לא נאספו">מחיקת הברקודים</button><button class="btn sm ghost" id="ibulkClear">ביטול הבחירה</button></div>
     <div class="card flush table-wrap"><table><thead><tr><th class="sel"><input type="checkbox" id="iselAll" aria-label="בחירת כל הפריטים"></th><th>ברקוד</th><th>סוג</th><th>מה כתוב עליו</th><th>איפה הוא</th><th>פגום</th><th>הערה</th></tr></thead><tbody>
@@ -719,6 +750,7 @@ function bindDeal(ctx) {
   $$('[data-opensec]').forEach(b => b.onclick = () => openSec(b.dataset.opensec));
   $$('[data-alertok]').forEach(b => b.onclick = async () => { const { error } = await sb.rpc('handle_alert', { p_id: Number(b.dataset.alertok) }); fail(error); toast('סומן כטופל'); reloadDeal(ctx); });
   $$('[data-recpay]').forEach(b => b.onclick = () => recordPayment(ctx));
+  $$('[data-pickwiz]').forEach(b => b.onclick = () => pickupWizard(ctx));
   $$('[data-scanfor]').forEach(b => b.onclick = () => { sessionStorage.setItem('scanStatus', b.dataset.scanfor); go('scan'); });
   $$('[data-destroy]').forEach(b => b.onclick = async () => { if (await destroyHardware(ctx.o)) reloadDeal(ctx); });
   $('#pinEdit') && ($('#pinEdit').onclick = () => editPin(ctx));
@@ -736,7 +768,7 @@ function bindDeal(ctx) {
     ...LINK_ORDER.filter(k => LINKS[k].show(o) && !LINKS[k].locked?.(o)).map(k => ({ label: `שליחת ${LINKS[k].name} בוואטסאפ`, run: () => linkSend(ctx.o, k, 'wa', { c, ctx, after: () => reloadDeal(ctx) }) })),
     ...(o.payment_status !== 'שולם' ? [{ label: 'קישור תשלום (SUMIT)', run: () => dealPayLink(ctx) }] : []),
     { label: 'SMS', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { if (await smsModal(ctx.o, '', c.phone)) reloadDeal(ctx); } }, 'sep',
-    { label: 'הדפסת הצעת מחיר (PDF)', run: () => go('quote/' + o.id) }, { label: 'הדפסת מדבקות ברקוד', run: () => go('labels/' + o.id) }, { label: 'הדפסת דף משלוח', run: () => go('manifest/' + o.id) },
+    { label: 'הדפסת הצעת מחיר (PDF)', run: () => go('quote/' + o.id) }, { label: 'הדפסת מדבקות ברקוד', run: () => go('labels/' + o.id) }, { label: 'משלוח עם דף חתימות', run: () => go('shipments/new/' + o.id) },
     'sep', ctx.o.stage === LOST ? { label: 'להחזיר לטיפול', run: () => $('#revive').click() } : { label: 'סימון כלא רלוונטי', run: async () => { if (await changeStage(ctx.o, LOST, c)) reloadDeal(ctx); } },
     ...(isAdmin() ? [{ label: 'מחיקת ההזמנה', danger: true, run: () => deleteOrder(o) }] : [])]); };
   bindQuote(ctx);

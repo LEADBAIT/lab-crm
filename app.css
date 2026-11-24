@@ -1035,3 +1035,9 @@ ul.plain { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3p
 .page-head .btn[data-newlead] { flex: none; }
 @media (max-width: 1280px) { .tcols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 @media (max-width: 1000px) { .today { grid-template-columns: minmax(0, 1fr); } .tcols { grid-template-columns: minmax(0, 1fr); } .tfeed { position: static; } }
+
+/* a .seg made of links (finance: expenses | lab bills) looks like the button version */
+.seg a { flex: none; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--ink-2); padding: 6px 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.seg a + a { border-inline-start: 1px solid var(--line-2); }
+.seg a:hover { background: var(--hover); }
+.seg a.on { background: var(--accent-soft); color: var(--accent-text); }

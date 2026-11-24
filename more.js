@@ -110,7 +110,7 @@ VIEWS.expenses = async function vExpenses() {
   const ads = inM.filter(e => e.category === 'פרסום').reduce((s, e) => s + Number(e.amount), 0);
   view().innerHTML = `
   <div class="page-head"><div><div class="sub">רושמים כאן כל הוצאה. הוצאות פרסום נכנסות לחישוב "עלות לפנייה" בדוחות.</div></div>
-    <div class="row"><a class="btn" href="#labbills">חשבונות מעבדות</a><div class="card kpi" style="min-width:160px"><span class="l">החודש</span><span class="v">${money(sumM)}</span></div><div class="card kpi" style="min-width:160px"><span class="l">מתוכן פרסום</span><span class="v">${money(ads)}</span></div></div></div>
+    <div class="row"><div class="seg" role="tablist" aria-label="כספים"><a class="${'expenses' === 'expenses' ? 'on' : ''}" href="#expenses" role="tab">הוצאות</a><a class="${'expenses' === 'labbills' ? 'on' : ''}" href="#labbills" role="tab">חשבונות מעבדות</a></div><div class="card kpi" style="min-width:160px"><span class="l">החודש</span><span class="v">${money(sumM)}</span></div><div class="card kpi" style="min-width:160px"><span class="l">מתוכן פרסום</span><span class="v">${money(ads)}</span></div></div></div>
   <form id="expForm" class="card" style="margin-bottom:16px"><h3 style="margin-bottom:10px">הוצאה חדשה</h3><div class="fields form-row">
     <label class="field">תאריך<input type="date" name="spent_on" value="${today()}" required></label>
     <label class="field">על מה<select name="category" required>${opts('expense_category', 'פרסום', { empty: false })}</select></label>
@@ -142,7 +142,7 @@ VIEWS.expenses = async function vExpenses() {
 };
 
 // ---------- SETTINGS ----------
-const SET_GROUPS = [['prices', 'מחירים', 'מחירון, הנחות, קופונים'], ['process', 'תהליך ותזכורות', 'מתי מזכירים, יעדי זמן'], ['lists', 'רשימות לבחירה', 'מקורות, סיבות, שליחויות'],
+const SET_GROUPS = [['prices', 'מחירון וחבילות', 'מוצרים, תוספות, חבילות'], ['discounts', 'הנחות ומבצעים', 'כמות, קופונים, מבצעים'], ['process', 'תהליך ותזכורות', 'מתי מזכירים, יעדי זמן'], ['lists', 'רשימות לבחירה', 'מקורות, סיבות, שליחויות'],
   ['labs', 'מעבדות', 'לאן שולחים חומרה'], ['staff', 'צוות והרשאות', 'מי נכנס ומה רואה'], ['backup', 'גיבוי', 'הורדת כל הנתונים']];
 const LISTS_EDIT = { source: ['מאיפה לקוחות מגיעים', 'מופיע בכל פנייה ובדוחות לפי ערוץ.'], loss_category: ['סיבות שלקוח לא קנה', 'נבחר כשמסמנים לקוח כלא רלוונטי.'], temperature: ['כמה קרוב לסגירה', 'תחושת בטן: חם, פושר, קר.'],
   payment_method: ['אמצעי תשלום', ''], courier: ['חברות שליחויות', ''], return_method: ['איך החומרה חוזרת ללקוח', ''], expense_category: ['סוגי הוצאות', 'הסוג "פרסום" נכנס לחישוב עלות לפנייה.'] };
@@ -177,7 +177,7 @@ VIEWS.settings = async function vSettings(tab) {
   tab = known(tab) ? tab : known(sessionStorage.getItem('setTab')) ? sessionStorage.getItem('setTab') : 'prices';
   sessionStorage.setItem('setTab', tab);
   let body = '';
-  const promoBox = tab === 'prices' ? await promosHtml() : '';
+  const promoBox = tab === 'discounts' ? await promosHtml() : '';
   if (tab === 'prices') body = `
     ${Object.entries(CAT).map(([cat, name]) => { const ps = S.products.filter(p => p.category === cat); return `<section class="card flush" style="margin-bottom:16px"><div class="card-head" style="padding:14px 16px 0"><h3>${name}</h3></div><div class="table-wrap"><table>
       <thead><tr><th></th><th>שם (כפי שהלקוח רואה)</th><th class="num">מחיר כולל מע"מ</th>${cat === 'media' ? '<th class="num">ממוצע מתחרים</th><th>מקבל ברקוד ונספר להנחה</th>' : '<th class="num">רווח</th>'}${cat === 'package' ? '<th>מה כלול</th>' : ''}${cat === 'media' ? '' : '<th>מוצג ללקוח</th>'}<th>פעיל</th><th></th></tr></thead><tbody>
@@ -192,6 +192,8 @@ VIEWS.settings = async function vSettings(tab) {
         <td>${isAdmin() ? `<button class="btn sm" data-editprod="${p.id}">עריכה</button>` : ''}</td></tr>`; }).join('') || `<tr class="empty-row"><td colspan="8">אין</td></tr>`}</tbody></table></div>
       ${isAdmin() ? `<div style="padding:0 16px 14px"><button class="btn sm" data-addprod="${cat}">+ הוספה ל${name}</button></div>` : '<p class="tiny muted" style="padding:0 16px 14px">רק מנהל עורך את המחירון.</p>'}</section>`; }).join('')}
     <p class="tiny muted" style="margin:-6px 0 16px">שינוי מחיר משפיע מיד גם על הצעות פתוחות. מוצר שלא מוכרים יותר: מכבים "פעיל" (לא מוחקים, כדי שהזמנות ישנות יישארו תקינות).</p>
+`;
+  if (tab === 'discounts') body = `
     <div class="grid cols-2">
       <section class="card"><h3 style="margin-bottom:6px">הנחת כמות</h3><p class="small muted" style="margin-bottom:8px">לפי סך הקלטות, הדיסקים והסלילים בהזמנה. חלה רק על החומרה, לא על תוספות.</p>
         ${S.tiers.map(t => `<div class="sentence">מ-<input type="number" data-save="discount_tiers:${t.id}:min_items" data-num value="${t.min_items}"> פריטים ומעלה ← <input type="number" data-save="discount_tiers:${t.id}:percent" data-num value="${t.percent}"> % הנחה <button class="btn sm ghost danger" data-deltier="${t.id}">הסרה</button></div>`).join('')}
@@ -204,12 +206,16 @@ VIEWS.settings = async function vSettings(tab) {
         <td><label class="field"><input type="number" data-save="coupons:${esc(x.code)}:amount" data-num data-zero value="${x.amount || 0}" style="width:80px"></label></td><td><label class="field"><input data-save="coupons:${esc(x.code)}:campaign" value="${esc(x.campaign || '')}"></label></td>
         <td><label class="field"><input type="date" data-save="coupons:${esc(x.code)}:valid_until" value="${x.valid_until || ''}"></label></td><td><label class="toggle"><input type="checkbox" data-save="coupons:${esc(x.code)}:active" ${x.active ? 'checked' : ''}></label></td></tr>`).join('') || '<tr class="empty-row"><td colspan="6">אין קופונים</td></tr>'}
       </tbody></table></div><div style="padding:0 16px 14px"><button class="btn sm" id="addCp">+ קופון</button></div></section>${promoBox}`;
-  if (tab === 'process') body = `<section class="card"><h3 style="margin-bottom:6px">תזכורות ויעדים</h3>${['sla_target_days', 'sla_max_days', 'express_biz_days', 'drive_link_days'].map(sentence).join('')}</section>
+  if (tab === 'process') body = `<section class="card"><h3 style="margin-bottom:10px">פרטי העסק ללקוחות</h3><div class="fields">
+      <label class="field">וואטסאפ של העסק<input dir="ltr" inputmode="tel" data-save="settings:business_whatsapp:text_value" value="${esc(S.settings.business_whatsapp?.text_value || '')}" placeholder="0500000000"><span class="hint">כפתור "כתבו לנו" בשאלון, בהצעה ובדף המעקב.</span></label>
+      <label class="field">קישור לביקורת בגוגל<input dir="ltr" type="url" data-save="settings:review_url:text_value" value="${esc(S.settings.review_url?.text_value || '')}" placeholder="https://g.page/r/..."><span class="hint">נשלח מכרטיס "קישורים ללקוח" אחרי הסיום.</span></label></div>
+      ${sentence('quote_stale_days')}</section>
+    <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">תזכורות ויעדים</h3>${['sla_target_days', 'sla_max_days', 'express_biz_days', 'drive_link_days'].map(sentence).join('')}</section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">זמן מקסימלי לכל שלב</h3><p class="small muted" style="margin-bottom:8px">הזמנה שעוברת את הזמן של השלב שלה נצבעת ומופיעה ב"היום" עם הסיבה.</p>${['stage_days_pickup', 'stage_days_transit', 'stage_days_intake', 'stage_days_convert', 'stage_days_return', 'stage_days_delivery'].map(sentence).join('')}</section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">חומרה שנשארת אצלנו</h3><p class="small muted" style="margin-bottom:8px">כל שלב מופיע כמשימה בלשונית "בעבודה", עם הודעת וואטסאפ מוכנה.</p>${['uncollected_remind_days', 'storage_fee_days', 'destroy_days', 'destroy_notice_days', 'waived_keep_days'].map(sentence).join('')}</section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">תקנון בהצעת המחיר</h3><label class="field"><textarea data-save="settings:terms:text_value" rows="6">${esc(S.settings.terms?.text_value || '')}</textarea><span class="hint">מופיע בסוף כל הצעת מחיר. התשלום של הלקוח נחשב הסכמה לטקסט הזה.</span></label></section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">דרכי תשלום נוספות (בהודעת קישור התשלום)</h3><label class="field"><textarea data-save="settings:pay_alt_text:text_value" rows="4" placeholder="אפשר לשלם גם:&#10;ביט / פייבוקס: 050-0000000&#10;העברה בנקאית: בנק __, סניף __, חשבון __, על שם __">${esc(S.settings.pay_alt_text?.text_value || '')}</textarea><span class="hint">נוסף בסוף ההודעה עם קישור התשלום. ריק = לא נוסף. כשהלקוח משלם כך, מפיקים לו חשבונית בכרטיס הלקוח ("הפקת חשבונית מס-קבלה").</span></label></section>
-    <section class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">כתובת האתר</h3><label class="field"><input dir="ltr" data-save="settings:public_url:text_value" value="${esc(S.settings.public_url?.text_value || '')}"><span class="hint">משמשת לקישור המעקב שהלקוח מקבל. לא משנים אלא אם האתר עובר כתובת.</span></label></section>
+    <section class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">כתובת האתר</h3><label class="field"><input dir="ltr" data-save="settings:public_url:text_value" value="${esc(S.settings.public_url?.text_value || '')}"><span class="hint">כל הקישורים ללקוח נבנים ממנה: שאלון, הצעת מחיר ודף מעקב. לא משנים אלא אם האתר עובר כתובת. רק מנהל.</span></label></section>
     <section class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">שלבי העבודה</h3><p class="small muted">9 השלבים קבועים, כדי שכולם יעבדו באותו תהליך: ${STEPS.map(s => esc(s.key)).join(' ← ')}. בנוסף: ${LOST}.</p></section>`;
   if (tab === 'lists') body = `<div class="grid cols-2">${Object.entries(LISTS_EDIT).map(([list, [name, hint]]) => `<section class="card"><h3>${name}</h3>${hint ? `<p class="tiny muted">${hint}</p>` : ''}
     <div class="list-editor" style="margin-top:10px">${(S.opts[list] || []).map((o, i, arr) => `<div class="li ${o.active ? '' : 'off'}"><label class="field"><input type="text" data-save="options:${o.id}:value" data-old="${esc(o.value)}" data-list="${list}" value="${esc(o.value)}"></label>
@@ -242,7 +248,7 @@ VIEWS.settings = async function vSettings(tab) {
       <label class="field">מייל<input name="email" type="email" required></label><label class="field">שם<input name="name"></label>
       <label class="field">תפקיד<select name="role"><option value="staff">צוות</option><option value="lab">מעבדה</option><option value="admin">מנהל</option></select></label>
       <label class="field">מעבדה<select name="lab_id"><option value="">—</option>${S.labs.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')}</select></label><button class="btn primary">הוספה</button></div>
-      <p class="tiny muted" style="margin-top:8px">אחרי ההוספה העובד נכנס למסך הכניסה ולוחץ "פעם ראשונה כאן? הרשמה". אם מייל האישור לא מגיע: יוצרים לו משתמש ב-Supabase (Authentication → Add user, Auto Confirm).</p></form>` : ''}`; }
+      <p class="tiny muted" style="margin-top:8px">אחרי ההוספה יוצרים לעובד משתמש ב-Supabase (Authentication → Add user, Auto Confirm) עם אותו מייל, ושולחים לו את הסיסמה. אין הרשמה עצמית.</p></form>` : ''}`; }
   if (tab === 'backup') body = `<section class="card" style="max-width:640px"><h3 style="margin-bottom:6px">גיבוי לקבצים</h3><p>מוריד 4 קבצים שנפתחים באקסל ובגוגל שיטס: הזמנות, לקוחות, ברקודים, הוצאות. מומלץ פעם בשבוע.</p>
     <button class="btn primary" id="exportBtn" style="margin-top:12px">הורדת גיבוי עכשיו</button><p class="small muted" id="exportMsg" style="margin-top:8px"></p></section>`;
   const g = SET_GROUPS.find(x => x[0] === tab);
