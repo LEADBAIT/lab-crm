@@ -6,7 +6,7 @@ const sb = supabase.createClient(CRM_CONFIG.url, CRM_CONFIG.key);
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const view = () => $('#view');
-const S = { settings: {}, opts: {}, products: [], labs: [], tiers: [], coupons: [], templates: [], user: null, me: null };
+const S = { settings: {}, opts: {}, products: [], labs: [], tiers: [], coupons: [], user: null, me: null };
 const VIEWS = {};
 /** Embed mode (?embed): the customer page inside the sales dashboard's side panel. No top bar; every save tells the dashboard to refresh. */
 const EMBED = new URLSearchParams(location.search).has('embed') && window.parent !== window;
@@ -120,16 +120,16 @@ const trackUrl = o => ((S.settings.public_url?.text_value || '').trim() || (loca
 async function loadRef() {
   const q = [sb.from('settings').select('*').order('sort'), sb.from('options').select('*').order('sort'), sb.from('products').select('*').order('sort'),
     sb.from('labs').select('*').order('name'), sb.from('discount_tiers').select('*').order('min_items'), sb.from('coupons').select('*').order('code'),
-    sb.from('message_templates').select('*').order('sort'), sb.from('package_items').select('*'), sb.from('promotions').select('*').order('starts_on', { ascending: false }),
+    sb.from('package_items').select('*'), sb.from('promotions').select('*').order('starts_on', { ascending: false }),
     sb.from('orders').select('id').eq('is_test', true)];
   const r = await Promise.all(q); r.forEach(x => fail(x.error));
-  const [st, op, pr, lb, tr, cp, tp, pi, pm, tests] = r.map(x => x.data);
+  const [st, op, pr, lb, tr, cp, pi, pm, tests] = r.map(x => x.data);
   S.pkgItems = pi; S.promos = pm;
   // test orders (orders.is_test) stay out of lists, tasks and reports unless "show test orders" is on in the user menu
   S.testIds = new Set(tests.map(x => x.id)); S.showTests = lsGet('showTests') === 'on';
   S.settings = Object.fromEntries(st.map(x => [x.key, x]));
   S.opts = {}; op.forEach(o => (S.opts[o.list] ||= []).push(o));
-  S.products = pr; S.labs = lb; S.tiers = tr; S.coupons = cp; S.templates = tp;
+  S.products = pr; S.labs = lb; S.tiers = tr; S.coupons = cp;
 }
 /** false for a test order while test orders are hidden */
 const realOrder = id => S.showTests || !S.testIds?.has(id);
@@ -268,18 +268,16 @@ async function boot() {
   await loadRef();
   if (isLab() && !/^#(lab|scan)/.test(location.hash)) location.hash = 'lab';
   await route();
-  if (!isLab() && !EMBED) quoteAlerts();
-  if (!isLab() && !EMBED && lsGet('tour.v3') !== 'done') setTimeout(startTour, 400);
+  if (!isLab() && !EMBED) customerEvents();
 }
-/** live alert when a customer opens the quote page or reaches its pay button (order_events kind 'quote' via Realtime) */
-let quoteChan = null;
-function quoteAlerts() {
-  if (quoteChan || !sb.channel) return;
-  quoteChan = sb.channel('quote-alerts').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_events', filter: 'kind=eq.quote' }, async ({ new: ev }) => {
-    if (!/פתח|כפתור התשלום|אישר/.test(ev.new_value || '')) return;
-    const { data: o } = await sb.from('v_orders').select('id, full_name, phone').eq('id', ev.order_id).maybeSingle();
-    const who = o ? custName(o) : 'לקוח #' + ev.order_id;
-    toast(`${who}: ${ev.new_value.replace(/^הלקוח /, '')}`, { undo: () => go('order/' + ev.order_id), label: 'לעסקה', ms: 12000 });
+/** what customers do on their pages (order_events kinds 'quote' and 'alert', via Realtime). No pop-ups (user decision):
+ *  an open deal page refreshes, and listeners (the Today screen's activity strip) get the event. */
+let custChan = null; const CUST_EVENT_FNS = new Set();
+function customerEvents() {
+  if (custChan || !sb.channel) return;
+  custChan = sb.channel('customer-events').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_events' }, ({ new: ev }) => {
+    if (!['quote', 'alert'].includes(ev.kind)) return;
+    CUST_EVENT_FNS.forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
     if (location.hash === '#order/' + ev.order_id) route();
   }).subscribe();
 }
@@ -314,19 +312,16 @@ const icon = k => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" s
 function buildNav() {
   const items = isLab() ? [['lab', 'ההזמנות שלי', 'lab'], ['scan', 'סריקה', 'scan']]
     : [['sales', 'מכירות', 'sales'], ['deals', 'לקוחות', 'deals'], ['scan', 'סריקה', 'scan'], ['shipments', 'משלוחים', 'shipments'], ['reports', 'דוחות', 'reports'], ['expenses', 'הוצאות', 'expenses'], ['settings', 'הגדרות', 'settings']];
-  $('#nav').innerHTML = items.map(([r, t, ic]) => `<a href="#${r}" data-r="${r}">${icon(ic)}<span class="t">${t}</span>${r === 'sales' ? '<span class="badge hidden" id="qBadge"></span>' : ''}</a>`).join('');
+  $('#nav').innerHTML = items.map(([r, t, ic]) => `<a href="#${r}" data-r="${r}">${icon(ic)}<span class="t">${t}</span></a>`).join('');
 }
 // the page title lives in the top bar (Pipedrive style); pages start with their toolbar
 const PAGE_TITLE = { sales: 'מכירות', deals: 'לקוחות', scan: 'סריקת פריטים', reports: 'דוחות', expenses: 'הוצאות', settings: 'הגדרות', lab: 'ההזמנות שלי', quote: 'הצעת מחיר', labels: 'מדבקות ברקוד', manifest: 'דף משלוח', boxlabel: 'מדבקת ארגז', shipments: 'משלוחים', shipment: 'משלוח', labbills: 'חשבונות מעבדות' };
 function setNav(r) { $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r)); $('#pageTitle').textContent = PAGE_TITLE[r] || PAGE_TITLE.deals; }
-function setBadge(n) { const b = $('#qBadge'); if (!b) return; b.textContent = n; b.classList.toggle('hidden', !n); }
 $('#userBtn').addEventListener('click', e => {
   e.stopPropagation();
   const t = themePref();
   dropdown(e.currentTarget, [{ head: S.me?.name || S.user?.email || '' },
-    ...(isLab() ? [] : [{ label: 'סיור היכרות עם ה-CRM', run: startTour }]),
     { label: S.showTests ? 'הסתרת הזמנות בדיקה' : 'הצגת הזמנות בדיקה', run: () => { lsSet('showTests', S.showTests ? 'off' : 'on'); S.showTests = !S.showTests; route(); } },
-    { label: tipsOn() ? 'הסתרת הסברים במעבר עכבר' : 'הצגת הסברים במעבר עכבר', run: () => { lsSet('tips', tipsOn() ? 'off' : 'on'); toast(tipsOn() ? 'ההסברים מוצגים' : 'ההסברים הוסתרו'); } },
     { label: t === 'dark' ? 'מצב בהיר' : t === 'light' ? 'מצב לפי המכשיר' : 'מצב כהה', run: () => { lsSet('theme', t === 'dark' ? 'light' : t === 'light' ? '' : 'dark'); applyTheme(); } },
     'sep', { label: 'יציאה', run: async () => { await sb.auth.signOut(); location.hash = ''; location.reload(); } }]);
 });
@@ -403,59 +398,6 @@ $('#newLeadBtn').addEventListener('click', async () => {
   const { data, error } = await sb.rpc('upsert_lead', { p_phone: f.phone, p_name: f.name || null, p_source: f.source || null, p_note: f.note || null });
   fail(error); toast('נשמר. פנייה #' + data); go('order/' + data);
 });
-
-// ---------- first-run tour ----------
-const TOUR = window.TOUR || [];
-function startTour(i = 0) {
-  if (!TOUR.length) return;
-  const s = TOUR[i];
-  const b = modal(`<div class="tour-step"><span class="n">${i + 1} מתוך ${TOUR.length}</span><h2 style="margin:0">${esc(s.title)}</h2><p>${esc(s.text)}</p>
-    <div class="row spread" style="margin-top:8px"><div class="tour-dots">${TOUR.map((_, j) => `<span class="${j === i ? 'on' : ''}"></span>`).join('')}</div>
-    <div class="row">${i ? '<button class="btn" id="tPrev">הקודם</button>' : '<button class="btn ghost" id="tSkip">דילוג</button>'}<button class="btn primary" id="tNext">${i === TOUR.length - 1 ? 'מתחילים' : 'הבא'}</button></div></div></div>`);
-  if (s.route && !location.hash.startsWith('#' + s.route)) location.hash = s.route;
-  const end = () => { lsSet('tour.v3', 'done'); closeModal(); };
-  $('#tNext', b).onclick = () => i === TOUR.length - 1 ? end() : startTour(i + 1);
-  $('#tPrev', b) && ($('#tPrev', b).onclick = () => startTour(i - 1));
-  $('#tSkip', b) && ($('#tSkip', b).onclick = end);
-  $('#modal').addEventListener('cancel', () => lsSet('tour.v3', 'done'), { once: true });
-}
-
-// ---------- hover tips: a short note on every button / object (texts in help.js → TIP_RULES, COL_TIPS) ----------
-const tipsOn = () => lsGet('tips') !== 'off';
-function tipFor(el) {
-  if (el.dataset?.tip) return el.dataset.tip;
-  for (const [sel, t] of (window.TIP_RULES || [])) if (el.matches?.(sel)) { const v = typeof t === 'function' ? t(el) : t; if (v) return v; }
-  const [tbl, , col] = (el.dataset?.save || '').split(':');
-  const ct = col && (window.COL_TIPS?.[tbl + '.' + col] ?? window.COL_TIPS?.[col]);
-  if (ct) return ct;
-  if (el.title) { el.dataset.tip = el.title; el.removeAttribute('title'); return el.dataset.tip; }
-  return '';
-}
-(() => {
-  const box = document.createElement('div'); box.className = 'tip hidden'; box.setAttribute('role', 'tooltip'); document.body.appendChild(box);
-  let cur = null, timer = null;
-  const hide = () => { clearTimeout(timer); cur = null; box.classList.add('hidden'); };
-  const place = el => {
-    const r = el.getBoundingClientRect(), b = box.getBoundingClientRect(), pad = 8;
-    let top = r.top - b.height - pad; if (top < 64) top = r.bottom + pad;
-    let left = r.left + r.width / 2 - b.width / 2; left = Math.max(pad, Math.min(left, innerWidth - b.width - pad));
-    box.style.top = top + 'px'; box.style.left = left + 'px';
-  };
-  let touch = false;
-  document.addEventListener('touchstart', () => { touch = true; hide(); }, { passive: true, capture: true });
-  document.addEventListener('mouseover', e => {
-    if (!tipsOn() || touch) { touch = false; return; }
-    let el = e.target, txt = '';
-    for (let i = 0; el && el !== document.body && i < 6; i++, el = el.parentElement) { txt = tipFor(el); if (txt) break; }
-    if (!txt) return hide();
-    if (el === cur) return;
-    hide(); cur = el;
-    timer = setTimeout(() => { if (cur !== el || !el.isConnected) return; box.textContent = txt; box.classList.remove('hidden'); place(el); }, 350);
-  });
-  document.addEventListener('mousedown', hide, true);
-  addEventListener('scroll', hide, true);
-  document.addEventListener('mouseleave', hide);
-})();
 
 // ---------- PWA ----------
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});

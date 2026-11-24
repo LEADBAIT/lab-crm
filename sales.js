@@ -42,7 +42,6 @@ function salesCounts(rows) {
 function renderSales(tab) {
   SD.tab = tab;
   const F = salesF(), rows = SD.rows, n = salesCounts(rows);
-  setBadge(n.late + n.today + n.urgent);
   const sources = [...new Set(rows.map(r => r.source).filter(Boolean))], camps = [...new Set(rows.map(r => r.meta_campaign).filter(Boolean))];
   // quick views (late / today / new) are chips in the same row as the stage filter: one filter row, not three
   const qv = (k, label, num, cls, tip) => `<button class="fchip qv ${num ? cls : ''} ${F.view === k && tab === 'sales' ? 'on' : ''}" data-view="${k}" aria-pressed="${F.view === k}" data-tip="${esc(tip)}"><b class="qn">${num}</b>${label}</button>`;
@@ -158,7 +157,7 @@ function nextAct(r) {
     case 'פנייה חדשה': return ['wa', 'פנייה בוואטסאפ', 'wa'];
     case 'בשיחה': return r.followup_channel === 'call' ? ['call', 'להתקשר', 'call'] : ['wa', 'לנסות שוב', 'wa'];
     case 'בפולואפ': return r.media_qty ? ['quote', 'שליחת הצעה', 'primary'] : ['fillquote', 'מילוי הצעה', ''];
-    case 'הצעה נשלחה': return ['pay', r.pay_link_sent_at ? 'קישור תשלום ✓' : 'קישור תשלום', 'primary'];
+    case 'הצעה נשלחה': return ['wa', 'פולואפ על ההצעה', 'wa'];
     default: return ['open', 'פתיחה', ''];
   }
 }
@@ -226,7 +225,7 @@ function bindSalesRows() {
     { label: 'וואטסאפ', sub: 'פתיחת שיחה', run: () => sendWa(o) },
     { label: 'SMS', sub: 'דרך SUMIT; אם לא יוצא, מוצע וואטסאפ', run: async () => { SD.touch = o.id; if (await smsModal(o, '')) route(); } },
     ...(FU_STAGES.includes(o.stage) ? [{ label: 'קביעת פולו-אפ', run: async () => { SD.touch = o.id; if (await setFollowup(o)) route(); } }] : []),
-    { label: 'שליחת הצעת מחיר', run: () => sendQuoteRow(o) }, { label: 'קישור תשלום (SUMIT)', run: () => paymentLink(o) },
+    { label: 'שליחת קישור ההצעה', run: () => sendQuoteRow(o) }, { label: 'קישור תשלום (SUMIT)', run: () => paymentLink(o) },
     'sep', { label: 'הלקוח שילם', sub: 'מעביר ל"לתאם איסוף"', run: () => markPaid(o) },
     { label: 'לא רלוונטי…', danger: true, run: async () => { SD.touch = o.id; if (await changeStage(o, LOST)) route(); } },
     'sep', { label: 'פתיחת הכרטיס בצד', run: () => openPanel(o.id) }, { label: 'פתיחה בדף מלא', run: () => go('order/' + o.id) }]); });
@@ -257,14 +256,14 @@ async function sendWa(o) {
   else if (o.stage === 'בשיחה') await setFollowup(o, { title: 'מתי לנסות שוב?' });
   route();
 }
+/** the quote goes out as its personal link (p.html) only, never as text (user decision 2026-11-25) */
 async function sendQuoteRow(o) {
   if (!o.media_qty) { toast('ההצעה ריקה: ממלאים כמויות בכרטיס'); return openPanel(o.id, 'quote'); }
   if (!o.q_submitted_at && !await ask('הלקוח עוד לא מילא את השאלון', 'בדרך כלל שולחים הצעה רק אחרי השאלון. לשלוח בכל זאת?', { ok: 'לשלוח בכל זאת' })) return;
-  const [{ data: lines, error }, c] = await Promise.all([sb.from('order_lines').select('*').eq('order_id', o.id), custOf(o)]); fail(error);
-  window.open(waLink(o.phone, quoteText(o, c, lines)), '_blank', 'noopener');
-  if (['פנייה חדשה', 'בשיחה', 'בפולואפ'].includes(o.stage) && await ask('ההצעה נפתחה בוואטסאפ', 'להעביר את הליד ל"הצעה נשלחה"?', { ok: 'כן, להעביר', cancel: 'לא עכשיו' })) {
-    SD.touch = o.id; if (await changeStage(o, 'הצעה נשלחה', c, { qOk: true })) route();
-  }
+  window.open(waLink(o.phone, pUrl(o)), '_blank', 'noopener');
+  SD.touch = o.id;
+  if (['פנייה חדשה', 'בשיחה', 'בפולואפ'].includes(o.stage)) { if (await changeStage(o, 'הצעה נשלחה', await custOf(o), { qOk: true })) route(); }
+  else if (!o.quote_sent_at) { await patchOrder(o, { quote_sent_at: new Date().toISOString() }, 'קישור ההצעה נשלח בוואטסאפ', { extra: Q_MARK_EXTRA }); route(); }
 }
 async function markPaid(o) {
   const c = await custOf(o), miss = missingForPaid(o, c);

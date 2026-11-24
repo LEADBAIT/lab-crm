@@ -61,7 +61,7 @@ function boardHtml(vis, tab) {
         <span class="sum">${sum ? money(sum) + ' · ' : ''}${l.length === 1 ? 'לקוח אחד' : l.length + ' לקוחות'}</span></div>
       <div class="lane-body">${l.map(kcardHtml).join('') || '<div class="none">אין כאן כרגע</div>'}</div></div>`; }).join('')}</div>
     ${tab === 'sales' ? `<div class="dropbar" aria-hidden="true"><div class="dropzone lost" data-drop="${esc(LOST)}"><span>לא רלוונטי</span></div><div class="dropzone won" data-drop="לתאם איסוף"><span>שילם ✓</span></div></div>` : ''}
-    <p class="tiny muted" style="margin-top:8px">גוררים כרטיס לעמודה אחרת כדי להעביר שלב${tab === 'sales' ? ', או לתחתית המסך: "שילם" / "לא רלוונטי"' : ''}. לטיפול בכמה לקוחות יחד: תצוגת "טבלה".</p>`;
+    <p class="tiny muted" style="margin-top:8px">גוררים כרטיס לעמודה אחרת כדי להעביר שלב${tab === 'sales' ? ', או לתחתית המסך: "שילם" / "לא רלוונטי"' : ''}. לטיפול בכמה לקוחות יחד: תצוגת "רשימה".</p>`;
 }
 const IND_SVG = { late: '<path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/>', today: '<path d="M15 6l-6 6 6 6"/>', future: '<path d="M15 6l-6 6 6 6"/>', none: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/>' };
 /** Pipedrive activity indicator: red = follow-up late, green = today, grey = planned, yellow = nothing planned. */

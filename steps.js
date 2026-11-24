@@ -1,4 +1,4 @@
-/* The work process: 8 fixed steps + "לא רלוונטי". One source of truth for stage names, what to do at each step,
+/* The work process: 9 fixed steps + "לא רלוונטי". One source of truth for stage names, what to do at each step,
    which checks/dates belong to it, and what is required before moving on. */
 'use strict';
 const LOST = 'לא רלוונטי';
@@ -27,7 +27,6 @@ const STEPS = [
     wa: true, btn: 'הלקוח שילם', pay: true, open: ['customer', 'quote'],
     checks: [{ label: 'ההצעה נשלחה ללקוח', done: o => !!o.quote_sent_at, at: o => o.quote_sent_at, act: 'quotesent' },
       { label: 'פרטים לחשבונית ולאיסוף מלאים', done: (o, c) => !missingForPaid(o, c).length, act: 'open:customer' },
-      { label: 'קישור תשלום (SUMIT) נשלח ללקוח', done: o => !!o.pay_link_sent_at, at: o => o.pay_link_sent_at, act: 'paylink', state: payLinkState },
       { label: 'הלקוח שילם', done: o => o.payment_status === 'שולם', at: o => o.paid_at, state: o => o.payment_status || 'עוד לא שולם',
         note: 'תשלום בקישור מעביר לבד ל"לתאם איסוף". תשלום בביט, העברה או מזומן: לוחצים "הלקוח שילם" למטה.' }] },
   { key: 'לתאם איסוף', short: 'איסוף', phase: 'ops', date: o => o.paid_at,
@@ -269,20 +268,6 @@ async function bulkPatch(rows, patch, msg) {
 }
 
 // ---------- messages ----------
-function quoteText(o, c, lines) {
-  const L = [`שלום ${firstName(c.full_name)}, הנה הצעת המחיר מהמעבדה להמרת קלטות ודיסקים (הזמנה ${o.id}):`, ''];
-  lines.forEach(l => { const p = S.products.find(x => x.id === l.product_id); if (!p || !l.qty) return; const ch = chargedQty(o, p.id, l.qty);
-    L.push(`• ${l.qty} × ${p.name}${inclNote(o, p.id, l.qty)}${ch ? ': ' + money(ch * (l.unit_price ?? p.unit_price)) : ''}`); });
-  if (o.package_name) L.push(`• ${o.package_name}: ${money(S.products.find(p => p.id === o.package_id)?.unit_price)}${pkgContents(o) ? ` (כולל: ${pkgContents(o)})` : ''}`);
-  if (o.tier_percent > 0) L.push(`הנחת כמות ${Number(o.tier_percent)}%: -${money(o.tier_discount)}`);
-  if (o.coupon_percent > 0) L.push(`קופון ${o.coupon_code}: -${Number(o.coupon_percent)}%`);
-  if (o.coupon_amount > 0) L.push(`קופון ${o.coupon_code}: -${money(o.coupon_amount)}`);
-  if (o.manual_discount > 0) L.push(`הנחה: -${money(o.manual_discount)}`);
-  promoRows(o).forEach(l => L.push(l.kind === 'gift' ? `🎁 ${promoLabel(l)}` : `${promoLabel(l)}: -${money(l.amount)}`));
-  L.push('', `סה"כ לתשלום: ${money(o.total)} (כולל מע"מ)`, '');
-  if (S.settings.terms?.text_value) L.push(S.settings.terms.text_value);
-  return L.join('\n');
-}
 function totalsHtml(o) {
   return `<div class="totals">
     <span>חומרה (${o.media_qty} פריטים)</span><span>${money(o.media_subtotal)}</span>

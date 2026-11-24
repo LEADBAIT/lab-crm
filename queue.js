@@ -1,4 +1,4 @@
-/* המשימות שלי: one prioritized list. Every row says why it is here and has one button that does the real next step. */
+/* Tasks: what needs doing per order (TASK_TYPES), shared by the Today screen and the operations board. The old "המשימות שלי" screen was removed 2026-11-25. */
 'use strict';
 // urgency: 0 = late (red), 1 = today, 2 = soon
 const TASK_TYPES = [
@@ -56,46 +56,13 @@ function buildTasks(rows) {
   return tasks.sort((a, b) => a.u - b.u || (a.o.priority ? -1 : 0) - (b.o.priority ? -1 : 0) || a.o.id - b.o.id);
 }
 
-VIEWS.queue = async function vQueue() {
-  const rows = await getOrders(q => q.neq('stage', LOST));
-  const tasks = buildTasks(rows);
-  setBadge(tasks.length);
-  const filter = sessionStorage.getItem('qFilter') || '';
-  const types = TASK_TYPES.map(t => [t, tasks.filter(x => x.t === t).length]).filter(([, n]) => n);
-  const shown = tasks.filter(x => !filter || x.t.k === filter);
-  const done = doneCount(), total = done + tasks.length;
-  const hour = new Date().getHours(), hello = hour < 12 ? 'בוקר טוב' : hour < 17 ? 'צהריים טובים' : 'ערב טוב';
-  const sales = rows.filter(r => phaseOf(r.stage) === 'sales'), ops = rows.filter(r => phaseOf(r.stage) === 'ops');
-  view().innerHTML = `
-  <div class="page-head"><div><h1>${hello}${S.me?.name ? ', ' + esc(firstName(S.me.name)) : ''}</h1>
-    <div class="sub">${tasks.length ? `יש ${plural(tasks.length, 'משימה אחת', 'משימות')} שמחכות לך. מתחילים מלמעלה: האדומות הכי דחופות.` : 'אין משימות פתוחות.'}</div></div></div>
-  <div class="queue-layout">
-    <div class="stack">
-      ${types.length > 1 ? `<div class="pills"><button class="${filter ? '' : 'on'}" data-qf="">הכל <span class="n">${tasks.length}</span></button>${types.map(([t, n]) => `<button class="${filter === t.k ? 'on' : ''}" data-qf="${t.k}">${t.name} <span class="n">${n}</span></button>`).join('')}</div>` : ''}
-      ${BULK_TASK[filter] && shown.length > 1 ? `<div class="bulk-bar"><span>${shown.length} משימות מאותו סוג</span><button class="btn sm primary" id="qBulk">${BULK_TASK[filter]} (${shown.length})</button></div>` : ''}
-      <div class="card flush">${shown.length ? shown.map(taskHtml).join('') : `<div class="empty"><div class="big">✓</div><h3>הכל טופל</h3><p>משימות חדשות מופיעות כאן לבד: פנייה חדשה, לקוח שצריך לחזור אליו, איסוף לתאם ועוד.</p></div>`}</div>
-    </div>
-    <aside class="stack">
-      <section class="card"><h3 style="margin-bottom:8px">ההתקדמות שלך היום</h3><div class="progress"><div style="width:${total ? Math.round(done / total * 100) : 100}%"></div></div>
-        <p class="small muted" style="margin-top:6px">${done} מתוך ${total} טופלו</p></section>
-      <section class="card"><h3 style="margin-bottom:10px">תמונת מצב</h3><div class="stat-list">
-        <div><span>פניות חדשות היום</span><b>${rows.filter(r => r.created_at.slice(0, 10) === today()).length}</b></div>
-        <div><span>במכירה</span><a href="#deals/sales"><b>${sales.length}</b></a></div>
-        <div><span>שווי הצעות פתוחות</span><b>${money(sales.reduce((s, r) => s + Number(r.total || 0), 0))}</b></div>
-        <div><span>הזמנות בעבודה</span><a href="#deals/ops"><b>${ops.length}</b></a></div>
-        <div><span>באיחור</span><b>${ops.filter(r => r.flag_sla).length}</b></div></div></section>
-      <section class="card small muted">טיפ: כל כפתור ירוק/צהוב עושה את הפעולה עצמה. "פתיחה" לוקחת לדף הלקוח, ושם כרטיס "הצעד הבא" אומר בדיוק מה לעשות.</section>
-    </aside>
-  </div>`;
-  $$('[data-qf]').forEach(b => b.onclick = () => { sessionStorage.setItem('qFilter', b.dataset.qf); VIEWS.queue(); });
-  $$('[data-tact]').forEach(b => b.onclick = () => runTask(tasks.find(x => String(x.o.id) === b.dataset.tact), b));
-  $('#qBulk') && ($('#qBulk').onclick = async () => {
-    const rows = shown.map(x => x.o);
-    if (filter === 'cash') await bulkPatch(rows, { payment_status: 'שולם', cash_received_at: new Date().toISOString() }, `נרשם שהמזומן הגיע ב-${rows.length} הזמנות`);
-    else if (filter === 'pickday' && !await bulkMove(rows, 'בדרך למעבדה')) return;
-    rows.forEach(bumpDone); VIEWS.queue();
-  });
-};
+/** the same action on many tasks of one type at once (ops board / Today screen). Returns false if nothing changed. */
+async function runBulkTask(type, rows) {
+  if (type === 'cash') await bulkPatch(rows, { payment_status: 'שולם', cash_received_at: new Date().toISOString() }, `נרשם שהמזומן הגיע ב-${rows.length} הזמנות`);
+  else if (type === 'pickday') { if (!await bulkMove(rows, 'בדרך למעבדה')) return false; }
+  else return false;
+  rows.forEach(bumpDone); return true;
+}
 // task types where doing all of them at once makes sense (no message to write, same action for each)
 const BULK_TASK = { cash: 'הכסף הגיע בכולן', pickday: 'השליח אסף את כולן' };
 function taskHtml({ o, t, u }) {
