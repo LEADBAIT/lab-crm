@@ -42,8 +42,8 @@ const ro = (label, v) => `<div class="field ro"><span>${esc(label)}</span><div c
 
 // ---------- page ----------
 const SEC_OPEN = {};
-VIEWS.order = async function vOrder(id) {
-  id = Number(id);
+/** everything one order's page needs (deal page and quote editor) */
+async function loadDealCtx(id) {
   const [o, rl, ri, re] = await Promise.all([getOrder(id), sb.from('order_lines').select('*').eq('order_id', id), sb.from('items').select('*').eq('order_id', id).order('seq'),
     sb.from('order_events').select('*').eq('order_id', id).is('deleted_at', null).order('at', { ascending: false }).limit(150)]);
   [rl, ri, re].forEach(r => fail(r.error));
@@ -57,13 +57,19 @@ VIEWS.order = async function vOrder(id) {
   SEC_OPEN[id] ||= new Set();
   // photos live in order_photos, not in v_orders: give the step checks what they need
   o.photos_count = ctx.photos.length; o.photos_first_at = ctx.photos[0]?.created_at || null;
+  return ctx;
+}
+VIEWS.order = async function vOrder(id) {
+  id = Number(id);
+  const ctx = await loadDealCtx(id);
   // #order/<id>/<section> opens that section (the sales dashboard uses it, e.g. for missing invoice details)
   const sec = location.hash.split('/')[2];
   if (sec && SECTIONS.some(s => s[0] === sec)) SEC_OPEN[id].add(sec);
   renderDeal(ctx);
   if (sec) setTimeout(() => openSec(sec), 50);
 };
-const reloadDeal = ctx => VIEWS.order(ctx.o.id);
+/** redraw the page the order is shown on (the deal page, or the quote editor: ctx.reload) */
+const reloadDeal = ctx => ctx.reload ? ctx.reload() : VIEWS.order(ctx.o.id);
 
 function renderDeal(ctx) {
   const { o, c } = ctx, lost = o.stage === LOST, ph = phaseOf(o.stage);
@@ -477,7 +483,22 @@ async function sumitAction(ctx, act) {
 // ---------- quote builder ----------
 /** line total after what the package includes; "כלול" when all of it is in the package */
 const lineTotal = (o, p, q) => !q ? '' : chargedQty(o, p.id, q) ? money(chargedQty(o, p.id, q) * p.unit_price) : '<span class="muted small">כלול</span>';
+/** quote tab on the deal page: what is in the quote, the totals, and the way into the full-screen editor */
 function quoteHtml(ctx) {
+  const { o, lines } = ctx, paid = o.payment_status === 'שולם';
+  const rows = lines.filter(l => l.qty > 0).map(l => { const p = prodById(l.product_id); if (!p) return ''; const inc = includedQty(o, p.id);
+    return `<li><span class="grow">${esc(p.name)}${inc ? ' <span class="chip blue">כלול בחבילה</span>' : ''}</span><b>${l.qty}</b><span class="lt">${lineTotal(o, p, l.qty)}</span></li>`; }).join('');
+  return `<div class="quote-layout"><div>
+    ${rows ? `<ul class="qsum">${rows}</ul>` : '<p class="muted">עוד אין כמויות בהצעה.</p>'}
+    ${o.package_name ? `<div class="note" style="margin-top:8px">חבילה: ${esc(o.package_name)}${o.package_id && prodById(o.package_id) ? ' · ' + pkgSummary(prodById(o.package_id)) : ''}</div>` : ''}
+    ${o.priority ? '<div style="margin-top:8px"><span class="chip orange">אקספרס</span></div>' : ''}
+  </div>
+  <div class="quote-total"><h3>סיכום ההצעה</h3><div id="totalsBox">${totalsHtml(o)}</div>
+    ${paid ? '' : `<a class="btn primary block" href="#quote-edit/${o.id}">עריכת ההצעה ←</a><button class="btn wa block" data-lsend="quote:wa">שליחת קישור ההצעה בוואטסאפ</button>`}
+    <div class="row"><a class="btn sm grow" href="#quote/${o.id}">PDF להדפסה</a></div></div></div>`;
+}
+/** the quote's lines, package, coupon, manual discount and express (the full-screen editor, quoteedit.js) */
+function quoteLinesHtml(ctx) {
   const { o, lines } = ctx;
   const qtyOf = pid => lines.find(l => l.product_id === pid)?.qty || 0;
   const row = p => { const q = qtyOf(p.id), inc = includedQty(o, p.id); return `<div class="qrow ${q ? 'has' : ''}"><div class="nm">${esc(p.name)}${inc ? `<span class="sub" style="color:var(--blue)">${inc > 1 ? inc + ' ' : ''}כלול בחבילה, משלם רק על מה שמעבר</span>` : p.notes ? `<span class="sub">${esc(p.notes)}</span>` : ''}</div>
@@ -487,7 +508,7 @@ function quoteHtml(ctx) {
   const media = S.products.filter(p => p.category === 'media' && (p.active || qtyOf(p.id)));
   const extras = S.products.filter(p => (p.category === 'addon' || p.category === 'repair') && (p.active || qtyOf(p.id)));
   const pk = S.products.filter(p => p.category === 'package' && (p.active || p.id === o.package_id));
-  return `<div class="quote-layout"><div>
+  return `<div>
     <div class="qrow qhead"><span>מה יש ללקוח</span><span class="pr">מחיר ליחידה</span><span>כמות</span><span class="lt">סה"כ</span></div>${media.map(row).join('')}
     <div class="subhead">תוספות ותיקונים</div>${extras.map(row).join('')}
     <div class="subhead">חבילה, הנחות ודחיפות</div><div class="fields">
@@ -496,11 +517,7 @@ function quoteHtml(ctx) {
       ${fld(ctx, 'manual_discount')}</div>
     ${o.package_id && prodById(o.package_id) ? `<div class="note" style="margin-top:8px">${esc(o.package_name || '')}: ${pkgSummary(prodById(o.package_id))}</div>` : ''}
     <div style="margin-top:12px">${tog(ctx, 'priority')}</div>
-  </div>
-  <div class="quote-total"><h3>סיכום ההצעה</h3><div id="totalsBox">${totalsHtml(o)}</div>
-    <button class="btn primary block" data-lsend="quote:wa">שליחת קישור ההצעה בוואטסאפ</button>
-    <div class="row"><a class="btn sm grow" href="#quote/${o.id}">PDF להדפסה</a></div>
-    <p class="tiny muted">הנחת כמות, קופון ומינימום הזמנה מחושבים לבד. המחירים מגיעים מהמחירון בהגדרות.</p></div></div>`;
+  </div>`;
 }
 
 // ---------- items ----------
@@ -587,6 +604,7 @@ async function lightRefresh(ctx, savedKey) {
   $('#sumBox') && ($('#sumBox').innerHTML = summaryHtml(ctx));
   $('#contactBox') && ($('#contactBox').innerHTML = contactHtml(ctx));
   $('#totalsBox') && ($('#totalsBox').innerHTML = totalsHtml(o));
+  ctx.onSaved?.();
   SECTIONS.forEach(([k, , sum]) => { const el = $(`[data-sum="${k}"]`); if (el) el.innerHTML = sum(ctx); });
   $$('[data-req]').forEach(l => { const k = l.dataset.req; if (k) l.classList.toggle('missing', showRequired(o) && !String(ctx.c[k] || '').trim()); });
   const box = $('#nextBox');
@@ -721,19 +739,8 @@ function bindDeal(ctx) {
     { label: 'הדפסת הצעת מחיר (PDF)', run: () => go('quote/' + o.id) }, { label: 'הדפסת מדבקות ברקוד', run: () => go('labels/' + o.id) }, { label: 'הדפסת דף משלוח', run: () => go('manifest/' + o.id) },
     'sep', ctx.o.stage === LOST ? { label: 'להחזיר לטיפול', run: () => $('#revive').click() } : { label: 'סימון כלא רלוונטי', run: async () => { if (await changeStage(ctx.o, LOST, c)) reloadDeal(ctx); } },
     ...(isAdmin() ? [{ label: 'מחיקת ההזמנה', danger: true, run: () => deleteOrder(o) }] : [])]); };
-  // quote steppers
-  const saveLine = async (pid, qty) => {
-    const r = qty > 0 ? await sb.from('order_lines').upsert({ order_id: o.id, product_id: pid, qty }, { onConflict: 'order_id,product_id' }) : await sb.from('order_lines').delete().eq('order_id', o.id).eq('product_id', pid);
-    fail(r.error);
-    const l = ctx.lines.find(x => x.product_id === pid); if (l) l.qty = qty; else if (qty) ctx.lines.push({ order_id: o.id, product_id: pid, qty });
-    const p = S.products.find(x => x.id === pid), lt = $(`[data-lt="${pid}"]`); if (lt) lt.innerHTML = lineTotal(ctx.o, p, qty);
-    $(`[data-line="${pid}"]`)?.closest('.qrow').classList.toggle('has', qty > 0);
-    if (pid === 14) { await lightRefresh(ctx); return reloadDeal(ctx); } // express line moves the "אקספרס" toggle (DB trigger)
-    lightRefresh(ctx);
-  };
-  $$('[data-line]').forEach(el => el.addEventListener('change', () => saveLine(Number(el.dataset.line), Math.max(0, Number(el.value || 0)))));
-  $$('[data-qd]').forEach(b => b.onclick = () => { const inp = $(`[data-line="${b.dataset.qd}"]`); const v = Math.max(0, Number(inp.value || 0) + Number(b.dataset.d)); inp.value = v || ''; saveLine(Number(b.dataset.qd), v); });
-  
+  bindQuote(ctx);
+
 
   $$('[data-credit]').forEach(b => b.onclick = () => creditAction(ctx, b.dataset.credit));
   $$('[data-isave]').forEach(el => el.addEventListener('change', async () => {
@@ -781,6 +788,21 @@ function bindDeal(ctx) {
     await reversible('ההערה נוספה', async () => { if (nid) return noteRpc('set_note_deleted', { p_id: nid, p_deleted: false })(); const { data, error } = await sb.rpc('add_note', { p_order: o.id, p_text: t }); fail(error); nid = data; },
       () => noteRpc('set_note_deleted', { p_id: nid, p_deleted: true })(), () => reloadDeal(ctx));
     reloadDeal(ctx); };
+}
+/** quantity steppers of the quote (deal page or editor). Saves each line; the totals refresh from v_orders. */
+function bindQuote(ctx) {
+  const o = ctx.o;
+  const saveLine = async (pid, qty) => {
+    const r = qty > 0 ? await sb.from('order_lines').upsert({ order_id: o.id, product_id: pid, qty }, { onConflict: 'order_id,product_id' }) : await sb.from('order_lines').delete().eq('order_id', o.id).eq('product_id', pid);
+    fail(r.error);
+    const l = ctx.lines.find(x => x.product_id === pid); if (l) l.qty = qty; else if (qty) ctx.lines.push({ order_id: o.id, product_id: pid, qty });
+    const p = S.products.find(x => x.id === pid), lt = $(`[data-lt="${pid}"]`); if (lt) lt.innerHTML = lineTotal(ctx.o, p, qty);
+    $(`[data-line="${pid}"]`)?.closest('.qrow').classList.toggle('has', qty > 0);
+    if (pid === 14) { await lightRefresh(ctx); return reloadDeal(ctx); } // express line moves the "אקספרס" toggle (DB trigger)
+    lightRefresh(ctx);
+  };
+  $$('[data-line]').forEach(el => el.addEventListener('change', () => saveLine(Number(el.dataset.line), Math.max(0, Number(el.value || 0)))));
+  $$('[data-qd]').forEach(b => b.onclick = () => { const inp = $(`[data-line="${b.dataset.qd}"]`); const v = Math.max(0, Number(inp.value || 0) + Number(b.dataset.d)); inp.value = v || ''; saveLine(Number(b.dataset.qd), v); });
 }
 async function deleteOrder(o) {
   const f = await formModal('מחיקת הזמנה ' + o.id, `<p>הפעולה לא ניתנת לביטול: נמחקים ההזמנה, הצעת המחיר והברקודים. הלקוח עצמו נשאר.</p><label class="field">כדי לאשר, מקלידים את מספר ההזמנה<input name="n" required inputmode="numeric"></label>`, { ok: 'מחיקה סופית' });
