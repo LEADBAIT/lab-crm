@@ -3,7 +3,9 @@
 // ---------- REPORTS ----------
 VIEWS.reports = async function vReports() {
   const rows = await getOrders();
-  const [{ data: exp }, { data: lines }] = await Promise.all([sb.from('expenses').select('*'), sb.from('order_lines').select('order_id, product_id, qty, unit_price')]);
+  // v_order_lines: what each line really charges (package contents and promotion gifts are free)
+  const [{ data: exp }, { data: lines }, { data: xpays }] = await Promise.all([sb.from('expenses').select('*'), sb.from('v_order_lines').select('order_id, product_id, category, qty, charged_qty, unit_price, line_total'),
+    sb.from('order_payments').select('order_id, lines, amount, paid_at').eq('status', 'paid')]);
   const month = today().slice(0, 7), sel = sessionStorage.getItem('dashMonth') || month;
   const prevOf = m => { const [y, mm] = m.split('-').map(Number); const d = new Date(y, mm - 2, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
   const mName = m => new Date(m + '-01').toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
@@ -25,7 +27,8 @@ VIEWS.reports = async function vReports() {
   const kpi = (l, v, d = '') => `<div class="card kpi"><span class="l">${l}</span><span class="v">${v}</span><span class="d">${d}</span></div>`;
   const srcConv = k => { const s = rows.filter(x => (x.source || 'לא צוין') === k); return s.length ? Math.round(s.filter(x => x.paid_at).length / s.length * 100) : 0; };
   const paidIds = new Set(A.paid.map(r => r.id)), revByType = {};
-  (lines || []).filter(l => paidIds.has(l.order_id)).forEach(l => { const p = S.products.find(x => x.id === l.product_id); if (!p) return; const k = p.category === 'media' ? p.name.split(' (')[0] : 'תוספות'; revByType[k] = (revByType[k] || 0) + l.qty * Number(l.unit_price ?? p.unit_price); });
+  (lines || []).filter(l => paidIds.has(l.order_id)).forEach(l => { const p = S.products.find(x => x.id === l.product_id); if (!p) return; const k = p.category === 'media' ? p.name.split(' (')[0] : 'תוספות'; revByType[k] = (revByType[k] || 0) + Number(l.line_total || 0); });
+  const U = upsellStats(A.paid, lines || [], xpays || [], sel), UB = upsellStats(B.paid, lines || [], xpays || [], prevOf(sel));
   const labDays = S.labs.map(l => [l.name, avgDays(done.filter(r => r.lab_id === l.id))]).filter(x => x[1] != null);
   const months = [...new Set(rows.map(r => r.created_at.slice(0, 7)).concat([month]))].sort().reverse();
   const card = (t, body, sub = '') => `<section class="card"><div class="card-head"><h3>${t}</h3>${sub ? `<span class="tiny muted">${sub}</span>` : ''}</div>${body}</section>`;
@@ -57,9 +60,47 @@ VIEWS.reports = async function vReports() {
     ${card('רווח החודש', `<div class="totals"><span>הכנסות</span><span>${money(A.revenue)}</span><span>הוצאות</span><span>-${money(A.expTotal)}</span><span class="muted">מתוכן פרסום</span><span class="muted">${money(A.ads)}</span><span class="grand">נשאר</span><span class="grand">${money(A.revenue - A.expTotal)}</span></div>`)}
     ${card('עלות פרסום', `<div class="totals"><span>עלות לפנייה</span><span>${A.ads && A.leads.length ? money(Math.round(A.ads / A.leads.length)) : '—'}</span><span>עלות ללקוח משלם</span><span>${A.ads && A.paid.length ? money(Math.round(A.ads / A.paid.length)) : '—'}</span></div>
       <p class="tiny muted" style="margin-top:10px">מחושב מהוצאות בקטגוריה "פרסום" במסך <a href="#expenses">הוצאות</a>.</p>`)}
-  </div>`;
+  </div>
+  <div class="section-title">תוספות, חבילות ומבצעים</div>
+  <div class="grid cols-4">
+    ${kpi('הכנסה מתוספות וחבילות', money(U.revenue) || '₪0', delta(U.revenue, UB.revenue))}
+    ${kpi('הזמנות עם תוספת', A.paid.length ? U.rate + '%' : '—', `${U.withUp} מתוך ${A.paid.length} הזמנות ששולמו`)}
+    ${kpi('תוספות אחרי תשלום', money(U.extraRev) || '₪0', `${U.extraCount} תשלומים מדף המעקב`)}
+    ${kpi('הנחה שניתנה במבצעים', money(U.promoDisc) || '₪0', `${U.promoOrders} הזמנות עם מבצע`)}
+  </div>
+  <div class="grid cols-3" style="margin-top:16px">
+    ${card('איזו חבילה נמכרת', bars(U.packages), 'הזמנות ששולמו החודש')}
+    ${card('רווח לכל תוספת', U.profit.length ? `<div class="table-wrap"><table><thead><tr><th>מוצר</th><th class="num">יחידות</th><th class="num">הכנסה</th><th class="num">רווח</th></tr></thead><tbody>${U.profit.map(r => `<tr><td>${esc(r.name)}</td><td class="num">${r.units}</td><td class="num">${money(r.rev)}</td><td class="num">${r.profit == null ? '<span class="tiny muted">חסרה עלות</span>' : money(r.profit)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">אין עדיין נתונים</p>', 'מחיר פחות עלות, לפי המחירון')}
+    ${card('מבצעים', U.promos.length ? `<div class="table-wrap"><table><thead><tr><th>מבצע</th><th class="num">הזמנות</th><th class="num">הנחה</th></tr></thead><tbody>${U.promos.map(([n, v]) => `<tr><td>${esc(n)}</td><td class="num">${v.orders}</td><td class="num">${money(v.disc)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">אין מבצעים בהזמנות ששולמו החודש</p>', 'הזמנות ששולמו החודש')}
+  </div>
+  <p class="tiny muted" style="margin-top:8px">הכנסה מתוספות = מחיר התוספות והחבילות לפני הנחות כלליות (מה שכלול בחבילה או במתנה לא נספר), ועוד תשלומים נוספים מדף המעקב. כל המבצעים, כל הזמנים: הגדרות ← מחירים.</p>`;
   $('#dm').onchange = e => { sessionStorage.setItem('dashMonth', e.target.value); VIEWS.reports(); };
 };
+
+/** upsells for the orders paid in a month: add-on and package revenue, share of orders with one, extra payments, packages, profit per product, promotions */
+function upsellStats(paid, lines, xpays, month) {
+  const ids = new Set(paid.map(r => r.id)), extra = new Set(['addon', 'repair']);
+  const ups = lines.filter(l => ids.has(l.order_id) && extra.has(l.category) && Number(l.charged_qty) > 0);
+  const xs = xpays.filter(p => p.paid_at && p.paid_at.slice(0, 7) === month);
+  const pkgPrice = r => r.package_id ? Number(prodById(r.package_id)?.unit_price || 0) : 0;
+  const withUp = paid.filter(r => r.package_id || ups.some(l => l.order_id === r.id) || xs.some(p => p.order_id === r.id)).length;
+  const extraRev = xs.reduce((s, p) => s + Number(p.amount), 0);
+  const revenue = ups.reduce((s, l) => s + Number(l.line_total || 0), 0) + paid.reduce((s, r) => s + pkgPrice(r), 0) + extraRev;
+  // units sold per product (lines, packages as one unit, extra payments)
+  const units = new Map();
+  const put = (pid, n) => units.set(pid, (units.get(pid) || 0) + n);
+  ups.forEach(l => put(l.product_id, Number(l.charged_qty)));
+  paid.filter(r => r.package_id).forEach(r => put(r.package_id, 1));
+  xs.forEach(p => (p.lines || []).forEach(l => put(l.product_id, Number(l.qty))));
+  const profit = [...units].map(([pid, n]) => { const p = prodById(pid); if (!p) return null; const each = prodProfit(p);
+    return { name: p.name, units: n, rev: n * Number(p.unit_price), profit: each == null ? null : each * n }; }).filter(Boolean).sort((a, b) => b.rev - a.rev);
+  const pk = {}; paid.forEach(r => { const k = r.package_name || 'בלי חבילה'; pk[k] = (pk[k] || 0) + 1; });
+  const pm = {}; let promoDisc = 0, promoOrders = 0;
+  paid.forEach(r => { const ls = (r.promo_lines || []); if (ls.length) promoOrders++;
+    ls.forEach(l => { const v = pm[l.name] ||= { orders: 0, disc: 0 }; v.orders++; v.disc += Number(l.amount || 0); promoDisc += Number(l.amount || 0); }); });
+  return { revenue, withUp, rate: paid.length ? Math.round(withUp / paid.length * 100) : 0, extraRev, extraCount: xs.length,
+    packages: Object.entries(pk).sort((a, b) => b[1] - a[1]), profit, promos: Object.entries(pm).sort((a, b) => b[1].disc - a[1].disc), promoDisc, promoOrders };
+}
 
 // ---------- EXPENSES ----------
 VIEWS.expenses = async function vExpenses() {
