@@ -1007,3 +1007,31 @@ ul.plain { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3p
 .qsum li { display: flex; gap: 10px; align-items: center; font-size: 14px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
 .qsum .lt { min-width: 70px; text-align: end; }
 @media (max-width: 1000px) { .qe { grid-template-columns: minmax(0, 1fr); } .qe-side { position: static; } .qe-prev iframe { height: 70vh; } }
+
+/* ---------- "עוד" in the menu: phones only (Today · Customers · Scan · More) ---------- */
+.nav-more { display: none; }
+.nav-more > button { all: unset; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--rail-ink); height: 54px; width: 100%; border-radius: 10px; cursor: pointer; font-size: 11px; }
+.nav-more > button svg { width: 22px; height: 22px; }
+.nav-more .menu { top: auto; bottom: calc(100% + 6px); inset-inline-end: 0; }
+@media (max-width: 700px) {
+  #nav a:not([data-phone]) { display: none; }
+  .nav-more { display: flex; flex: 1; position: relative; }
+}
+
+/* ---------- היום (today.js) ---------- */
+.today { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--s4); align-items: start; }
+.tcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); align-items: start; }
+.tlist { list-style: none; margin: 0; padding: 0; display: grid; }
+.trow { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.trow:first-child { border-top: 0; }
+.trow .urg { width: 4px; align-self: stretch; border-radius: 2px; background: var(--line-2); flex: none; }
+.trow .urg.red { background: var(--red); } .trow .urg.orange { background: var(--orange); } .trow .urg.blue { background: var(--blue); }
+.trow .who { font-weight: 600; color: var(--ink); text-decoration: none; }
+.trow .why { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.trow .btn { flex: none; }
+.tfeed { position: sticky; top: calc(var(--top) + 12px); }
+.feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; font-size: 13px; }
+.feed a { color: var(--ink); text-decoration: none; }
+.page-head .btn[data-newlead] { flex: none; }
+@media (max-width: 1280px) { .tcols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@media (max-width: 1000px) { .today { grid-template-columns: minmax(0, 1fr); } .tcols { grid-template-columns: minmax(0, 1fr); } .tfeed { position: static; } }

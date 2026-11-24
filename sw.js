@@ -1,7 +1,7 @@
 // Minimal service worker: makes the CRM installable and keeps the app shell available.
 // Network first for everything; data always comes live from Supabase (never cached).
-const CACHE = 'crm-shell-1795562943';
-const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'steps.js', 'links.js', 'queue.js', 'sales.js', 'deals.js', 'photos.js', 'deal.js', 'quoteedit.js', 'ops.js', 'shipments.js', 'labs.js', 'catalog.js', 'more.js', 'config.js', 'help.js', 'icon.svg', 'manifest.webmanifest'];
+const CACHE = 'crm-shell-1795563205';
+const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'steps.js', 'links.js', 'queue.js', 'sales.js', 'today.js', 'deals.js', 'photos.js', 'deal.js', 'quoteedit.js', 'ops.js', 'shipments.js', 'labs.js', 'catalog.js', 'more.js', 'config.js', 'help.js', 'icon.svg', 'manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

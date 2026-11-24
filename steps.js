@@ -148,7 +148,7 @@ async function followupModal(o, { stage = o.stage, title, date, note } = {}) {
   const ch = o.followup_channel || 'call';
   const p = modal(`<h2>${esc(title || 'מתי חוזרים ל' + custName(o) + '?')}</h2>${warn}<form id="fuF" class="grid">
     <div class="field">איך חוזרים <span class="req">*</span><div class="seg big" role="radiogroup" aria-label="איך חוזרים">${Object.entries(FU_CH).map(([k, [ic, l]]) => `<button type="button" role="radio" data-ch="${k}" class="${k === ch ? 'on' : ''}" aria-checked="${k === ch}">${ic} ${l}</button>`).join('')}</div><input type="hidden" name="ch" value="${ch}"></div>
-    <div class="row">${[[1, 'מחר'], [3, 'בעוד 3 ימים'], [7, 'בעוד שבוע'], [daysTo(5), 'שישי הקרוב'], [daysTo(0), 'ראשון הקרוב']].map(([n, l]) => `<button type="button" class="btn sm" data-fq="${n}">${l}</button>`).join('')}</div>
+    <div class="row"><button type="button" class="btn sm" data-fqh="2">בעוד שעתיים</button>${[[1, 'מחר'], [3, 'בעוד 3 ימים'], [7, 'בעוד שבוע'], [daysTo(5), 'שישי הקרוב'], [daysTo(0), 'ראשון הקרוב']].map(([n, l]) => `<button type="button" class="btn sm" data-fq="${n}">${l}</button>`).join('')}</div>
     <div class="row nowrap"><label class="field grow">תאריך <span class="req">*</span><input type="date" name="d" required value="${esc(date || (o.next_followup && o.next_followup >= today() ? o.next_followup : ''))}" min="${today()}"></label>
       <label class="field">שעה (לא חובה)<input type="time" name="t" value="${esc(fuTime(o.next_followup_time))}"></label></div>
     <label class="field">למה חוזרים<input name="n" value="${esc(note ?? o.followup_note ?? '')}" placeholder="למשל: שולח תמונות של הקלטות"></label>
@@ -157,6 +157,9 @@ async function followupModal(o, { stage = o.stage, title, date, note } = {}) {
     $$('[data-ch]', p).forEach(b => b.onclick = () => { $$('[data-ch]', p).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
       $('[name=ch]', p).value = b.dataset.ch; });
     $$('[data-fq]', p).forEach(b => b.onclick = () => { $('[name=d]', p).value = addDays(Number(b.dataset.fq)); });
+    // "in two hours": today, at now + 2h (user decision 2026-11-25)
+    $$('[data-fqh]', p).forEach(b => b.onclick = () => { const t = toLocalInput(new Date(Date.now() + Number(b.dataset.fqh) * 36e5));
+      $('[name=d]', p).value = t.slice(0, 10); $('[name=t]', p).value = t.slice(11, 16); });
     $('#fuF', p).onsubmit = e => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); closeModal();
       res({ next_followup: f.d, next_followup_time: f.t || null, followup_channel: f.ch, followup_note: f.n.trim() || null }); };
     $('#fuNo', p).onclick = () => { closeModal(); res(null); };

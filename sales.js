@@ -16,8 +16,10 @@ const tempColor = v => (S.opts.temperature || []).find(o => o.value === v)?.colo
 const srcShort = r => r.meta_campaign || r.meta_lead_id ? 'מטא' : r.source || '';
 
 VIEWS.sales = async function vSales(tab) {
-  tab = tab === 'pickup' ? 'pickup' : 'sales';
-  const rows = await getOrders(q => q.in('stage', [...SALES_STAGES, 'לתאם איסוף']));
+  // sales = stages 1-4 only; arranging pickup lives in Customers → Operations (user decision 2026-11-25)
+  if (tab === 'pickup') { location.hash = 'deals/ops'; return; }
+  tab = 'sales';
+  const rows = await getOrders(q => q.in('stage', SALES_STAGES));
   const ids = rows.map(r => r.id);
   const { data: ev, error } = ids.length ? await sb.from('order_events').select('order_id, new_value, at').eq('kind', 'note').is('deleted_at', null).in('order_id', ids).order('at', { ascending: false }) : { data: [] };
   fail(error);
@@ -49,7 +51,7 @@ function renderSales(tab) {
   const filtered = F.view || F.stage || F.src || F.hot || F.q;
   view().innerHTML = `
   <div class="toolbar">
-    <div class="seg"><button class="${tab === 'sales' ? 'on' : ''}" data-stab="sales">מכירה <span class="n">${n.all}</span></button><button class="${tab === 'pickup' ? 'on' : ''}" data-stab="pickup">לתאם איסוף <span class="n">${n.pickup}</span></button></div>
+    <button class="btn primary" data-newlead>+ ליד</button>
     <div class="search-box"><input id="sq" type="search" placeholder="חיפוש שם או טלפון" value="${esc(F.q || '')}" aria-label="חיפוש שם או טלפון"></div>
     <select id="ssrc" class="src-sel" aria-label="סינון לפי מקור או קמפיין"><option value="">כל המקורות</option>${sources.map(s => `<option value="src:${esc(s)}" ${F.src === 'src:' + s ? 'selected' : ''}>${esc(s)}</option>`).join('')}${camps.length ? `<optgroup label="קמפיין במטא">${camps.map(s => `<option value="cmp:${esc(s)}" ${F.src === 'cmp:' + s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</optgroup>` : ''}</select>
     <span class="tb-sum">${n.all} לידים פתוחים${n.sum ? ` · <b>${money(n.sum)}</b> בהצעות` : ''}</span>

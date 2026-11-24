@@ -298,6 +298,8 @@ function applyTheme() { const t = themePref(); if (t) document.documentElement.d
 
 // ---------- nav ----------
 const ICONS = {
+  today: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  more: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
   sales: '<path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/>',
   queue: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
   deals: '<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M16 4a4 4 0 0 1 0 8M22 21c0-3-2-5-4-5.5"/>',
@@ -311,12 +313,16 @@ const ICONS = {
 const icon = k => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ''}</svg>`;
 function buildNav() {
   const items = isLab() ? [['lab', 'ההזמנות שלי', 'lab'], ['scan', 'סריקה', 'scan']]
-    : [['sales', 'מכירות', 'sales'], ['deals', 'לקוחות', 'deals'], ['scan', 'סריקה', 'scan'], ['shipments', 'משלוחים', 'shipments'], ['reports', 'דוחות', 'reports'], ['expenses', 'הוצאות', 'expenses'], ['settings', 'הגדרות', 'settings']];
-  $('#nav').innerHTML = items.map(([r, t, ic]) => `<a href="#${r}" data-r="${r}">${icon(ic)}<span class="t">${t}</span></a>`).join('');
+    : [['today', 'היום', 'today'], ['sales', 'מכירות', 'sales'], ['deals', 'לקוחות', 'deals'], ['scan', 'סריקה', 'scan'], ['shipments', 'משלוחים', 'shipments'], ['reports', 'דוחות', 'reports'], ['expenses', 'הוצאות', 'expenses'], ['settings', 'הגדרות', 'settings']];
+  $('#nav').innerHTML = items.map(([r, t, ic]) => `<a href="#${r}" data-r="${r}" ${NAV_PHONE.includes(r) ? 'data-phone' : ''}>${icon(ic)}<span class="t">${t}</span></a>`).join('')
+    + (isLab() ? '' : `<div class="dd nav-more"><button type="button" id="navMore" aria-label="עוד מסכים">${icon('more')}<span class="t">עוד</span></button></div>`);
+  // phones show Today · Customers · Scan; the rest is under "עוד" (user decision 2026-11-25)
+  $('#navMore') && ($('#navMore').onclick = e => { e.stopPropagation(); dropdown(e.currentTarget, items.filter(([r]) => !NAV_PHONE.includes(r)).map(([r, t]) => ({ label: t, run: () => go(r) }))); });
 }
+const NAV_PHONE = ['today', 'deals', 'scan'];
 // the page title lives in the top bar (Pipedrive style); pages start with their toolbar
-const PAGE_TITLE = { sales: 'מכירות', deals: 'לקוחות', scan: 'סריקת פריטים', reports: 'דוחות', expenses: 'הוצאות', settings: 'הגדרות', lab: 'ההזמנות שלי', quote: 'הצעת מחיר', labels: 'מדבקות ברקוד', manifest: 'דף משלוח', boxlabel: 'מדבקת ארגז', shipments: 'משלוחים', shipment: 'משלוח', labbills: 'חשבונות מעבדות', 'quote-edit': 'עריכת הצעת מחיר' };
-function setNav(r) { $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r)); $('#pageTitle').textContent = PAGE_TITLE[r] || PAGE_TITLE.deals; }
+const PAGE_TITLE = { today: 'היום', sales: 'מכירות', deals: 'לקוחות', scan: 'סריקת פריטים', reports: 'דוחות', expenses: 'הוצאות', settings: 'הגדרות', lab: 'ההזמנות שלי', quote: 'הצעת מחיר', labels: 'מדבקות ברקוד', manifest: 'דף משלוח', boxlabel: 'מדבקת ארגז', shipments: 'משלוחים', shipment: 'משלוח', labbills: 'חשבונות מעבדות', 'quote-edit': 'עריכת הצעת מחיר' };
+function setNav(r) { $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.r === r)); $('#pageTitle').textContent = PAGE_TITLE[r] || (VIEWS[r] ? PAGE_TITLE.deals : PAGE_TITLE.today); }
 $('#userBtn').addEventListener('click', e => {
   e.stopPropagation();
   const t = themePref();
@@ -335,13 +341,13 @@ async function route() {
   routeBusy = true;
   try { while (routeAgain) { routeAgain = false; await routeOnce(); } } finally { routeBusy = false; }
 }
-const ALIAS = { today: 'sales', queue: 'sales', leads: 'deals', orders: 'deals', dash: 'reports', finance: 'expenses' };
+const ALIAS = { queue: 'today', leads: 'deals', orders: 'deals', dash: 'reports', finance: 'expenses' };
 let _lastHash = null;
 async function routeOnce() {
   if (location.hash.startsWith('#track/')) return VIEWS.track(location.hash.split('/')[1]);
   if (!S.user) return;
   $('.topbar').classList.remove('hidden'); $('#app').classList.remove('public');
-  let [r, arg] = (location.hash.slice(1) || (isLab() ? 'lab' : 'sales')).split('/');
+  let [r, arg] = (location.hash.slice(1) || (isLab() ? 'lab' : 'today')).split('/');
   r = ALIAS[r] || r;
   if (isLab() && !['lab', 'scan'].includes(r)) { location.hash = 'lab'; return; }
   setNav(r === 'order' || r === 'quote-edit' ? 'deals' : r === 'shipment' ? 'shipments' : r === 'labbills' ? 'expenses' : r);
@@ -354,7 +360,7 @@ async function routeOnce() {
   const y = window.scrollY;
   if (!same) view().innerHTML = '<div class="loading"><span class="spin"></span> טוען…</div>';
   try {
-    const fn = VIEWS[r] || VIEWS.sales;
+    const fn = VIEWS[r] || VIEWS.today;
     await fn(arg);
     if (!routeAgain) window.scrollTo(0, same ? y : 0);
   } catch (e) { console.error(e); view().innerHTML = `<div class="err">הדף לא נטען: ${esc(e.message)}. נסו לרענן.</div>`; }
@@ -387,7 +393,8 @@ $('#searchForm').addEventListener('submit', async e => {
 });
 
 // ---------- new inquiry ----------
-$('#newLeadBtn').addEventListener('click', async () => {
+/** new lead (the "+ ליד" button in the sales and customers toolbars, user decision 2026-11-25) */
+async function newLead() {
   const f = await formModal('פנייה חדשה', `
     <label class="field">טלפון <span class="req">*</span><input name="phone" type="tel" required inputmode="tel" placeholder="050-0000000"></label>
     <label class="field">שם<input name="name" placeholder="שם פרטי ומשפחה"></label>
@@ -397,7 +404,8 @@ $('#newLeadBtn').addEventListener('click', async () => {
   if (!f) return;
   const { data, error } = await sb.rpc('upsert_lead', { p_phone: f.phone, p_name: f.name || null, p_source: f.source || null, p_note: f.note || null });
   fail(error); toast('נשמר. פנייה #' + data); go('order/' + data);
-});
+}
+document.addEventListener('click', e => { if (e.target.closest?.('[data-newlead]')) newLead(); });
 
 // ---------- PWA ----------
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});

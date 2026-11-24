@@ -14,6 +14,7 @@ VIEWS.deals = async function vDeals(tab) {
   const sources = [...new Set(list.map(r => r.source).filter(Boolean))];
   view().innerHTML = `
   <div class="toolbar">
+    <button class="btn primary" data-newlead>+ ליד</button>
     <div class="seg phases">${DEAL_TABS.map(([k, n]) => `<button class="ph-${k} ${k === tab ? 'on' : ''}" data-tab="${k}">${n} <span class="n">${counts[k]}</span></button>`).join('')}</div>
     <div class="search-box"><input id="fq" type="search" placeholder="שם, טלפון או מספר הזמנה" value="${esc(F.q || '')}" aria-label="סינון"></div>
     ${sources.length ? `<select id="fsrc" class="src-sel" aria-label="מקור"><option value="">כל המקורות</option>${sources.map(s => `<option ${F.src === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>` : ''}
