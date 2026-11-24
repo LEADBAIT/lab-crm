@@ -49,7 +49,8 @@ VIEWS.order = async function vOrder(id) {
     sb.from('quote_versions').select('*').eq('order_id', id).order('n', { ascending: false })]);
   [rl, ri, re, rv].forEach(r => fail(r.error));
   const { data: c, error } = await sb.from('customers').select('*').eq('id', o.customer_id).single(); fail(error);
-  const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data, versions: rv.data, photos: await loadPhotos(id) };
+  const { data: extraPays } = await sb.from('order_payments').select('*').eq('order_id', id).order('id', { ascending: false });
+  const ctx = { o, c, lines: rl.data, items: ri.data, events: re.data, versions: rv.data, photos: await loadPhotos(id), extraPays: extraPays || [] };
   // photos live in order_photos, not in v_orders: give the step checks what they need
   o.photos_count = ctx.photos.length; o.photos_first_at = ctx.photos[0]?.created_at || null;
   // #order/<id>/<section> opens that section (the sales dashboard uses it, e.g. for missing invoice details)
@@ -220,7 +221,7 @@ const SEC_BODY = {
   photos: ctx => photosHtml(ctx),
   quote: ctx => quoteHtml(ctx),
   items: ctx => itemsHtml(ctx),
-  payment: ctx => `<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}${creditHtml(ctx)}${moneyHtml(ctx.o)}`,
+  payment: ctx => `<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}${extraPaysHtml(ctx)}${creditHtml(ctx)}${moneyHtml(ctx.o)}`,
   shipping: ctx => `<div class="fields">${['lab_id', 'courier', 'pickup_date', 'pickup_tracking'].map(k => fld(ctx, k)).join('')}${fld(ctx, 'files_link_from_lab', { wide: true })}</div>
     <div class="row" style="margin-top:12px"><a class="btn sm" href="#labels/${ctx.o.id}">הדפסת מדבקות ברקוד</a><a class="btn sm" href="#boxlabel/${ctx.o.id}">מדבקת ארגז</a><a class="btn sm" href="#manifest/${ctx.o.id}">הדפסת דף משלוח</a><a class="btn sm" href="#shipments/new/${ctx.o.id}">משלוח חדש עם ההזמנה</a></div>`,
   delivery: ctx => `<div class="fields">${fld(ctx, 'delivery_link', { wide: true })}${ro('הקישור יימחק ב-', fmtDate(ctx.o.delivery_link_expires))}${['return_method', 'return_tracking'].map(k => fld(ctx, k)).join('')}
@@ -300,6 +301,15 @@ async function destroyHardware(o) {
 // ---------- lab cost, profit, customer credit ----------
 /** what the order earns: paid − lab cost − money refunded (a gift's cost is not known, so it is not subtracted) */
 const orderProfit = o => Number(o.paid_amount || o.total || 0) - Number(o.lab_cost || 0) - (o.credit_method === 'החזר כספי' && o.credit_done_at ? Number(o.credit_amount || 0) : 0);
+/** add-ons the customer bought on the tracking page after paying (order_payments): their own SUMIT link and invoice */
+const EXTRA_ST = { open: ['ממתין לתשלום', 'orange'], paid: ['שולם', 'green'], cancelled: ['בוטל', ''] };
+function extraPaysHtml(ctx) {
+  const ps = ctx.extraPays || []; if (!ps.length) return '';
+  return `<div class="subhead">תשלומים נוספים (תוספות מדף המעקב)</div><div class="table-wrap"><table><thead><tr><th>מה</th><th class="num">סכום</th><th>מצב</th><th>חשבונית</th></tr></thead><tbody>
+    ${ps.map(p => { const [l, c] = EXTRA_ST[p.status] || [p.status, '']; return `<tr><td class="small">${(p.lines || []).map(x => `${x.qty > 1 ? x.qty + '× ' : ''}${esc(productName(x.product_id) || '')}`).join(', ')}<span class="tiny muted" style="display:block">${fmtDT(p.created_at)}</span></td>
+      <td class="num">${money(p.amount)}</td><td><span class="chip ${c}">${l}</span>${p.paid_at ? ` <span class="tiny muted">${fmtShort(p.paid_at)}</span>` : ''}</td>
+      <td>${p.sumit_doc_url ? `<a href="${esc(p.sumit_doc_url)}" target="_blank" rel="noopener">${esc(p.invoice_number || 'מסמך')}</a>` : p.status === 'open' && p.sumit_payment_url ? `<a class="small" href="${esc(p.sumit_payment_url)}" target="_blank" rel="noopener">קישור התשלום</a>` : ''}</td></tr>`; }).join('')}</tbody></table></div>`;
+}
 function moneyHtml(o) {
   if (!o.lab_id) return '';
   return `<div class="subhead">עלות ורווח</div><div class="totals" style="max-width:360px">

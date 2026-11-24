@@ -173,17 +173,19 @@ VIEWS.track = async function vTrack(token) {
     ${data.delivery_link ? `<a class="btn primary lg" style="margin-top:12px" href="${esc(data.delivery_link)}" target="_blank" rel="noopener">להורדת הקבצים</a>` : ''}
     <div id="trackAdd"></div>
     <p class="small muted" style="margin-top:16px">שאלות? פשוט עונים לנו בוואטסאפ.</p></div>`;
-  if (data.paid_at && !data.completed_at) trackAddons(token);
+  // before payment: promotion banners (a paid order can't get a new promotion, so no banner then). After payment: add-ons (server decides)
+  if (!data.completed_at) trackAddons(token, !data.paid_at);
 };
 /** add-ons after payment (products.show_track): the customer picks, sees the extra amount, and pays it with a separate SUMIT link */
-async function trackAddons(token) {
+async function trackAddons(token, showBanners = false) {
   const API = CRM_CONFIG.url + '/functions/v1/quote', box = $('#trackAdd');
   const call = async body => { const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ track: token, ...body }) }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'error'); return d; };
   let d; try { d = await (await fetch(`${API}?track=${encodeURIComponent(token)}`)).json(); } catch { return; }
-  if (!d?.offers?.length && !d?.open) return;
+  const banners = (showBanners ? d?.banners || [] : []).map(b => `<div class="note" style="margin-top:12px"><b>${esc(b.text)}</b></div>`).join('');
+  if (!d?.offers?.length && !d?.open) { box.innerHTML = banners; return; }
   const pick = new Set();
   const draw = (amount = null, busy = false, err = '') => {
-    box.innerHTML = `<div class="track-add"><h2>רוצים להוסיף משהו להזמנה?</h2>
+    box.innerHTML = `${banners}<div class="track-add"><h2>רוצים להוסיף משהו להזמנה?</h2>
       ${d.open ? `<div class="note" style="margin-bottom:10px">יש תוספת שממתינה לתשלום (${money(d.open.amount)}). <a href="${esc(d.open.url)}">להמשך התשלום</a></div>` : ''}
       ${d.offers.map(f => `<label class="track-offer ${pick.has(f.pid) ? 'on' : ''}">${f.image ? `<img src="${esc(f.image)}" alt="">` : ''}<input type="checkbox" data-tpick="${f.pid}" ${pick.has(f.pid) ? 'checked' : ''}>
         <span class="grow"><b>${esc(f.name)}</b>${f.recommended ? ' <span class="chip orange">מומלץ</span>' : ''}${f.notes ? `<span class="small muted" style="display:block">${esc(f.notes)}</span>` : ''}</span><span class="num"><b>${money(f.price)}</b></span></label>`).join('')}
