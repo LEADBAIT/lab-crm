@@ -974,7 +974,8 @@ tr.clickable { cursor: pointer; }
 .ldot.red { background: var(--red-bg); color: var(--red); filter: none; opacity: 1; }
 
 /* ---------- deal page tabs (stage 3) ---------- */
-.deal-tabs-wrap { margin-top: var(--s2); }
+.deal-tabs-wrap { margin-top: var(--s2); position: sticky; top: calc(var(--top) + var(--dh, 0px)); z-index: 4; background: var(--bg); padding-block: 6px; }
+html.embed .deal-tabs-wrap { top: var(--dh, 0px); }
 .deal-tabs { width: 100%; }
 .deal-tabs button { flex: 1 1 0; justify-content: center; }
 .tabp { display: grid; gap: var(--s3); margin-top: var(--s3); }
