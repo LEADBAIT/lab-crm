@@ -11,7 +11,7 @@ VIEWS.reports = async function vReports() {
   const prevOf = m => { const [y, mm] = m.split('-').map(Number); const d = new Date(y, mm - 2, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
   const mName = m => new Date(m + '-01').toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
   const stats = m => {
-    const inM = d => d && d.slice(0, 7) === m;
+    const inM = d => d && ilDay(d).slice(0, 7) === m;
     const leads = rows.filter(r => inM(r.created_at)), paid = rows.filter(r => inM(r.paid_at) && r.payment_status !== 'הוחזר');
     const revenue = paid.reduce((s, r) => s + Number(r.paid_amount || r.total || 0), 0);
     const expM = (exp || []).filter(e => e.spent_on.slice(0, 7) === m);
@@ -31,7 +31,7 @@ VIEWS.reports = async function vReports() {
   (lines || []).filter(l => paidIds.has(l.order_id)).forEach(l => { const p = S.products.find(x => x.id === l.product_id); if (!p) return; const k = p.category === 'media' ? p.name.split(' (')[0] : 'תוספות'; revByType[k] = (revByType[k] || 0) + Number(l.line_total || 0); });
   const U = upsellStats(A.paid, lines || [], xpays || [], sel), UB = upsellStats(B.paid, lines || [], xpays || [], prevOf(sel));
   const labDays = S.labs.map(l => [l.name, avgDays(done.filter(r => r.lab_id === l.id))]).filter(x => x[1] != null);
-  const months = [...new Set(rows.map(r => r.created_at.slice(0, 7)).concat([month]))].sort().reverse();
+  const months = [...new Set(rows.map(r => ilDay(r.created_at).slice(0, 7)).concat([month]))].sort().reverse();
   const card = (t, body, sub = '') => `<section class="card"><div class="card-head"><h3>${t}</h3>${sub ? `<span class="tiny muted">${sub}</span>` : ''}</div>${body}</section>`;
   view().innerHTML = `
   <div class="page-head"><div><div class="sub">איך העסק עובד בחודש שנבחר.</div></div>
@@ -82,7 +82,7 @@ VIEWS.reports = async function vReports() {
 function upsellStats(paid, lines, xpays, month) {
   const ids = new Set(paid.map(r => r.id)), extra = new Set(['addon', 'repair']);
   const ups = lines.filter(l => ids.has(l.order_id) && extra.has(l.category) && Number(l.charged_qty) > 0);
-  const xs = xpays.filter(p => p.paid_at && p.paid_at.slice(0, 7) === month);
+  const xs = xpays.filter(p => p.paid_at && ilDay(p.paid_at).slice(0, 7) === month);
   const pkgPrice = r => r.package_id ? Number(prodById(r.package_id)?.unit_price || 0) : 0;
   const withUp = paid.filter(r => r.package_id || ups.some(l => l.order_id === r.id) || xs.some(p => p.order_id === r.id)).length;
   const extraRev = xs.reduce((s, p) => s + Number(p.amount), 0);
@@ -206,7 +206,7 @@ VIEWS.settings = async function vSettings(tab) {
         <td><label class="field"><input type="number" data-save="coupons:${esc(x.code)}:amount" data-num data-zero value="${x.amount || 0}" style="width:80px"></label></td><td><label class="field"><input data-save="coupons:${esc(x.code)}:campaign" value="${esc(x.campaign || '')}"></label></td>
         <td><label class="field"><input type="date" data-save="coupons:${esc(x.code)}:valid_until" value="${x.valid_until || ''}"></label></td><td><label class="toggle"><input type="checkbox" data-save="coupons:${esc(x.code)}:active" ${x.active ? 'checked' : ''}></label></td></tr>`).join('') || '<tr class="empty-row"><td colspan="6">אין קופונים</td></tr>'}
       </tbody></table></div><div style="padding:0 16px 14px"><button class="btn sm" id="addCp">+ קופון</button></div></section>${promoBox}`;
-  if (tab === 'process') body = `<section class="card"><h3 style="margin-bottom:10px">פרטי העסק ללקוחות</h3><div class="fields">
+  if (tab === 'process') body = `${readinessHtml()}<section class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">פרטי העסק ללקוחות</h3><div class="fields">
       <label class="field">וואטסאפ של העסק<input dir="ltr" inputmode="tel" data-save="settings:business_whatsapp:text_value" value="${esc(S.settings.business_whatsapp?.text_value || '')}" placeholder="0500000000"><span class="hint">כפתור "כתבו לנו" בשאלון, בהצעה ובדף המעקב.</span></label>
       <label class="field">קישור לביקורת בגוגל<input dir="ltr" type="url" data-save="settings:review_url:text_value" value="${esc(S.settings.review_url?.text_value || '')}" placeholder="https://g.page/r/..."><span class="hint">נשלח מכרטיס "קישורים ללקוח" אחרי הסיום.</span></label></div>
       ${sentence('quote_stale_days')}</section>
@@ -316,10 +316,26 @@ async function exportAll() {
     const { data, error } = await sb.from(t).select('*'); fail(error);
     if (!data.length) continue;
     const cols = Object.keys(data[0]);
-    const cell = v => { const s = v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const cell = v => { let s = v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v); if (/^[=+\-@]/.test(s) && !/^-?\d/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const csv = '﻿' + [cols.join(','), ...data.map(r => cols.map(c => cell(r[c])).join(','))].join('\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = `crm-${name}-${today()}.csv`; a.click();
     await sleep(400);
   }
   $('#exportMsg').textContent = '✓ הגיבוי ירד לתיקיית ההורדות.';
+}
+
+// ---------- ready to go live (user decision 2026-11-25): what the customer pages need, ✓ or missing ----------
+const READINESS = [
+  ['business_whatsapp', 'וואטסאפ של העסק', 'כפתור "כתבו לנו" בשאלון, בהצעה ובדף המעקב'],
+  ['review_url', 'קישור לביקורת בגוגל', 'נשלח ללקוח אחרי הסיום'],
+  ['terms', 'תקנון (כולל דמי אחסון, השמדה ופרטיות)', 'הלקוח מאשר אותו בשאלון ובהצעה'],
+  ['pay_alt_text', 'דרכי תשלום נוספות (ביט / העברה)', 'לא חובה'],
+  ['public_url', 'כתובת האתר', 'ריק = הכתובת הנוכחית (leadbait.github.io)'],
+];
+const readinessMissing = () => READINESS.filter(([k, , h]) => !(S.settings[k]?.text_value || '').trim() && !/לא חובה|ריק =/.test(h));
+function readinessHtml() {
+  const miss = readinessMissing();
+  return `<section class="card ${miss.length ? 'ready-miss' : ''}"><div class="card-head"><h3>מוכנות לעלייה לאוויר</h3><span class="chip ${miss.length ? 'orange' : 'green'}">${miss.length ? `חסרים ${miss.length}` : 'הכל מוכן ✓'}</span></div>
+    <ul class="checklist">${READINESS.map(([k, l, h]) => { const ok = !!(S.settings[k]?.text_value || '').trim();
+      return `<li class="${ok ? 'ok' : ''}"><span class="box">${ok ? '✓' : ''}</span><span class="t grow">${esc(l)}<div class="tiny muted">${esc(h)}</div></span></li>`; }).join('')}</ul></section>`;
 }

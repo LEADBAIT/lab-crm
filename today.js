@@ -74,6 +74,7 @@ function renderToday(T) {
   <div class="page-head"><div><h1>${hello}${S.me?.name ? ', ' + esc(firstName(S.me.name)) : ''}</h1>
     <div class="sub">${all.length ? `${plural(all.length, 'דבר אחד', 'דברים')} לטפל בהם היום. מתחילים מהאדומים.` : 'הכל טופל. ✓'}</div></div>
     <button class="btn primary" data-newlead>+ ליד</button></div>
+  ${(m => m.length ? `<div class="note" style="margin-bottom:12px">לפני עלייה לאוויר חסרים בהגדרות: <b>${m.map(x => esc(x[1])).join(', ')}</b>. <a href="#settings/process">להשלמה ←</a></div>` : '')(readinessMissing())}
   ${T.alerts.length ? `<section class="card alert-card"><h3>⚠ דורש בדיקה (${T.alerts.length})</h3>${T.alerts.map(a => `<div class="alert-row"><div class="grow"><a href="#order/${a.order_id}">${esc(custName(T.byId.get(a.order_id) || { phone: '#' + a.order_id }))}</a> · ${esc(a.new_value)}<div class="tiny muted">${esc(ago(a.at))}</div></div><button class="btn sm" data-alertok="${a.id}">טופל ✓</button></div>`).join('')}</section>` : ''}
   <div class="today">
     <div class="tcols">

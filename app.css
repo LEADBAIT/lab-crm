@@ -1041,3 +1041,18 @@ ul.plain { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3p
 .seg a + a { border-inline-start: 1px solid var(--line-2); }
 .seg a:hover { background: var(--hover); }
 .seg a.on { background: var(--accent-soft); color: var(--accent-text); }
+
+/* ---------- phone (stage 7): Today, deal page, scanning work one-handed ---------- */
+@media (max-width: 700px) {
+  .deal-tabs { overflow-x: auto; scrollbar-width: none; }
+  .deal-tabs button { flex: 0 0 auto; padding: 8px 14px; }
+  .tabp { gap: var(--s2); }
+  .lk-acts .btn { min-height: 38px; }
+  .trow { flex-wrap: wrap; }
+  .trow .btn { min-height: 38px; }
+  .tfeed { display: none; } /* phones: the activity strip lives on the deal pages */
+  .qe-head h1 { font-size: 18px; }
+  [data-s], .scan-acts button { min-height: 48px; font-size: 15px; }
+  .ready-miss { border-color: var(--orange); }
+}
+.ready-miss { border-color: var(--orange); }

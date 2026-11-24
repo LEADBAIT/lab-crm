@@ -163,7 +163,15 @@ VIEWS.manifest = async function vManifest(id) {
 VIEWS.track = async function vTrack(token) {
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#app').classList.add('public'); $('.topbar').classList.add('hidden');
   const { data, error } = await sb.rpc('track_order', { p_token: token });
-  if (error || !data) { view().innerHTML = '<div class="card track"><h1>ההזמנה לא נמצאה</h1><p>בדקו את הקישור או כתבו לנו בוואטסאפ.</p></div>'; return; }
+  document.title = 'מעקב הזמנה | המעבדה להמרת קלטות ודיסקים';
+  if (error || !data) { view().innerHTML = '<div class="card track"><h1>ההזמנה לא נמצאה</h1><p>בדקו את הקישור או כתבו לנו בוואטסאפ.</p><p id="trackWa"></p></div>'; return; }
+  // not paid yet / not relevant any more: say so plainly instead of an empty progress bar
+  if (!data.paid_at) {
+    view().innerHTML = `<div class="card track"><h1>שלום ${esc(data.first_name)}</h1><p class="muted">הזמנה ${data.id} · המעבדה להמרת קלטות ודיסקים</p>
+      <p>${data.phase === 'lost' ? 'ההזמנה הזו סגורה. רוצים לחדש אותה? כתבו לנו ונשמח לעזור.' : 'ההזמנה עוד לא שולמה. את הצעת המחיר שלחנו אליך בוואטסאפ, ומשם משלמים. אחרי התשלום כאן יופיע איפה ההזמנה.'}</p>
+      <div id="trackAdd"></div><p class="small muted" id="trackWa" style="margin-top:16px"></p></div>`;
+    return trackAddons(token, data.phase !== 'lost', true);
+  }
   const steps = [['ההזמנה התקבלה', data.paid_at], ['החומרים נאספו', data.picked_up_at], ['במעבדה, בעבודה', data.lab_received_at], ['ההמרה הסתיימה', data.conversion_done_at], ['הקבצים נשלחו אליכם', data.delivery_sent_at], ['הושלם', data.completed_at || data.returned_at]];
   const curIdx = steps.reduce((a, s, i) => s[1] ? i : a, -1);
   view().innerHTML = `<div class="card track">
@@ -172,15 +180,18 @@ VIEWS.track = async function vTrack(token) {
     ${data.items_count ? `<p>${data.items_converted} מתוך ${data.items_count} פריטים הומרו.</p>` : ''}
     ${data.delivery_link ? `<a class="btn primary lg" style="margin-top:12px" href="${esc(data.delivery_link)}" target="_blank" rel="noopener">להורדת הקבצים</a>` : ''}
     <div id="trackAdd"></div>
-    <p class="small muted" style="margin-top:16px">שאלות? פשוט עונים לנו בוואטסאפ.</p></div>`;
+    <p class="small muted" id="trackWa" style="margin-top:16px">שאלות? פשוט עונים לנו בוואטסאפ.</p></div>`;
   // before payment: promotion banners (a paid order can't get a new promotion, so no banner then). After payment: add-ons (server decides)
-  if (!data.completed_at) trackAddons(token, !data.paid_at);
+  trackAddons(token, false, !!data.completed_at);
 };
 /** add-ons after payment (products.show_track): the customer picks, sees the extra amount, and pays it with a separate SUMIT link */
-async function trackAddons(token, showBanners = false) {
+async function trackAddons(token, showBanners = false, noOffers = false) {
   const API = CRM_CONFIG.url + '/functions/v1/quote', box = $('#trackAdd');
   const call = async body => { const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ track: token, ...body }) }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'error'); return d; };
   let d; try { d = await (await fetch(`${API}?track=${encodeURIComponent(token)}`)).json(); } catch { return; }
+  // the business WhatsApp (settings) as a real link
+  const wa = String(d?.wa || '').replace(/\D/g, ''); if (wa && $('#trackWa')) $('#trackWa').innerHTML = `שאלות? <a href="https://wa.me/${wa.startsWith('972') ? wa : '972' + wa.replace(/^0/, '')}" target="_blank" rel="noopener">כתבו לנו בוואטסאפ</a>`;
+  if (noOffers && d) d.offers = [];
   const banners = (showBanners ? d?.banners || [] : []).map(b => `<div class="note" style="margin-top:12px"><b>${esc(b.text)}</b></div>`).join('');
   if (!d?.offers?.length && !d?.open) { box.innerHTML = banners; return; }
   const pick = new Set();

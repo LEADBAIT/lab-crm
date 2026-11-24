@@ -38,7 +38,11 @@ const fmtShort = d => d ? new Date(d).toLocaleDateString('he-IL', { day: 'numeri
 const fmtDT = d => d ? new Date(d).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 const toLocalInput = d => d ? new Date(new Date(d).getTime() - tzShift()).toISOString().slice(0, 16) : '';
 const fmtPhone = p => { const d = String(p || '').replace(/\D/g, ''); return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : d.length === 9 ? `${d.slice(0, 2)}-${d.slice(2, 5)}-${d.slice(5)}` : (p || ''); };
-const waLink = (phone, text) => 'https://wa.me/972' + String(phone || '').replace(/\D/g, '').replace(/^0/, '') + (text ? '?text=' + encodeURIComponent(text) : '');
+/** WhatsApp link for any stored phone format (050…, 972…, +972…, 00972…) */
+const waNum = phone => { const d = String(phone || '').replace(/\D/g, '').replace(/^00/, ''); return d.startsWith('972') ? d : '972' + d.replace(/^0/, ''); };
+const waLink = (phone, text) => 'https://wa.me/' + waNum(phone) + (text ? '?text=' + encodeURIComponent(text) : '');
+/** a timestamp's day in Israel (reports count months by it, not by UTC) */
+const ilDay = d => d ? new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }) : '';
 const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const daysSince = d => d ? Math.floor((Date.now() - new Date(d)) / 864e5) : null;
@@ -70,7 +74,12 @@ function onceGuard(el, e) {
 }
 document.addEventListener('click', e => onceGuard(e.target.closest?.(ONCE_SEL), e), true);
 document.addEventListener('submit', e => onceGuard(e.target, e), true);
-function fail(error) { if (error) { console.error(error); toast('משהו נכשל: ' + (error.message || error), { ms: 5000 }); throw error; } }
+function fail(error) {
+  if (!error) return;
+  console.error(error);
+  if (/JWT|jwt expired|401/.test(error.message || '') || error.code === 'PGRST301') { showLogin('החיבור פג. נכנסים שוב.'); throw error; }
+  toast('משהו נכשל: ' + (error.message || error), { ms: 5000 }); throw error;
+}
 
 // ---------- dialogs ----------
 function modal(html, { wide = false } = {}) { $('#modal').classList.toggle('wide', wide); $('#modalBody').innerHTML = html; if (!$('#modal').open) $('#modal').showModal(); return $('#modalBody'); }
@@ -258,7 +267,8 @@ async function boot() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return showLogin();
   S.user = session.user;
-  const { data: me } = await sb.rpc('me');
+  const { data: me, error: meErr } = await sb.rpc('me');
+  if (meErr) { view().innerHTML = ''; return showLogin('אין חיבור לשרת כרגע. בודקים את האינטרנט ומנסים שוב.'); }
   if (!me) return showLogin('המייל הזה עוד לא מורשה. מנהל צריך להוסיף אותו בהגדרות ← צוות.');
   S.me = me;
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
@@ -408,4 +418,11 @@ async function newLead() {
 document.addEventListener('click', e => { if (e.target.closest?.('[data-newlead]')) newLead(); });
 
 // ---------- PWA ----------
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+// the customer's tracking page is not the staff app: no install, no cached staff files on the customer's phone
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && !location.hash.startsWith('#track/')) {
+  const hadSw = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+  // a new version took over while the app is open: offer a refresh (old code against a new database is how bugs happen)
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadSw) toast('יש גרסה חדשה של ה-CRM', { label: 'רענון', undo: () => location.reload(), ms: 60000 }); });
+}
+sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && S.user) { S.user = null; showLogin('החיבור פג. נכנסים שוב.'); } });

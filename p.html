@@ -6,6 +6,10 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#22324A">
 <title>הצעת מחיר | המעבדה להמרת קלטות ודיסקים</title>
+<meta property="og:title" content="הצעת המחיר שלך מהמעבדה להמרת קלטות ודיסקים">
+<meta property="og:description" content="כל הפרטים, המחיר והתשלום המאובטח במקום אחד.">
+<meta property="og:locale" content="he_IL">
+<meta property="og:type" content="website">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <!-- Customer quote page (spec crm/אפיון-הצעת-מחיר.md). Opened as p.html#<orders.quote_token> (staff preview: p.html?preview=1#<token>).
      Talks only to the edge function "quote". Look: the questionnaire's design language (q.html), motion at the same light level. -->
@@ -182,6 +186,7 @@
 </style>
 </head>
 <body>
+<noscript><p style="padding:24px;font-family:sans-serif">כדי לראות את ההצעה צריך לאפשר JavaScript בדפדפן, או לכתוב לנו בוואטסאפ.</p></noscript>
 <div class="site">
   <div class="preview-tag hidden" id="previewTag">תצוגה מקדימה לצוות. לא נספרת כצפייה של הלקוח</div>
   <header class="header">
@@ -252,7 +257,7 @@ async function start() {
   render();
 }
 function fatal(t, p) { $('#bar').classList.add('hidden'); $('#main').innerHTML = `<div class="center"><h1 style="font-size:22px;margin:0 0 8px">${esc(t)}</h1><p class="muted">${esc(p)}</p>${waBtn()}</div>`; }
-function waNum() { return String(D?.settings?.business_whatsapp || '').replace(/\D/g, ''); }
+function waNum() { const d = String(D?.settings?.business_whatsapp || '').replace(/\D/g, '').replace(/^00/, ''); return !d ? '' : d.startsWith('972') ? d : '972' + d.replace(/^0/, ''); }
 function waBtn(text = 'שלום, יש לי שאלה על הצעת המחיר', cls = 'btn btn-secondary', label = 'כתבו לנו בוואטסאפ') { const n = waNum(); return n ? `<a class="${cls}" href="https://wa.me/${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">${label}</a>` : ''; }
 
 // "המחיר הזה שמור לך עד יום חמישי 26.11 בשעה 23:59"
