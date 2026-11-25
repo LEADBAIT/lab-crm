@@ -325,8 +325,8 @@ function invoiceHtml(n) {
 function acceptHtml(n) {
   const c = D.customer;
   return `<section class="box" id="acceptBox"><h2 class="box-head"><span class="n">${n}</span>אישור ההזמנה</h2><div class="box-body">
-    <label class="check" id="termsL"><input type="checkbox" id="terms"><span>קראתי ואני מאשר/ת את תנאי השירות</span></label>
-    ${D.settings.terms ? `<details class="terms"><summary>לקריאת תנאי השירות</summary><div>${esc(D.settings.terms)}</div></details>` : ''}
+    <label class="check" id="termsL"><input type="checkbox" id="terms"><span>קראתי ואני מאשר/ת את תנאי השירות ומדיניות הפרטיות</span></label>
+    ${D.settings.terms ? `<details class="terms"><summary>לקריאת התקנון ומדיניות הפרטיות</summary><div>${esc(D.settings.terms)}</div></details>` : ''}
     <label class="field" id="nameF"><span>שם מלא</span><input id="accName" value="${esc(D.accepted_name || c.full_name || '')}" autocomplete="name" placeholder="שם פרטי ומשפחה"></label>
     <div class="err" id="accErr" role="alert"></div>
     <button class="btn btn-primary" id="payBtn2" style="width:100%">אישור ותשלום · <span class="num" id="payAmt2">${ils(D.quote.total)}</span></button>

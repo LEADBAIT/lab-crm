@@ -383,7 +383,7 @@ function render() {
         <div id="invPrivate" ${c.invoice_business ? 'class="hidden"' : ''}>${inp('customer', 'id_number', 'ת.ז', { req: true, mode: 'numeric' })}</div></div>
       <div id="invBiz" class="row2 ${c.invoice_business ? '' : 'hidden'}">${inp('customer', 'business_name', 'שם העסק', { req: true })}${inp('customer', 'business_id', 'ח.פ / ע.מ', { req: true, mode: 'numeric' })}</div>
       <label class="toggle-line small"><input type="checkbox" data-part="customer" data-k="invoice_business" ${c.invoice_business ? 'checked' : ''}> חשבונית על שם עסק</label>
-      <label class="toggle-line"><input type="checkbox" data-part="order" data-k="terms_accepted_at" ${o.terms_accepted_at ? 'checked' : ''}> <span>אני מאשר את ${D.settings.terms ? '<button type="button" class="more" id="termsBtn">התקנון</button>' : 'התקנון'} <i style="color:var(--rec);font-style:normal">*</i></span></label>
+      <label class="toggle-line"><input type="checkbox" data-part="order" data-k="terms_accepted_at" ${o.terms_accepted_at ? 'checked' : ''}> <span>קראתי ואני מאשר/ת את ${D.settings.terms ? '<button type="button" class="more" id="termsBtn">התקנון ומדיניות הפרטיות</button>' : 'התקנון ומדיניות הפרטיות'} <i style="color:var(--rec);font-style:normal">*</i></span></label>
       ${D.settings.terms ? `<div class="terms-text hidden" id="termsText">${esc(D.settings.terms)}</div>` : ''}`)}
 
     <div id="missBox"></div>
