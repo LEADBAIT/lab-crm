@@ -284,11 +284,9 @@ function heroHtml() {
     ${D.expired ? `<div class="stamp off">${SV.clock}<span>תוקף ההנחות בהצעה הזו הסתיים, ולכן זה המחיר המלא. אפשר עדיין לאשר ולשלם.</span></div>` : ''}
   </section>`;
 }
-/** free courier pickup, included for every customer (settings → price list) */
+/** add-ons every customer gets free (price list → תוספות, "כלול לכל לקוח"), e.g. courier pickup */
 function pickupRow() {
-  const t = D.settings?.pickup_included_text, v = Number(D.settings?.pickup_value_shown) || 0;
-  if (!t) return '';
-  return `<div class="lrow extra"><div class="nm">🚚 ${esc(t)}<span class="sub">כלול לכל לקוח, בלי תשלום</span></div><div class="sum num" style="color:var(--ok)">${v ? `<s style="color:var(--ink-muted);font-weight:400">${ils(v)}</s> ` : ''}חינם</div></div>`;
+  return (D.included || []).map(p => `<div class="lrow extra"><div class="nm">${esc(p.name)}<span class="sub">כלול לכל לקוח, בלי תשלום</span></div><div class="sum num" style="color:var(--ok)">חינם</div></div>`).join('');
 }
 function linesHtml() {
   const q = D.quote;

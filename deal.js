@@ -425,8 +425,8 @@ async function destroyHardware(o) {
 }
 
 // ---------- lab cost, profit, customer credit ----------
-/** free courier pickup to the lab, included for every customer: average cost from settings → price list */
-const pickupCost = () => Number(S.settings?.pickup_cost?.value) || 0;
+/** what the add-ons every customer gets free cost us per order (price list → תוספות, "כלול לכל לקוח": courier pickup) */
+const pickupCost = () => (S.products || []).filter(p => p.always_included && p.active).reduce((s, p) => s + Number(p.cost || 0), 0);
 /** what the order earns: paid − lab cost − pickup − money refunded (a gift's cost is not known, so it is not subtracted) */
 const orderProfit = o => Number(o.paid_amount || o.total || 0) - Number(o.lab_cost || 0) - pickupCost() - (o.credit_method === 'החזר כספי' && o.credit_done_at ? Number(o.credit_amount || 0) : 0);
 /** add-ons the customer bought on the tracking page after paying (order_payments): their own SUMIT link and invoice */
