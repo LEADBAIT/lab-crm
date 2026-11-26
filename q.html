@@ -372,6 +372,7 @@ function render() {
       + `<div class="note warn ${o.return_method === 'איסוף עצמי' ? '' : 'hidden'}" id="pickupNote">אפשר לאסוף בלי עלות עד ${feeDays} ימים מסוף העבודה. אחרי זה חלים דמי אחסון, ואחרי ${destroyAfter} ימים החומרה מושמדת.</div>`)}
 
     ${box(++n, 'address', 'מאיפה לאסוף?', `
+      ${D.settings.pickup_included_text ? `<div class="note good">🚚 <b>${esc(D.settings.pickup_included_text)}: כלול, חינם${Number(D.settings.pickup_value_shown) ? ` (שווי ${ils(D.settings.pickup_value_shown)})` : ''}.</b> לא צריך לבחור כלום, זה חלק מהשירות לכל לקוח.</div>` : ''}
       <p class="small muted" style="margin:0">שליח מגיע אליך. את היום נתאם אחרי שתאשר את ההצעה.</p>
       <div class="row2">${inp('customer', 'city', 'עיר', { req: true, auto: 'address-level2' })}${inp('customer', 'street', 'רחוב', { req: true, auto: 'address-line1' })}</div>
       <div class="row4">${inp('customer', 'house_number', 'מס׳ בית', { req: true, mode: 'numeric' })}${inp('customer', 'floor', 'קומה', { mode: 'numeric' })}${inp('customer', 'apartment', 'דירה', { mode: 'numeric' })}${inp('customer', 'entry_code', 'קוד', { ph: 'אם יש' })}</div>
@@ -591,7 +592,7 @@ function summaryHtml() {
   const del = o.delivery_method === 'דיסק און קי' ? `דיסק און קי ${o.usb_size || ''}GB מאיתנו` : o.delivery_method === 'ענן אישי של הלקוח' ? `העלאה ל-${o.cloud_type || 'ענן'}` : o.delivery_method === 'דיסק של הלקוח' ? 'דיסק שלי, נשלח עם החומרה' : '—';
   const addr = [c.street, c.house_number].filter(Boolean).join(' ') + (c.city ? ', ' + c.city : '');
   const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
-  return `<div class="summary"><dl>${row('החומרה', items)}${row('קבצים', esc(del))}${row('אקספרס', o.priority ? 'כן' : 'לא')}${row('החומרה בסוף', esc(o.return_method || '—'))}${row('איסוף מ-', esc(addr))}${row('חשבונית', esc(c.invoice_business ? c.business_name : c.email))}</dl></div>`;
+  return `<div class="summary"><dl>${row('החומרה', items)}${row('קבצים', esc(del))}${row('אקספרס', o.priority ? 'כן' : 'לא')}${row('החומרה בסוף', esc(o.return_method || '—'))}${row('איסוף מ-', esc(addr) + (D.settings.pickup_included_text ? ' · שליח חינם, כלול' : ''))}${row('חשבונית', esc(c.invoice_business ? c.business_name : c.email))}</dl></div>`;
 }
 function renderDone() {
   $('#progress').classList.add('hidden'); $('#bar').classList.add('hidden');

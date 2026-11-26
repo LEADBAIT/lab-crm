@@ -166,7 +166,14 @@ const SENTENCES = {
   drive_link_days: ['קישור ההורדה נשמר', 'ימים ואז נמחק', 'שבוע לפני המחיקה מופיעה משימה להזכיר ללקוח.'],
   min_order: ['מינימום הזמנה:', '₪', 'הזמנה קטנה יותר מחויבת בסכום הזה.'],
   vat_percent: ['מע"מ:', '%', 'המחירים במחירון כוללים מע"מ. משמש רק להצגת "לפני מע"מ".'],
+  pickup_cost: ['משלוח איסוף עולה לנו בממוצע', '₪', 'פנימי בלבד, הלקוח לא רואה את זה.'],
+  pickup_value_shown: ['שווי שמוצג ללקוח ליד "חינם":', '₪', '0 = מוצג רק "כלול · חינם", בלי סכום.'],
 };
+const pickupHtml = () => { const ro = isAdmin() ? '' : 'disabled';
+  return `<section class="card" style="margin-bottom:16px"><h3 style="margin-bottom:6px">🚚 איסוף חינם עם שליח (כלול לכל לקוח)</h3>
+    <p class="small muted" style="margin-bottom:8px">כל לקוח מקבל שליח שאוסף את החומרים ממנו למעבדה. הלקוח לא בוחר בזה: זה מופיע לו כשורה "כלול · חינם" בכל הצעת מחיר ובשאלון האונבורדינג.</p>
+    <label class="field">השורה שהלקוח רואה<input data-save="settings:pickup_included_text:text_value" value="${esc(S.settings.pickup_included_text?.text_value || '')}" ${ro}><span class="hint">ריק = השורה לא מוצגת ללקוחות.</span></label>
+    ${sentence('pickup_cost')}${sentence('pickup_value_shown')}</section>`; };
 const sentence = k => { const s = S.settings[k]; if (!s) return ''; const [a, b, h] = SENTENCES[k] || [s.label, '', ''];
   return `<div class="sentence"><label class="field" style="flex-direction:row;align-items:center;gap:8px;font-size:15px;color:var(--ink);font-weight:400">${esc(a)} <input type="number" data-save="settings:${k}:value" data-num value="${esc(s.value)}"> ${esc(b)}</label>${h ? `<span class="hint">${esc(h)}</span>` : ''}</div>`; };
 const CAT = { media: 'חומרה להמרה', addon: 'תוספות', repair: 'תיקונים', package: 'חבילות' };
@@ -178,7 +185,7 @@ VIEWS.settings = async function vSettings(tab) {
   sessionStorage.setItem('setTab', tab);
   let body = '';
   const promoBox = tab === 'discounts' ? await promosHtml() : '';
-  if (tab === 'prices') body = `
+  if (tab === 'prices') body = `${pickupHtml()}
     ${Object.entries(CAT).map(([cat, name]) => { const ps = S.products.filter(p => p.category === cat); return `<section class="card flush" style="margin-bottom:16px"><div class="card-head" style="padding:14px 16px 0"><h3>${name}</h3></div><div class="table-wrap"><table>
       <thead><tr><th></th><th>שם (כפי שהלקוח רואה)</th><th class="num">מחיר כולל מע"מ</th>${cat === 'media' ? '<th class="num">ממוצע מתחרים</th><th>מקבל ברקוד ונספר להנחה</th>' : '<th class="num">רווח</th>'}${cat === 'package' ? '<th>מה כלול</th>' : ''}${cat === 'media' ? '' : '<th>מוצג ללקוח</th>'}<th>פעיל</th><th></th></tr></thead><tbody>
       ${ps.map(p => { const pr = cat === 'media' ? null : prodProfit(p), ro = isAdmin() ? '' : 'disabled'; return `<tr><td style="width:44px">${p.image_path ? `<img src="${esc(prodImg(p))}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:6px;display:block">` : ''}</td>

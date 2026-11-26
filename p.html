@@ -284,6 +284,12 @@ function heroHtml() {
     ${D.expired ? `<div class="stamp off">${SV.clock}<span>תוקף ההנחות בהצעה הזו הסתיים, ולכן זה המחיר המלא. אפשר עדיין לאשר ולשלם.</span></div>` : ''}
   </section>`;
 }
+/** free courier pickup, included for every customer (settings → price list) */
+function pickupRow() {
+  const t = D.settings?.pickup_included_text, v = Number(D.settings?.pickup_value_shown) || 0;
+  if (!t) return '';
+  return `<div class="lrow extra"><div class="nm">🚚 ${esc(t)}<span class="sub">כלול לכל לקוח, בלי תשלום</span></div><div class="sum num" style="color:var(--ok)">${v ? `<s style="color:var(--ink-muted);font-weight:400">${ils(v)}</s> ` : ''}חינם</div></div>`;
+}
 function linesHtml() {
   const q = D.quote;
   return `<section class="box"><h2 class="box-head"><span class="n">1</span>מה אנחנו ממירים בשבילך<span class="aside">${itemsCount()} פריטים</span></h2><div class="box-body"><div class="lines">
@@ -291,6 +297,7 @@ function linesHtml() {
       ${q.extras.map(l => { const [a, b] = splitName(l.name); const incl = l.included ? (l.included >= l.qty ? 'כלול בחבילה' : `${l.included} כלול בחבילה`) : '';
         const sub = [b ? `<bdi>${esc(b)}</bdi>` : '', l.qty > 1 ? `<span class="num">${l.qty}</span> × <span class="num">${ils(l.unit_price)}</span>` : '', incl, l.contents ? 'כולל: ' + esc(l.contents) : ''].filter(Boolean).join(' · ');
         return `<div class="lrow extra"><div class="nm">${esc(a)}${sub ? `<span class="sub">${sub}</span>` : ''}</div><div class="sum num">${!l.sum && l.included ? 'כלול' : ils(l.sum)}</div></div>`; }).join('')}
+      ${pickupRow()}
     </div>
     <div class="totals" id="totals">
       ${hasSaving() || q.min_order_fill > 0 ? `<div class="r"><span>סה"כ לפני הנחות</span><span class="num">${ils(q.subtotal)}</span></div>` : ''}
