@@ -20,7 +20,8 @@ VIEWS.reports = async function vReports() {
       couriers: expM.filter(e => e.category === 'שליחויות').reduce((s, e) => s + Number(e.amount), 0) };
   };
   // free pickup: real courier bills when the month has them, otherwise average cost × paid orders (never both)
-  const withPickup = s => Object.assign(s, { pickupEst: s.couriers ? 0 : s.paid.length * pickupCost() });
+  const giftCost = id => pickupCost((lines || []).filter(l => l.order_id === id));
+  const withPickup = s => Object.assign(s, { pickupEst: s.couriers ? 0 : s.paid.reduce((t, r) => t + giftCost(r.id), 0) });
   const A = withPickup(stats(sel)), B = withPickup(stats(prevOf(sel)));
   const delta = (a, b, pts = false) => { if (!b) return '<span class="muted">אין נתון קודם</span>'; const d = a - b; return `<span class="delta ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${pts ? Math.abs(d) + ' נק\'' : Math.abs(Math.round(d / b * 100)) + '%'}</span> <span class="muted">מול חודש קודם</span>`; };
   const conv = s => s.leads.length ? Math.round(s.closed / s.leads.length * 100) : 0;
@@ -61,7 +62,7 @@ VIEWS.reports = async function vReports() {
   <div class="section-title">כסף</div>
   <div class="grid cols-3">
     ${card('הכנסה לפי סוג', bars(Object.entries(revByType).sort((a, b) => b[1] - a[1]), money), 'החודש')}
-    ${card('רווח החודש', `<div class="totals"><span>הכנסות</span><span>${money(A.revenue)}</span><span>הוצאות</span><span>-${money(A.expTotal)}</span><span class="muted">מתוכן פרסום</span><span class="muted">${money(A.ads)}</span>${A.pickupEst ? `<span>איסוף חינם (הערכה: ${A.paid.length} × ${money(pickupCost())})</span><span>-${money(A.pickupEst)}</span>` : ''}<span class="grand">נשאר</span><span class="grand">${money(A.revenue - A.expTotal - A.pickupEst)}</span></div>`, A.pickupEst ? 'אין החודש הוצאות "שליחויות", אז האיסוף מחושב לפי העלות הממוצעת' : '')}
+    ${card('רווח החודש', `<div class="totals"><span>הכנסות</span><span>${money(A.revenue)}</span><span>הוצאות</span><span>-${money(A.expTotal)}</span><span class="muted">מתוכן פרסום</span><span class="muted">${money(A.ads)}</span>${A.pickupEst ? `<span>מתנות שלקוחות הפעילו (${A.paid.filter(r => giftCost(r.id)).length} הזמנות)</span><span>-${money(A.pickupEst)}</span>` : ''}<span class="grand">נשאר</span><span class="grand">${money(A.revenue - A.expTotal - A.pickupEst)}</span></div>`, A.pickupEst ? 'אין החודש הוצאות "שליחויות", אז המתנות מחושבות לפי העלות שלהן במחירון' : '')}
     ${card('עלות פרסום', `<div class="totals"><span>עלות לפנייה</span><span>${A.ads && A.leads.length ? money(Math.round(A.ads / A.leads.length)) : '—'}</span><span>עלות ללקוח משלם</span><span>${A.ads && A.paid.length ? money(Math.round(A.ads / A.paid.length)) : '—'}</span></div>
       <p class="tiny muted" style="margin-top:10px">מחושב מהוצאות בקטגוריה "פרסום" במסך <a href="#expenses">הוצאות</a>.</p>`)}
   </div>

@@ -66,6 +66,8 @@
 
   /* quote rows */
   .lines { display: grid; }
+  .gift-sum s { color: #D93025; font-weight: 400; text-decoration-thickness: 2px; margin-inline-end: 4px; }
+  .gift-sum b { color: var(--ok); }
   .lrow { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .lrow:last-child { border-bottom: 0; }
   .lrow svg { width: 44px; height: 32px; }
@@ -198,8 +200,8 @@
 <div class="pay-bar hidden" id="bar"><div class="in"><div class="amt">לתשלום <s class="num" id="barFull"></s><b class="num" id="barAmt"></b></div><button class="btn btn-primary" id="payBtn">אישור ותשלום</button></div></div>
 <dialog id="lightbox" aria-label="תמונה בגודל מלא"><button type="button" class="lb-x" id="lbX" aria-label="סגירה">×</button><img id="lbImg" alt=""></dialog>
 
-<script src="config.js?v=1795709323"></script>
-<script src="addon-icons.js?v=1795709323"></script>
+<script src="config.js?v=1795712641"></script>
+<script src="addon-icons.js?v=1795712641"></script>
 <script>
 'use strict';
 const API = CRM_CONFIG.url + '/functions/v1/quote';
@@ -279,9 +281,9 @@ function heroHtml() {
     ${D.expired ? `<div class="stamp off">${SV.clock}<span>תוקף ההנחות בהצעה הזו הסתיים, ולכן זה המחיר המלא. אפשר עדיין לאשר ולשלם.</span></div>` : ''}
   </section>`;
 }
-/** add-ons every customer gets free (price list → תוספות, "כלול לכל לקוח"), e.g. courier pickup */
+/** gift add-ons the customer turned on (price list → תוספות, "מתנה"): "חינם" with the gift value struck through in red */
 function pickupRow() {
-  return (D.included || []).map(p => `<div class="lrow">${addonIcon(p.id)}<div class="nm">${esc(p.name)}<span class="sub">כלול לכל לקוח, בלי תשלום</span></div><div class="sum num" style="color:var(--ok)">חינם</div></div>`).join('');
+  return (D.included || []).map(p => `<div class="lrow">${addonIcon(p.id)}<div class="nm">${esc(p.name)}<span class="sub">🎁 מתנה בשבילך</span></div><div class="sum num gift-sum">${Number(p.gift_value) > 0 ? `<s>${ils(p.gift_value)}</s> ` : ''}<b>חינם</b></div></div>`).join('');
 }
 function linesHtml() {
   const q = D.quote;

@@ -129,7 +129,15 @@
   .pkg-rec { position: absolute; top: -10px; inset-inline-start: 10px; background: var(--stamp); color: var(--on-stamp, #1A1408); border-radius: 99px; padding: 0 10px; font-size: 12px; font-weight: 700; line-height: 20px; }
   .pkg-rec.inline { position: static; display: inline-block; margin-inline-start: 6px; vertical-align: 1px; }
   .x-ic { flex: none; width: 44px; height: 34px; } .x-ic svg { width: 44px; height: 34px; display: block; }
-  .choice.free { cursor: default; align-items: center; background: #F3FAF7; border-color: #BFE0D3; }
+  .choice.gift { align-items: center; }
+  .choice.gift.on { background: #F3FAF7; border-color: #BFE0D3; box-shadow: inset 0 0 0 1px #BFE0D3; }
+  .gift-price { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+  .gift-price s { color: #D93025; font-size: .85em; text-decoration-thickness: 2px; }
+  .gift-price b { color: var(--ok); }
+  .choice input.switch { appearance: none; -webkit-appearance: none; position: static; opacity: 1; width: 44px; height: 26px; flex: none; margin: 0; border-radius: 13px; background: #CBD2D9; cursor: pointer; transition: background .15s; }
+  .choice input.switch::before { content: ''; display: block; width: 20px; height: 20px; margin: 3px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+  .choice input.switch:checked { background: var(--ok); }
+  .choice input.switch:checked::before { transform: translateX(-18px); }
   .offer-q .x-img { width: 44px; height: 44px; object-fit: cover; border-radius: var(--radius-sm); flex: none; }
   .qty.sm { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; }
   .qty.sm button { width: 30px; height: 30px; }
@@ -213,8 +221,8 @@
 <dialog id="lightbox" aria-label="תמונה בגודל מלא"><button type="button" class="lb-x" id="lbX" aria-label="סגירה">×</button><img id="lbImg" alt=""></dialog>
 <dialog id="dlg"><div class="box-head" id="dlgT"></div><div class="box-body"><p id="dlgB"></p><div class="acts"><button class="btn btn-primary" id="dlgOk">כן</button><button class="btn btn-secondary" id="dlgNo">לא</button></div></div></dialog>
 
-<script src="config.js?v=1795709323"></script>
-<script src="addon-icons.js?v=1795709323"></script>
+<script src="config.js?v=1795712641"></script>
+<script src="addon-icons.js?v=1795712641"></script>
 <script>
 'use strict';
 const API = CRM_CONFIG.url + '/functions/v1/questionnaire';
@@ -264,19 +272,20 @@ async function start() {
 function fatal(t, p) { $('#main').innerHTML = `<div class="center"><h1 style="font-size:22px;margin:0 0 8px">${esc(t)}</h1><p class="muted">${esc(p)}</p>${waBtn()}</div>`; }
 
 // ---------- autosave: per-field debounce, merged into one request ----------
-let pend = { customer: {}, order: {}, lines: {}, extras: {} }, timer = null, inflight = Promise.resolve();
+let pend = { customer: {}, order: {}, lines: {}, extras: {}, gifts: {} }, timer = null, inflight = Promise.resolve();
 function queue(part, key, val, now = false) {
   pend[part][key] = val; setSave('…');
   clearTimeout(timer); timer = setTimeout(flush, now ? 0 : 700);
 }
 function flush() {
-  const p = pend; pend = { customer: {}, order: {}, lines: {}, extras: {} };
-  if (!Object.keys(p.customer).length && !Object.keys(p.order).length && !Object.keys(p.lines).length && !Object.keys(p.extras).length) return inflight;
+  const p = pend; pend = { customer: {}, order: {}, lines: {}, extras: {}, gifts: {} };
+  if (!Object.keys(p.customer).length && !Object.keys(p.order).length && !Object.keys(p.lines).length && !Object.keys(p.extras).length && !Object.keys(p.gifts).length) return inflight;
   const body = { op: 'save' };
   if (Object.keys(p.customer).length) body.customer = p.customer;
   if (Object.keys(p.order).length) body.order = p.order;
   if (Object.keys(p.lines).length) body.lines = p.lines;
   if (Object.keys(p.extras).length) body.extras = p.extras;
+  if (Object.keys(p.gifts).length) body.gifts = p.gifts;
   inflight = inflight.then(() => api(body)).then(r => { D.progress = r.progress; D.missing = r.missing; D.order.q_qty_changed_at = r.qty_changed ? (D.order.q_qty_changed_at || new Date().toISOString()) : null; setSave('נשמר ✓'); paintProgress(); })
     .catch(e => { if (e.status === 409) return location.reload(); setSave('לא נשמר'); Object.assign(pend.customer, p.customer, pend.customer); Object.assign(pend.order, p.order, pend.order); Object.assign(pend.lines, p.lines, pend.lines); Object.assign(pend.extras, p.extras, pend.extras); clearTimeout(timer); timer = setTimeout(flush, 4000); });
   return inflight;
@@ -371,8 +380,8 @@ function render() {
 
     ${(D.offers || []).length ? box(++n, 'extras', 'עוד משהו שתרצה להוסיף?', `<div class="choices">${D.offers.map(offerRow).join('')}</div>`, false) : ''}
 
-    ${(D.included || []).length ? box(++n, 'free', 'כלול אצלך בחינם', `<p class="small muted" style="margin:0">לא צריך לבחור כלום. זה חלק מהשירות לכל לקוח.</p>
-      <div class="choices">${D.included.map(p => `<div class="choice free"><span class="x-ic">${addonIcon(p.id)}</span><span><b>${esc(p.name)}</b>${p.description ? `<span class="d">${esc(p.description)}</span>` : ''}</span><span class="price" style="color:var(--ok)">חינם ✓</span></div>`).join('')}</div>`, false) : ''}
+    ${(D.gifts || []).length ? box(++n, 'free', 'מתנה בשבילך 🎁', `<p class="small muted" style="margin:0">הכנו לך משהו מיוחד, בלי תשלום. רק להפעיל:</p>
+      <div class="choices">${D.gifts.map(giftRow).join('')}</div>`, false) : ''}
 
     ${box(++n, 'return', 'מה תרצה שנעשה עם החומרה הישנה בסוף?', pills('return_method', o.return_method, [['לא מוחזר (בהסכמה)', 'לא צריך להחזיר'], ['החזרה במשלוח', 'להחזיר במשלוח', '+' + price(13)], ['איסוף עצמי', 'אאסוף בעצמי']])
       + `<div class="note warn ${o.return_method === 'איסוף עצמי' ? '' : 'hidden'}" id="pickupNote">אפשר לאסוף בלי עלות עד ${feeDays} ימים מסוף העבודה. אחרי זה חלים דמי אחסון, ואחרי ${destroyAfter} ימים החומרה מושמדת.</div>`)}
@@ -432,6 +441,17 @@ function offerRow(f) {
     ${inc ? '<span class="d" style="color:var(--ok)">כלול בחבילה שבחרת</span>' : ''}
     ${f.pricing === 'unit' && q ? `<span class="qty sm" data-xq><button type="button" data-xd="-1" aria-label="פחות">−</button><b class="num">${q}</b><button type="button" data-xd="1" aria-label="עוד">+</button></span>` : ''}</span>
     <span class="price">${inc && q <= inc ? 'כלול' : '+' + ils(f.price) + (f.pricing === 'unit' ? ' ליחידה' : '')}</span></label>`;
+}
+/** gift add-on: a free toggle, on the order only when the customer turns it on; gift_value struck through in red */
+function giftRow(g) {
+  return `<label class="choice gift ${g.on ? 'on' : ''}" data-g="${g.id}"><span class="x-ic">${addonIcon(g.id)}</span>
+    <span><b>${esc(g.name)}</b>${g.description ? `<span class="d">${esc(g.description)}</span>` : ''}</span>
+    <span class="price gift-price">${Number(g.gift_value) > 0 ? `<s>${ils(g.gift_value)}</s>` : ''}<b>חינם</b></span>
+    <input type="checkbox" class="switch" role="switch" ${g.on ? 'checked' : ''} aria-label="להוסיף: ${esc(g.name)}"></label>`;
+}
+function bindGifts() {
+  $$('[data-g]').forEach(row => { const g = D.gifts.find(x => x.id === Number(row.dataset.g));
+    $('input', row).onchange = e => { g.on = e.target.checked; row.classList.toggle('on', g.on); queue('gifts', g.id, g.on, true); }; });
 }
 function paintExtras() {
   const box = $('[data-box="extras"] .choices'); if (!box) return;
@@ -503,7 +523,7 @@ function bind() {
   // "+ יש לי עוד סוגי חומרה" opens the other types and, with them, the "not sure" + photos panel
   $('#moreTypes') && ($('#moreTypes').onclick = () => { $('#restTypes').classList.remove('hidden'); $('#unsurePanel').classList.remove('hidden'); $('#moreTypes').classList.add('hidden'); });
   $('#submitBtn').onclick = submit;
-  paintExtras();
+  paintExtras(); bindGifts();
 }
 const USB_PID = { 16: 22, 32: 11, 128: 12 }; // USB size GB → product id
 /** smallest USB stick that fits the estimate (with 25% spare) */
@@ -597,7 +617,7 @@ function summaryHtml() {
   const del = o.delivery_method === 'דיסק און קי' ? `דיסק און קי ${o.usb_size || ''}GB מאיתנו` : o.delivery_method === 'ענן אישי של הלקוח' ? `העלאה ל-${o.cloud_type || 'ענן'}` : o.delivery_method === 'דיסק של הלקוח' ? 'דיסק שלי, נשלח עם החומרה' : '—';
   const addr = [c.street, c.house_number].filter(Boolean).join(' ') + (c.city ? ', ' + c.city : '');
   const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
-  return `<div class="summary"><dl>${row('החומרה', items)}${row('קבצים', esc(del))}${row('אקספרס', o.priority ? 'כן' : 'לא')}${row('החומרה בסוף', esc(o.return_method || '—'))}${row('איסוף מ-', esc(addr) + ((D.included || []).length ? ' · שליח חינם, כלול' : ''))}${row('חשבונית', esc(c.invoice_business ? c.business_name : c.email))}</dl></div>`;
+  return `<div class="summary"><dl>${row('החומרה', items)}${row('קבצים', esc(del))}${row('אקספרס', o.priority ? 'כן' : 'לא')}${row('החומרה בסוף', esc(o.return_method || '—'))}${row('איסוף מ-', esc(addr) + ((D.gifts || []).some(g => g.on && /שליח/.test(g.name)) ? ' · שליח במתנה' : ''))}${row('חשבונית', esc(c.invoice_business ? c.business_name : c.email))}</dl></div>`;
 }
 function renderDone() {
   $('#progress').classList.add('hidden'); $('#bar').classList.add('hidden');

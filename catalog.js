@@ -21,7 +21,7 @@ function prodProfit(p) {
 }
 function prodBadges(p) {
   const b = SHOW_AT.filter(([k]) => p[k]).map(([, l]) => `<span class="chip blue">${l}</span>`);
-  if (p.always_included) b.unshift('<span class="chip green">כלול לכל לקוח · חינם</span>');
+  if (p.always_included) b.unshift(`<span class="chip green">מתנה בשאלון${Number(p.gift_value) > 0 ? ' · ' + money(p.gift_value) + ' מחוק' : ''}</span>`);
   if (p.recommended) b.push('<span class="chip green">מומלץ</span>');
   if (p.valid_from || p.valid_until) b.push(`<span class="chip orange">${p.valid_from ? fmtShort(p.valid_from) : '…'} – ${p.valid_until ? fmtShort(p.valid_until) : '…'}</span>`);
   return b.join(' ');
@@ -166,7 +166,8 @@ function editProduct(id) {
           <label class="field">שיטת מסירה שבחר<select name="rec_delivery"><option value="">כל שיטה</option>${(S.opts.delivery_method || []).map(o => `<option ${o.value === p.rec_delivery ? 'selected' : ''}>${esc(o.value)}</option>`).join('')}</select></label></div></section>` : ''}
       ${isExtra ? `<label class="field">פעולה בצ'קליסט של העסקה<input name="action_text" value="${esc(p.action_text || '')}" placeholder="למשל: לצרוב את הקבצים לדיסק און קי"><span class="hint">מופיע כפריט לסימון בדף העסקה כשהמוצר בהזמנה. ריק = אין פעולה.</span></label>` : ''}
       ${isMedia ? '' : `<div class="field"><span>איפה הלקוח רואה ${isPkg ? 'אותה' : 'אותו'}</span><div style="display:flex;gap:16px;flex-wrap:wrap">${SHOW_AT.map(([k, l]) => chk(k, l)).join('')}${chk('recommended', 'תגית "מומלץ"')}</div></div>
-      <div class="field">${chk('always_included', 'כלול לכל לקוח בחינם')}<span class="hint">הלקוח לא בוחר בזה: מופיע לו "חינם" בהצעה ובשאלון, והעלות יורדת מהרווח של כל הזמנה. לא מוצע כתוספת.</span></div>`}
+      <div class="field">${chk('always_included', 'מתנה שהלקוח מפעיל בשאלון')}<span class="hint">בשאלון מופיע מתג "מתנה בשבילך" עם "חינם" ליד המחיר המחוק. נכנס להצעה ולהזמנה (ב-0 ₪) רק אם הלקוח הפעיל, והעלות יורדת מהרווח של אותה הזמנה בלבד.</span></div>
+      <label class="field">מחיר מחוק שמוצג ליד "חינם" (₪)<input name="gift_value" type="number" step="1" min="0" value="${p.gift_value ?? ''}" placeholder="—"><span class="hint">רק למתנה. ריק = בלי מחיר מחוק.</span></label>`}
       <div class="fields"><label class="field">זמין מ-<input name="valid_from" type="date" value="${p.valid_from || ''}"></label><label class="field">עד<input name="valid_until" type="date" value="${p.valid_until || ''}"><span class="hint">ריק = תמיד. מחוץ לתאריכים הלקוח לא רואה ${isPkg ? 'אותה' : 'אותו'}.</span></label></div>
       <p id="peErr" class="small" style="color:var(--red)" hidden></p>
       <div class="actions"><button class="btn primary">שמירה</button><button type="button" class="btn" id="peNo">ביטול</button></div>
@@ -193,7 +194,7 @@ function editProduct(id) {
       const row = { name: str('name'), unit_price: num('unit_price') ?? 0, description: str('description'), image_path: img, valid_from: str('valid_from'), valid_until: str('valid_until') };
       if (!row.name) return err('חסר שם');
       if (row.valid_from && row.valid_until && row.valid_from > row.valid_until) return err('תאריך "עד" לפני תאריך "מ-"');
-      if (!isMedia) { row.cost = num('cost'); SHOW_AT.forEach(([k]) => row[k] = f.get(k) === 'on'); row.recommended = f.get('recommended') === 'on'; row.always_included = f.get('always_included') === 'on'; }
+      if (!isMedia) { row.cost = num('cost'); SHOW_AT.forEach(([k]) => row[k] = f.get(k) === 'on'); row.recommended = f.get('recommended') === 'on'; row.always_included = f.get('always_included') === 'on'; row.gift_value = num('gift_value'); }
       if (isExtra) { row.pricing = f.get('pricing') === 'order' ? 'order' : 'unit'; row.action_text = str('action_text'); }
       if (isPkg) { row.includes = str('includes'); row.rec_min_media = num('rec_min_media'); row.rec_max_media = num('rec_max_media'); row.rec_delivery = str('rec_delivery');
         if (row.rec_min_media != null && row.rec_max_media != null && row.rec_min_media > row.rec_max_media) return err('המינימום גדול מהמקסימום'); }

@@ -208,7 +208,7 @@ const SECTIONS = [
   ['quote', 'הצעת מחיר', ctx => ctx.o.media_qty ? `${ctx.o.media_qty} פריטים · ${money(ctx.o.total)}` : 'עוד אין כמויות'],
   ['items', 'פריטים וברקודים', ctx => ctx.items.length ? `${ctx.items.length} ברקודים · ${ctx.o.items_at_lab_or_later} הגיעו למעבדה · ${ctx.o.items_converted} הומרו` : 'עוד לא נוצרו'],
   ['payment', 'תשלום, עלות וזיכוי', ctx => [esc(ctx.o.payment_status || ''), ctx.o.paid_amount ? money(ctx.o.paid_amount) : '', ctx.o.invoice_number ? 'חשבונית ' + esc(ctx.o.invoice_number) : '',
-    ctx.o.lab_id && ctx.o.paid_at ? 'רווח ' + money(orderProfit(ctx.o)) : '', ctx.o.items_no_charge && !ctx.o.credit_done_at ? `<span class="chip orange">זיכוי פתוח ${money(ctx.o.credit_amount ?? ctx.o.credit_due)}</span>` : ''].filter(Boolean).join(' · ')],
+    ctx.o.lab_id && ctx.o.paid_at ? 'רווח ' + money(orderProfit(ctx.o, ctx.lines)) : '', ctx.o.items_no_charge && !ctx.o.credit_done_at ? `<span class="chip orange">זיכוי פתוח ${money(ctx.o.credit_amount ?? ctx.o.credit_due)}</span>` : ''].filter(Boolean).join(' · ')],
   ['shipping', 'משלוח ומעבדה', ctx => [ctx.o.lab_name && esc(ctx.o.lab_name), ctx.o.pickup_date ? 'איסוף ' + fmtShort(ctx.o.pickup_date) : ''].filter(Boolean).join(' · ') || 'לא נקבע'],
   ['delivery', 'מסירה והחזרה', ctx => ctx.o.delivery_sent_at ? 'הקישור נשלח ' + fmtShort(ctx.o.delivery_sent_at) : ctx.o.delivery_link ? 'יש קישור, עוד לא נשלח' : ''],
   ['sale', 'מקור ומכירה', ctx => [ctx.o.source, ctx.o.temperature].filter(Boolean).map(esc).join(' · ')],
@@ -347,7 +347,7 @@ const SEC_BODY = {
   photos: ctx => `${photosHtml(ctx)}<div class="fields" style="margin-top:12px">${fld(ctx, 'drive_folder_url', { wide: true })}</div>`,
   quote: ctx => quoteHtml(ctx),
   items: ctx => `${SCAN_FOR[ctx.o.stage] && ctx.items.length ? `<div class="row" style="margin-bottom:10px"><button class="btn sm primary" data-scanfor="${SCAN_FOR[ctx.o.stage]}">סריקה: ${SCAN_FOR[ctx.o.stage]}</button></div>` : ''}${itemsHtml(ctx)}`,
-  payment: ctx => `${ctx.o.payment_status !== 'שולם' && ctx.o.stage !== LOST ? '<div class="row" style="margin-bottom:10px"><button class="btn sm primary" data-recpay>רישום תשלום</button></div>' : ''}<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}${extraPaysHtml(ctx)}${creditHtml(ctx)}${moneyHtml(ctx.o)}`,
+  payment: ctx => `${ctx.o.payment_status !== 'שולם' && ctx.o.stage !== LOST ? '<div class="row" style="margin-bottom:10px"><button class="btn sm primary" data-recpay>רישום תשלום</button></div>' : ''}<div class="fields">${['payment_status', 'payment_method', 'paid_amount', 'invoice_number'].map(k => fld(ctx, k)).join('')}${ro('תאריך תשלום', fmtDT(ctx.o.paid_at))}</div>${sumitHtml(ctx.o)}${extraPaysHtml(ctx)}${creditHtml(ctx)}${moneyHtml(ctx.o, ctx.lines)}`,
   shipping: ctx => `<div class="fields">${['lab_id', 'courier', 'pickup_date', 'pickup_tracking'].map(k => fld(ctx, k)).join('')}${fld(ctx, 'files_link_from_lab', { wide: true })}</div>
     <div class="row" style="margin-top:12px"><a class="btn sm" href="#shipments/new/${ctx.o.id}">משלוח חדש עם ההזמנה</a></div>`,
   delivery: ctx => `<div class="fields">${fld(ctx, 'delivery_link', { wide: true })}${ro('הקישור יימחק ב-', fmtDate(ctx.o.delivery_link_expires))}${['return_method', 'return_tracking'].map(k => fld(ctx, k)).join('')}
@@ -425,10 +425,10 @@ async function destroyHardware(o) {
 }
 
 // ---------- lab cost, profit, customer credit ----------
-/** what the add-ons every customer gets free cost us per order (price list → תוספות, "כלול לכל לקוח": courier pickup) */
-const pickupCost = () => (S.products || []).filter(p => p.always_included && p.active).reduce((s, p) => s + Number(p.cost || 0), 0);
+/** what the gift add-ons on these order lines cost us (price list → תוספות, "מתנה": courier pickup etc., only when the customer turned them on) */
+const pickupCost = (lines = []) => lines.reduce((s, l) => { const p = (S.products || []).find(p => p.id === l.product_id); return s + (p?.always_included && l.qty > 0 ? Number(p.cost || 0) : 0); }, 0);
 /** what the order earns: paid − lab cost − pickup − money refunded (a gift's cost is not known, so it is not subtracted) */
-const orderProfit = o => Number(o.paid_amount || o.total || 0) - Number(o.lab_cost || 0) - pickupCost() - (o.credit_method === 'החזר כספי' && o.credit_done_at ? Number(o.credit_amount || 0) : 0);
+const orderProfit = (o, lines) => Number(o.paid_amount || o.total || 0) - Number(o.lab_cost || 0) - pickupCost(lines) - (o.credit_method === 'החזר כספי' && o.credit_done_at ? Number(o.credit_amount || 0) : 0);
 /** add-ons the customer bought on the tracking page after paying (order_payments): their own SUMIT link and invoice */
 const EXTRA_ST = { open: ['ממתין לתשלום', 'orange'], paid: ['שולם', 'green'], cancelled: ['בוטל', ''] };
 function extraPaysHtml(ctx) {
@@ -438,14 +438,14 @@ function extraPaysHtml(ctx) {
       <td class="num">${money(p.amount)}</td><td><span class="chip ${c}">${esc(l)}</span>${p.paid_at ? ` <span class="tiny muted">${fmtShort(p.paid_at)}</span>` : ''}</td>
       <td>${p.sumit_doc_url ? `<a href="${esc(p.sumit_doc_url)}" target="_blank" rel="noopener">${esc(p.invoice_number || 'מסמך')}</a>` : p.status === 'open' && p.sumit_payment_url ? `<a class="small" href="${esc(p.sumit_payment_url)}" target="_blank" rel="noopener">קישור התשלום</a>` : ''}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
-function moneyHtml(o) {
+function moneyHtml(o, lines) {
   if (!o.lab_id) return '';
   return `<div class="subhead">עלות ורווח</div><div class="totals" style="max-width:360px">
     <span>הלקוח שילם</span><span>${money(o.paid_amount || o.total)}</span>
     <span>עלות מעבדה (${esc(o.lab_name || '')})</span><span>-${money(o.lab_cost || 0)}</span>
-    ${pickupCost() ? `<span>איסוף חינם עם שליח (ממוצע)</span><span>-${money(pickupCost())}</span>` : ''}
+    ${pickupCost(lines) ? `<span>מתנות שהלקוח הפעיל (עלות)</span><span>-${money(pickupCost(lines))}</span>` : ''}
     ${o.credit_method === 'החזר כספי' && o.credit_done_at ? `<span>החזר ללקוח</span><span>-${money(o.credit_amount)}</span>` : ''}
-    <span class="grand">רווח</span><span class="grand">${money(orderProfit(o))}</span></div>
+    <span class="grand">רווח</span><span class="grand">${money(orderProfit(o, lines))}</span></div>
     ${o.lab_cost_missing ? `<div class="warn" style="margin-top:8px">חסר מחיר עלות ל-${o.lab_cost_missing} מוצרים בהזמנה. ממלאים בהגדרות ← מעבדות ← מחירון עלות.</div>` : ''}`;
 }
 function creditHtml(ctx) {
