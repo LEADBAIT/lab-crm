@@ -128,6 +128,8 @@
   .pkg-cta { margin-top: auto; padding-top: 8px; font-weight: 700; font-size: 14px; color: var(--stamp-text); }
   .pkg-rec { position: absolute; top: -10px; inset-inline-start: 10px; background: var(--stamp); color: var(--on-stamp, #1A1408); border-radius: 99px; padding: 0 10px; font-size: 12px; font-weight: 700; line-height: 20px; }
   .pkg-rec.inline { position: static; display: inline-block; margin-inline-start: 6px; vertical-align: 1px; }
+  .x-ic { flex: none; width: 44px; height: 34px; } .x-ic svg { width: 44px; height: 34px; display: block; }
+  .note.has-ic { display: flex; gap: 10px; align-items: center; }
   .offer-q .x-img { width: 44px; height: 44px; object-fit: cover; border-radius: var(--radius-sm); flex: none; }
   .qty.sm { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; }
   .qty.sm button { width: 30px; height: 30px; }
@@ -211,7 +213,8 @@
 <dialog id="lightbox" aria-label="תמונה בגודל מלא"><button type="button" class="lb-x" id="lbX" aria-label="סגירה">×</button><img id="lbImg" alt=""></dialog>
 <dialog id="dlg"><div class="box-head" id="dlgT"></div><div class="box-body"><p id="dlgB"></p><div class="acts"><button class="btn btn-primary" id="dlgOk">כן</button><button class="btn btn-secondary" id="dlgNo">לא</button></div></div></dialog>
 
-<script src="config.js"></script>
+<script src="config.js?v=1795709142"></script>
+<script src="addon-icons.js?v=1795709142"></script>
 <script>
 'use strict';
 const API = CRM_CONFIG.url + '/functions/v1/questionnaire';
@@ -362,7 +365,7 @@ function render() {
 
     ${D.express_offered !== false ? box(++n, 'express', 'צריך את זה מהר?', `
       <p class="small muted" style="margin:0">רגיל: עד ${slaDays} ימים. לאירוע קרוב (יום הולדת, חג) יש אקספרס.</p>
-      <label class="choice"><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>אקספרס: עד ${expressDays} ימי עסקים</b></span><span class="price">+${price(14)}</span></label>`, false) : ''}
+      <label class="choice"><span class="x-ic">${addonIcon(14)}</span><input type="checkbox" data-part="order" data-k="priority" ${o.priority ? 'checked' : ''}><span><b>אקספרס: עד ${expressDays} ימי עסקים</b></span><span class="price">+${price(14)}</span></label>`, false) : ''}
 
     ${(D.packages || []).length ? box(++n, 'package', 'רוצה חבילה משתלמת?', '<div id="pkgBox"></div>', false) : ''}
 
@@ -372,7 +375,7 @@ function render() {
       + `<div class="note warn ${o.return_method === 'איסוף עצמי' ? '' : 'hidden'}" id="pickupNote">אפשר לאסוף בלי עלות עד ${feeDays} ימים מסוף העבודה. אחרי זה חלים דמי אחסון, ואחרי ${destroyAfter} ימים החומרה מושמדת.</div>`)}
 
     ${box(++n, 'address', 'מאיפה לאסוף?', `
-      ${(D.included || []).map(p => `<div class="note good">🚚 <b>${esc(p.name)}: כלול, חינם.</b> לא צריך לבחור כלום, זה חלק מהשירות לכל לקוח.</div>`).join('')}
+      ${(D.included || []).map(p => `<div class="note good has-ic"><span class="x-ic">${addonIcon(p.id)}</span><span><b>${esc(p.name)}: כלול, חינם.</b> לא צריך לבחור כלום, זה חלק מהשירות לכל לקוח.</span></div>`).join('')}
       <p class="small muted" style="margin:0">שליח מגיע אליך. את היום נתאם אחרי שתאשר את ההצעה.</p>
       <div class="row2">${inp('customer', 'city', 'עיר', { req: true, auto: 'address-level2' })}${inp('customer', 'street', 'רחוב', { req: true, auto: 'address-line1' })}</div>
       <div class="row4">${inp('customer', 'house_number', 'מס׳ בית', { req: true, mode: 'numeric' })}${inp('customer', 'floor', 'קומה', { mode: 'numeric' })}${inp('customer', 'apartment', 'דירה', { mode: 'numeric' })}${inp('customer', 'entry_code', 'קוד', { ph: 'אם יש' })}</div>
@@ -422,7 +425,7 @@ function paintPackages() {
 function setPackage(id) { O().package_id = id; queue('order', 'package_id', id, true); paintPackages(); paintExtras(); }
 function offerRow(f) {
   const q = qtyOf(f.id), inc = inPkg(f.id);
-  return `<label class="choice offer-q" data-x="${f.id}">${f.image ? `<img src="${esc(f.image)}" alt="" class="x-img">` : ''}
+  return `<label class="choice offer-q" data-x="${f.id}">${f.image ? `<img src="${esc(f.image)}" alt="" class="x-img">` : `<span class="x-ic">${addonIcon(f.id)}</span>`}
     <input type="checkbox" ${q ? 'checked' : ''} aria-label="${esc(f.name)}"><span><b>${esc(f.name)}${f.recommended ? ' <span class="pkg-rec inline">מומלץ</span>' : ''}</b>${f.description ? `<span class="d">${esc(f.description)}</span>` : ''}
     ${inc ? '<span class="d" style="color:var(--ok)">כלול בחבילה שבחרת</span>' : ''}
     ${f.pricing === 'unit' && q ? `<span class="qty sm" data-xq><button type="button" data-xd="-1" aria-label="פחות">−</button><b class="num">${q}</b><button type="button" data-xd="1" aria-label="עוד">+</button></span>` : ''}</span>
