@@ -136,7 +136,7 @@
   .pills { display: flex; flex-wrap: wrap; gap: 6px; }
   .pill { cursor: pointer; position: relative; }
   .pill input { position: absolute; opacity: 0; pointer-events: none; }
-  .pill span { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); font-size: 15px; font-weight: 700; }
+  .pill > span { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); font-size: 15px; font-weight: 700; }
   .pill em { font-style: normal; color: var(--stamp-text); direction: ltr; unicode-bidi: isolate; }
   .pill input:checked + span { border-color: #D9940F; background: var(--sel); box-shadow: inset 0 0 0 1px #D9940F; }
   .pill input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -188,7 +188,7 @@
   .mold-row { display: flex; align-items: center; gap: 10px; }
   .mold-row .pills { flex: none; }
   .mold-row .pills { flex-wrap: nowrap; gap: 5px; }
-  .mold-row .pill span { padding: 6px 10px; font-size: 14px; white-space: nowrap; }
+  .mold-row .pill > span { padding: 6px 10px; font-size: 14px; white-space: nowrap; }
   .mold-pic { width: 88px; height: 88px; flex: none; border: 1px solid var(--line); padding: 2px; background: var(--surface); display: block; cursor: zoom-in; }
   .mold-pic { position: relative; overflow: hidden; text-decoration: none; }
   .mold-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -213,8 +213,8 @@
 <dialog id="lightbox" aria-label="תמונה בגודל מלא"><button type="button" class="lb-x" id="lbX" aria-label="סגירה">×</button><img id="lbImg" alt=""></dialog>
 <dialog id="dlg"><div class="box-head" id="dlgT"></div><div class="box-body"><p id="dlgB"></p><div class="acts"><button class="btn btn-primary" id="dlgOk">כן</button><button class="btn btn-secondary" id="dlgNo">לא</button></div></div></dialog>
 
-<script src="config.js?v=1795709203"></script>
-<script src="addon-icons.js?v=1795709203"></script>
+<script src="config.js?v=1795709323"></script>
+<script src="addon-icons.js?v=1795709323"></script>
 <script>
 'use strict';
 const API = CRM_CONFIG.url + '/functions/v1/questionnaire';
