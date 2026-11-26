@@ -425,8 +425,10 @@ async function destroyHardware(o) {
 }
 
 // ---------- lab cost, profit, customer credit ----------
-/** what the order earns: paid − lab cost − money refunded (a gift's cost is not known, so it is not subtracted) */
-const orderProfit = o => Number(o.paid_amount || o.total || 0) - Number(o.lab_cost || 0) - (o.credit_method === 'החזר כספי' && o.credit_done_at ? Number(o.credit_amount || 0) : 0);
+/** free courier pickup to the lab, included for every customer: average cost from settings → price list */
+const pickupCost = () => Number(S.settings?.pickup_cost?.value) || 0;
+/** what the order earns: paid − lab cost − pickup − money refunded (a gift's cost is not known, so it is not subtracted) */
+const orderProfit = o => Number(o.paid_amount || o.total || 0) - Number(o.lab_cost || 0) - pickupCost() - (o.credit_method === 'החזר כספי' && o.credit_done_at ? Number(o.credit_amount || 0) : 0);
 /** add-ons the customer bought on the tracking page after paying (order_payments): their own SUMIT link and invoice */
 const EXTRA_ST = { open: ['ממתין לתשלום', 'orange'], paid: ['שולם', 'green'], cancelled: ['בוטל', ''] };
 function extraPaysHtml(ctx) {
@@ -441,6 +443,7 @@ function moneyHtml(o) {
   return `<div class="subhead">עלות ורווח</div><div class="totals" style="max-width:360px">
     <span>הלקוח שילם</span><span>${money(o.paid_amount || o.total)}</span>
     <span>עלות מעבדה (${esc(o.lab_name || '')})</span><span>-${money(o.lab_cost || 0)}</span>
+    ${pickupCost() ? `<span>איסוף חינם עם שליח (ממוצע)</span><span>-${money(pickupCost())}</span>` : ''}
     ${o.credit_method === 'החזר כספי' && o.credit_done_at ? `<span>החזר ללקוח</span><span>-${money(o.credit_amount)}</span>` : ''}
     <span class="grand">רווח</span><span class="grand">${money(orderProfit(o))}</span></div>
     ${o.lab_cost_missing ? `<div class="warn" style="margin-top:8px">חסר מחיר עלות ל-${o.lab_cost_missing} מוצרים בהזמנה. ממלאים בהגדרות ← מעבדות ← מחירון עלות.</div>` : ''}`;

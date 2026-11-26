@@ -16,9 +16,12 @@ VIEWS.reports = async function vReports() {
     const revenue = paid.reduce((s, r) => s + Number(r.paid_amount || r.total || 0), 0);
     const expM = (exp || []).filter(e => e.spent_on.slice(0, 7) === m);
     return { leads, paid, revenue, closed: leads.filter(r => r.paid_at).length, lost: rows.filter(r => r.stage === LOST && inM(r.stage_changed_at)),
-      ads: expM.filter(e => e.category === 'פרסום').reduce((s, e) => s + Number(e.amount), 0), expTotal: expM.reduce((s, e) => s + Number(e.amount), 0) };
+      ads: expM.filter(e => e.category === 'פרסום').reduce((s, e) => s + Number(e.amount), 0), expTotal: expM.reduce((s, e) => s + Number(e.amount), 0),
+      couriers: expM.filter(e => e.category === 'שליחויות').reduce((s, e) => s + Number(e.amount), 0) };
   };
-  const A = stats(sel), B = stats(prevOf(sel));
+  // free pickup: real courier bills when the month has them, otherwise average cost × paid orders (never both)
+  const withPickup = s => Object.assign(s, { pickupEst: s.couriers ? 0 : s.paid.length * pickupCost() });
+  const A = withPickup(stats(sel)), B = withPickup(stats(prevOf(sel)));
   const delta = (a, b, pts = false) => { if (!b) return '<span class="muted">אין נתון קודם</span>'; const d = a - b; return `<span class="delta ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '▲' : '▼'} ${pts ? Math.abs(d) + ' נק\'' : Math.abs(Math.round(d / b * 100)) + '%'}</span> <span class="muted">מול חודש קודם</span>`; };
   const conv = s => s.leads.length ? Math.round(s.closed / s.leads.length * 100) : 0;
   const done = rows.filter(r => r.completed_at && r.paid_at);
@@ -58,7 +61,7 @@ VIEWS.reports = async function vReports() {
   <div class="section-title">כסף</div>
   <div class="grid cols-3">
     ${card('הכנסה לפי סוג', bars(Object.entries(revByType).sort((a, b) => b[1] - a[1]), money), 'החודש')}
-    ${card('רווח החודש', `<div class="totals"><span>הכנסות</span><span>${money(A.revenue)}</span><span>הוצאות</span><span>-${money(A.expTotal)}</span><span class="muted">מתוכן פרסום</span><span class="muted">${money(A.ads)}</span><span class="grand">נשאר</span><span class="grand">${money(A.revenue - A.expTotal)}</span></div>`)}
+    ${card('רווח החודש', `<div class="totals"><span>הכנסות</span><span>${money(A.revenue)}</span><span>הוצאות</span><span>-${money(A.expTotal)}</span><span class="muted">מתוכן פרסום</span><span class="muted">${money(A.ads)}</span>${A.pickupEst ? `<span>איסוף חינם (הערכה: ${A.paid.length} × ${money(pickupCost())})</span><span>-${money(A.pickupEst)}</span>` : ''}<span class="grand">נשאר</span><span class="grand">${money(A.revenue - A.expTotal - A.pickupEst)}</span></div>`, A.pickupEst ? 'אין החודש הוצאות "שליחויות", אז האיסוף מחושב לפי העלות הממוצעת' : '')}
     ${card('עלות פרסום', `<div class="totals"><span>עלות לפנייה</span><span>${A.ads && A.leads.length ? money(Math.round(A.ads / A.leads.length)) : '—'}</span><span>עלות ללקוח משלם</span><span>${A.ads && A.paid.length ? money(Math.round(A.ads / A.paid.length)) : '—'}</span></div>
       <p class="tiny muted" style="margin-top:10px">מחושב מהוצאות בקטגוריה "פרסום" במסך <a href="#expenses">הוצאות</a>.</p>`)}
   </div>
@@ -166,7 +169,7 @@ const SENTENCES = {
   drive_link_days: ['קישור ההורדה נשמר', 'ימים ואז נמחק', 'שבוע לפני המחיקה מופיעה משימה להזכיר ללקוח.'],
   min_order: ['מינימום הזמנה:', '₪', 'הזמנה קטנה יותר מחויבת בסכום הזה.'],
   vat_percent: ['מע"מ:', '%', 'המחירים במחירון כוללים מע"מ. משמש רק להצגת "לפני מע"מ".'],
-  pickup_cost: ['משלוח איסוף עולה לנו בממוצע', '₪', 'פנימי בלבד, הלקוח לא רואה את זה.'],
+  pickup_cost: ['משלוח איסוף עולה לנו בממוצע', '₪', 'פנימי בלבד, הלקוח לא רואה את זה. יורד מהרווח בכל הזמנה, ובדוח החודשי כשאין החודש הוצאות "שליחויות".'],
   pickup_value_shown: ['שווי שמוצג ללקוח ליד "חינם":', '₪', '0 = מוצג רק "כלול · חינם", בלי סכום.'],
 };
 const pickupHtml = () => { const ro = isAdmin() ? '' : 'disabled';
